@@ -1,99 +1,13 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Grupo Martins ERP</title>
-    <link rel="manifest" href="/manifest.json">
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #F7F5F0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-        .login-card {
-            background: #ffffff;
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-            width: 100%;
-            max-width: 400px;
-            text-align: center;
-        }
-        .login-card img {
-            width: 80px;
-            margin-bottom: 20px;
-        }
-        h1 {
-            color: #1B3B2B;
-            font-size: 22px;
-            margin-bottom: 24px;
-        }
-        .input-group {
-            margin-bottom: 16px;
-            text-align: left;
-        }
-        .input-group label {
-            display: block;
-            color: #4A4A4A;
-            font-size: 14px;
-            margin-bottom: 6px;
-        }
-        .input-group input {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #D1D5DB;
-            border-radius: 6px;
-            font-size: 14px;
-            box-sizing: border-box;
-        }
-        .input-group input:focus {
-            outline: none;
-            border-color: #1B3B2B;
-        }
-        button {
-            width: 100%;
-            padding: 12px;
-            background-color: #1B3B2B;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            margin-top: 10px;
-            transition: background 0.2s;
-        }
-        button:hover {
-            background-color: #12281D;
-        }
-    </style>
-</head>
-<body>
-
-    <div class="login-card">
-        <img src="/logo.png" alt="Grupo Martins">
-        <h1>Grupo Martins ERP</h1>
-        
-        <form id="loginForm">
-            <div class="input-group">
-                <label for="username">Usuário ou E-mail</label>
-                <input type="text" id="username" required placeholder="Digite seu usuário">
-            </div>
-            
-            <div class="input-group">
-                <label for="password">Senha</label>
-                <input type="password" id="password" required placeholder="••••••••">
-            </div>
-
-            <button type="submit">Entrar</button>
-        </form>
-    </div>
-
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Grupo Martins - ERP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-100 text-gray-900">
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>
