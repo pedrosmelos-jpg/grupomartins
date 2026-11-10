@@ -5250,7 +5250,7 @@ export default function App() {
               </button>
             </form>
 
-            <div className="text-[11px] text-slate-400"
+            <div className="text-[11px] text-slate-400">
             </div>
           </div>
         </div>
