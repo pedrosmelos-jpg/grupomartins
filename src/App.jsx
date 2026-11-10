@@ -64,12 +64,21 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 
-// Inicialização Firebase (Regras Obrigatórias)
-const firebaseConfig = JSON.parse(__firebase_config);
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+// Inicialização Firebase Segura e Resiliente (Compatível com Vercel)
+let app, auth, db, isFirebaseConnected = false;
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'grupomartins-erp-prod';
+
+try {
+  if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+    const firebaseConfig = JSON.parse(__firebase_config);
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    isFirebaseConnected = true;
+  }
+} catch (e) {
+  console.warn("Modo de armazenamento local ativo:", e);
+}
 
 // ============================================================================
 // 1. COMPONENTE DA LOGO OFICIAL VETORIZADA — GRUPO MARTINS
@@ -282,15 +291,6 @@ const EXPENSE_CATEGORIES = [
   'Tarifas Bancárias, Marketing e Despesas Gerais'
 ];
 
-const PAYMENT_METHODS = [
-  'PIX Empresarial',
-  'Boleto Bancário Faturado',
-  'Transferência TED / DOC',
-  'Cartão Corporativo',
-  'Débito Automático',
-  'Faturamento 30/60 Dias'
-];
-
 const INITIAL_PARAMETERS = {
   saldoInicialCaixa: 35000,
   metaMensalReceita: 38000,
@@ -430,21 +430,27 @@ const formatPercent = (val) => {
 };
 
 // ============================================================================
-// 3. COMPONENTE PRINCIPAL COM FIREBASE REAL-TIME SYNC
+// 3. COMPONENTE PRINCIPAL
 // ============================================================================
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
-  const [isCloudSynced, setIsCloudSynced] = useState(false);
 
-  // Estados dos Dados
-  const [transactions, setTransactions] = useState([]);
-  const [contracts, setContracts] = useState([]);
-  const [clients, setClients] = useState([]);
+  // Estados dos Dados (com fallback para localStorage se o Firebase não estiver conectado)
+  const [transactions, setTransactions] = useState(() => {
+    const saved = localStorage.getItem('martins_erp_tx_v5');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [contracts, setContracts] = useState(() => {
+    const saved = localStorage.getItem('martins_erp_ct_v5');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [clients, setClients] = useState(() => {
+    const saved = localStorage.getItem('martins_erp_cli_v5');
+    return saved ? JSON.parse(saved) : [];
+  });
 
-  const [clientSegments, setClientSegments] = useState(['Agronegócio', 'Indústria', 'Construtora/Loteamento', 'Transporte/Logística', 'Comércio/Serviços', 'Saúde']);
-  const [clientStatuses, setClientStatuses] = useState(['Ativo', 'Em Prospecção', 'Pendência Documental', 'Inativo']);
   const [accessRoles, setAccessRoles] = useState(INITIAL_ACCESS_ROLES);
   const [activeRoleId, setActiveRoleId] = useState('ROLE-01');
   const [authLoggedIn, setAuthLoggedIn] = useState(false);
@@ -454,8 +460,28 @@ export default function App() {
 
   const [params, setParams] = useState(INITIAL_PARAMETERS);
 
-  // Autenticação Firebase (Regra Obrigatória 3)
+  // Sincronização LocalStorage se offline
   useEffect(() => {
+    if (!isFirebaseConnected) {
+      localStorage.setItem('martins_erp_tx_v5', JSON.stringify(transactions));
+    }
+  }, [transactions]);
+
+  useEffect(() => {
+    if (!isFirebaseConnected) {
+      localStorage.setItem('martins_erp_ct_v5', JSON.stringify(contracts));
+    }
+  }, [contracts]);
+
+  useEffect(() => {
+    if (!isFirebaseConnected) {
+      localStorage.setItem('martins_erp_cli_v5', JSON.stringify(clients));
+    }
+  }, [clients]);
+
+  // Autenticação Firebase (se conectada)
+  useEffect(() => {
+    if (!isFirebaseConnected) return;
     const initAuth = async () => {
       try {
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -472,15 +498,14 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Sincronização em Tempo Real com Firestore (Regras 1, 2 e 3)
+  // Sincronização em Tempo Real com Firestore (se conectada)
   useEffect(() => {
-    if (!user) return;
+    if (!isFirebaseConnected || !user) return;
 
     const txCol = collection(db, 'artifacts', appId, 'public', 'data', 'transactions');
     const unsubTx = onSnapshot(txCol, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setTransactions(data);
-      setIsCloudSynced(true);
     }, (error) => {
       console.error("Firestore transactions error:", error);
     });
@@ -544,17 +569,6 @@ export default function App() {
   const [showClientModal, setShowClientModal] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [deleteClientTarget, setDeleteClientTarget] = useState(null);
-  const [historyClientTarget, setHistoryClientTarget] = useState(null);
-
-  const [showUserRoleModal, setShowUserRoleModal] = useState(false);
-  const [newRoleForm, setNewRoleForm] = useState({
-    level: 'Nível Especial',
-    name: '',
-    holder: '',
-    email: '',
-    password: 'martins2026',
-    description: ''
-  });
 
   const [receiptModalTx, setReceiptModalTx] = useState(null);
   const [receiveInstallmentContract, setReceiveInstallmentContract] = useState(null);
@@ -587,7 +601,7 @@ export default function App() {
     deadline: '2026-12-30',
     status: 'Em Elaboração Técnica',
     contractValue: '',
-    receivedValue: '',
+    receivedValue: '0',
     directCosts: '',
     installmentsCount: '1',
     installmentDates: ['2026-12-30', '', '', '']
@@ -605,9 +619,6 @@ export default function App() {
     mainProgram: 'Licenciamento Ambiental (LP / LI / LO)',
     status: 'Ativo'
   });
-
-  const [newSegmentInput, setNewSegmentInput] = useState('');
-  const [newStatusInput, setNewStatusInput] = useState('');
 
   // ============================================================================
   // 4. MOTOR CONTÁBIL E FINANCEIRO
@@ -725,114 +736,28 @@ export default function App() {
   }, [transactions, params]);
 
   // ============================================================================
-  // 5. AÇÕES COM PERSISTÊNCIA NA NUVEM (FIRESTORE)
+  // 5. AÇÕES DE PERSISTÊNCIA (FIRESTORE OU LOCAL)
   // ============================================================================
   const handleToggleStatus = async (id) => {
     if (!hasPermission('lancamentos', 'edit')) {
       showToast('Acesso restrito: seu perfil atual não possui permissão.');
       return;
     }
-    const item = transactions.find(t => t.id === id);
-    if (!item) return;
-    const nextStatus = item.status === 'Pago / Recebido' ? 'Pendente' : 'Pago / Recebido';
-    try {
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'transactions', id), {
-        ...item,
-        status: nextStatus
-      });
-      showToast('Status atualizado na nuvem em tempo real!');
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const confirmDeleteTransaction = async () => {
-    if (!deleteTxTarget) return;
-    try {
-      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'transactions', deleteTxTarget.id));
-      showToast(`Lançamento ${deleteTxTarget.id} excluído da nuvem.`);
-      setDeleteTxTarget(null);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const confirmDeleteContract = async () => {
-    if (!deleteContractTarget) return;
-    const contractId = deleteContractTarget.id;
-    try {
-      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'contracts', contractId));
-      if (deleteLinkedTransactions) {
-        const linked = transactions.filter(t => t.contractId === contractId);
-        for (const l of linked) {
-          await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'transactions', l.id));
-        }
+    const updated = transactions.map(t => {
+      if (t.id === id) {
+        const nextStatus = t.status === 'Pago / Recebido' ? 'Pendente' : 'Pago / Recebido';
+        return { ...t, status: nextStatus };
       }
-      showToast(`Contrato ${contractId} excluído da nuvem com sucesso!`);
-      setDeleteContractTarget(null);
-      setDeleteLinkedTransactions(false);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const openNewClientModal = () => {
-    setEditingClient(null);
-    setCliForm({
-      name: '',
-      document: '',
-      registration: '',
-      segment: 'Agronegócio',
-      city: 'Rondonópolis — MT',
-      contactName: '',
-      phone: '',
-      email: '',
-      mainProgram: 'Licenciamento Ambiental (LP / LI / LO)',
-      status: 'Ativo'
+      return t;
     });
-    setShowClientModal(true);
-  };
-
-  const openEditClientModal = (client) => {
-    setEditingClient(client);
-    setCliForm({
-      name: client.name,
-      document: client.document,
-      registration: client.registration,
-      segment: client.segment,
-      city: client.city,
-      contactName: client.contactName,
-      phone: client.phone,
-      email: client.email,
-      mainProgram: client.mainProgram,
-      status: client.status
-    });
-    setShowClientModal(true);
-  };
-
-  const handleSaveClient = async (e) => {
-    e.preventDefault();
-    if (!cliForm.name) return;
-    try {
-      const clientId = editingClient ? editingClient.id : `CLI-${String(clients.length + 1).padStart(3, '0')}`;
-      const clientData = { id: clientId, ...cliForm };
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', clientId), clientData);
-      showToast(`Cliente ${clientId} salvo na nuvem com sucesso!`);
-      setShowClientModal(false);
-    } catch (err) {
-      console.error(err);
+    setTransactions(updated);
+    if (isFirebaseConnected && user) {
+      const item = updated.find(t => t.id === id);
+      try {
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'transactions', id), item);
+      } catch (err) { console.error(err); }
     }
-  };
-
-  const confirmDeleteClient = async () => {
-    if (!deleteClientTarget) return;
-    try {
-      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', deleteClientTarget.id));
-      showToast(`Cliente removido da nuvem.`);
-      setDeleteClientTarget(null);
-    } catch (err) {
-      console.error(err);
-    }
+    showToast('Status atualizado com sucesso!');
   };
 
   const handleSaveTransaction = async (e) => {
@@ -840,19 +765,37 @@ export default function App() {
     const numericAmount = parseFloat(String(txForm.amount).replace(',', '.'));
     if (!txForm.entity || isNaN(numericAmount) || numericAmount <= 0) return;
 
-    try {
-      const txId = editingTx ? editingTx.id : `MT-${String(transactions.length + 15).padStart(3, '0')}`;
-      const txData = {
-        id: txId,
-        ...txForm,
-        amount: numericAmount
-      };
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'transactions', txId), txData);
-      showToast(`Lançamento ${txId} salvo na nuvem em tempo real!`);
-      setShowTxModal(false);
-    } catch (err) {
-      console.error(err);
+    const txId = editingTx ? editingTx.id : `MT-${String(transactions.length + 15).padStart(3, '0')}`;
+    const txData = {
+      id: txId,
+      ...txForm,
+      amount: numericAmount
+    };
+
+    const updated = editingTx ? transactions.map(t => t.id === txId ? txData : t) : [txData, ...transactions];
+    setTransactions(updated);
+
+    if (isFirebaseConnected && user) {
+      try {
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'transactions', txId), txData);
+      } catch (err) { console.error(err); }
     }
+
+    showToast(`Lançamento ${txId} salvo com sucesso!`);
+    setShowTxModal(false);
+  };
+
+  const confirmDeleteTransaction = async () => {
+    if (!deleteTxTarget) return;
+    const updated = transactions.filter(t => t.id !== deleteTxTarget.id);
+    setTransactions(updated);
+    if (isFirebaseConnected && user) {
+      try {
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'transactions', deleteTxTarget.id));
+      } catch (err) { console.error(err); }
+    }
+    showToast('Lançamento excluído.');
+    setDeleteTxTarget(null);
   };
 
   const handleSaveContract = async (e) => {
@@ -860,107 +803,88 @@ export default function App() {
     const contractVal = parseFloat(String(ctForm.contractValue).replace(',', '.')) || 0;
     const receivedVal = parseFloat(String(ctForm.receivedValue).replace(',', '.')) || 0;
     const directVal = parseFloat(String(ctForm.directCosts).replace(',', '.')) || 0;
-    const nInstallments = parseInt(ctForm.installmentsCount) || 1;
     if (!ctForm.client || contractVal <= 0) return;
 
-    try {
-      const contractId = editingContract ? editingContract.id : `CT-2026-${String(contracts.length + 1).padStart(2, '0')}`;
-      const contractData = {
-        id: contractId,
-        ...ctForm,
-        contractValue: contractVal,
-        receivedValue: receivedVal,
-        directCosts: directVal
-      };
+    const contractId = editingContract ? editingContract.id : `CT-2026-${String(contracts.length + 1).padStart(2, '0')}`;
+    const contractData = {
+      id: contractId,
+      ...ctForm,
+      contractValue: contractVal,
+      receivedValue: receivedVal,
+      directCosts: directVal
+    };
 
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'contracts', contractId), contractData);
+    const updatedCt = editingContract ? contracts.map(c => c.id === contractId ? contractData : c) : [contractData, ...contracts];
+    setContracts(updatedCt);
 
-      if (!editingContract) {
-        const installmentVal = contractVal / nInstallments;
-        for (let i = 0; i < nInstallments; i++) {
-          const instDate = ctForm.installmentDates[i] || ctForm.deadline;
-          const monthNames = { '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez' };
-          const monthNum = instDate.split('-')[1] || '12';
-          const monthStr = monthNames[monthNum] || 'Dez';
-          const tId = `MT-${String(transactions.length + 15 + i).padStart(3, '0')}`;
-          
-          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'transactions', tId), {
-            id: tId,
-            date: instDate,
-            month: monthStr,
-            type: 'Entrada',
-            category: 'Licenciamento Ambiental (LP / LI / LO)',
-            entity: ctForm.client,
-            contractId: contractId,
-            description: `Parcela ${i + 1}/${nInstallments} — Contrato ${contractId}`,
-            paymentMethod: 'Boleto Bancário Faturado',
-            status: 'Pendente',
-            amount: installmentVal
-          });
-        }
-      }
-
-      showToast(`Contrato ${contractId} salvo na nuvem com sucesso!`);
-      setShowContractModal(false);
-    } catch (err) {
-      console.error(err);
+    if (isFirebaseConnected && user) {
+      try {
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'contracts', contractId), contractData);
+      } catch (err) { console.error(err); }
     }
+
+    showToast(`Contrato ${contractId} salvo com sucesso!`);
+    setShowContractModal(false);
   };
 
-  const handleReceiveContractInstallment = async (e) => {
-    e.preventDefault();
-    if (!receiveInstallmentContract) return;
-    const val = parseFloat(String(installmentAmount).replace(',', '.'));
-    if (isNaN(val) || val <= 0) return;
+  const confirmDeleteContract = async () => {
+    if (!deleteContractTarget) return;
+    const contractId = deleteContractTarget.id;
+    const updatedCt = contracts.filter(c => c.id !== contractId);
+    setContracts(updatedCt);
 
-    try {
-      const newReceived = Math.min(receiveInstallmentContract.contractValue, receiveInstallmentContract.receivedValue + val);
-      const newStatus = newReceived >= receiveInstallmentContract.contractValue ? 'Concluído / Licença Emitida' : receiveInstallmentContract.status;
-
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'contracts', receiveInstallmentContract.id), {
-        ...receiveInstallmentContract,
-        receivedValue: newReceived,
-        status: newStatus
-      });
-
-      const tId = `MT-${String(transactions.length + 15).padStart(3, '0')}`;
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'transactions', tId), {
-        id: tId,
-        date: '2026-11-10',
-        month: 'Nov',
-        type: 'Entrada',
-        category: 'Licenciamento Ambiental (LP / LI / LO)',
-        entity: receiveInstallmentContract.client,
-        contractId: receiveInstallmentContract.id,
-        description: `Recebimento de parcela — Contrato ${receiveInstallmentContract.id}`,
-        paymentMethod: 'PIX Empresarial',
-        status: 'Pago / Recebido',
-        amount: val
-      });
-
-      setReceiveInstallmentContract(null);
-      setInstallmentAmount('');
-      showToast('Parcela recebida e sincronizada na nuvem!');
-    } catch (err) {
-      console.error(err);
+    if (isFirebaseConnected && user) {
+      try {
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'contracts', contractId));
+      } catch (err) { console.error(err); }
     }
+
+    showToast(`Contrato ${contractId} excluído.`);
+    setDeleteContractTarget(null);
+  };
+
+  const handleSaveClient = async (e) => {
+    e.preventDefault();
+    if (!cliForm.name) return;
+    const clientId = editingClient ? editingClient.id : `CLI-${String(clients.length + 1).padStart(3, '0')}`;
+    const clientData = { id: clientId, ...cliForm };
+
+    const updatedCli = editingClient ? clients.map(c => c.id === clientId ? clientData : c) : [clientData, ...clients];
+    setClients(updatedCli);
+
+    if (isFirebaseConnected && user) {
+      try {
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', clientId), clientData);
+      } catch (err) { console.error(err); }
+    }
+
+    showToast(`Cliente ${clientId} salvo com sucesso!`);
+    setShowClientModal(false);
+  };
+
+  const confirmDeleteClient = async () => {
+    if (!deleteClientTarget) return;
+    const updatedCli = clients.filter(c => c.id !== deleteClientTarget.id);
+    setClients(updatedCli);
+
+    if (isFirebaseConnected && user) {
+      try {
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', deleteClientTarget.id));
+      } catch (err) { console.error(err); }
+    }
+
+    showToast('Cliente removido.');
+    setDeleteClientTarget(null);
   };
 
   const handleResetDatabase = async () => {
-    try {
-      for (const t of transactions) {
-        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'transactions', t.id));
-      }
-      for (const c of contracts) {
-        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'contracts', c.id));
-      }
-      for (const cli of clients) {
-        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', cli.id));
-      }
-      showToast('Base na nuvem limpa com sucesso!');
-    } catch (err) {
-      console.error(err);
-    }
+    setTransactions([]);
+    setContracts([]);
+    setClients([]);
+    localStorage.removeItem('martins_erp_tx_v5');
+    localStorage.removeItem('martins_erp_ct_v5');
+    localStorage.removeItem('martins_erp_cli_v5');
+    showToast('Base de dados limpa com sucesso!');
   };
 
   const openNewTransactionModal = (preset = null) => {
@@ -995,21 +919,21 @@ export default function App() {
     setShowTxModal(true);
   };
 
-  const openEditTransactionModal = (tx) => {
-    setEditingTx(tx);
-    setTxForm({
-      date: tx.date,
-      month: tx.month,
-      type: tx.type,
-      category: tx.category,
-      entity: tx.entity,
-      contractId: tx.contractId || '—',
-      description: tx.description,
-      paymentMethod: tx.paymentMethod,
-      status: tx.status,
-      amount: String(tx.amount)
+  const openNewClientModal = () => {
+    setEditingClient(null);
+    setCliForm({
+      name: '',
+      document: '',
+      registration: '',
+      segment: 'Agronegócio',
+      city: 'Rondonópolis — MT',
+      contactName: '',
+      phone: '',
+      email: '',
+      mainProgram: 'Licenciamento Ambiental (LP / LI / LO)',
+      status: 'Ativo'
     });
-    setShowTxModal(true);
+    setShowClientModal(true);
   };
 
   const handleExportCSV = () => {
@@ -1105,8 +1029,8 @@ export default function App() {
             </div>
             <div className="overflow-hidden">
               <div className="text-[10px] text-emerald-300 font-semibold uppercase tracking-wider truncate flex items-center gap-1">
-                {isCloudSynced ? <Cloud className="w-3 h-3 text-emerald-400" /> : <CloudRain className="w-3 h-3 text-amber-400" />}
-                {isCloudSynced ? 'Nuvem Sincronizada' : 'Conectando...'}
+                {isFirebaseConnected ? <Cloud className="w-3 h-3 text-emerald-400" /> : <CloudRain className="w-3 h-3 text-amber-400" />}
+                {isFirebaseConnected ? 'Nuvem Ativa' : 'Modo Seguro Local'}
               </div>
               <div className="text-sm font-bold text-white truncate">
                 {currentRole.holder}
@@ -1166,10 +1090,10 @@ export default function App() {
             className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-[#244B38] hover:bg-[#2D5A43] text-emerald-200 transition"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            Zerar Base na Nuvem
+            Zerar Base de Dados
           </button>
           <div className="text-[11px] text-center text-emerald-200/60">
-            Grupo Martins ERP v3.6 • Nuvem Ativa
+            Grupo Martins ERP v3.6 • Vercel Ready
           </div>
         </div>
       </aside>
@@ -1184,7 +1108,7 @@ export default function App() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#E6F4EA] text-[#1B3B2B] border border-[#B7DFC5]">
-                  ERP NUVEM TEMPO REAL
+                  SISTEMA ERP ATIVO
                 </span>
                 <span className="text-xs text-slate-500 hidden sm:inline">
                   CNPJ: {params.cnpj} • {params.cidadeSede}
@@ -1240,7 +1164,7 @@ export default function App() {
                   <GrupoMartinsLogo size="compact" theme="cream" />
                   <div className="text-center sm:text-left">
                     <div className="text-xs uppercase tracking-widest text-emerald-300 font-semibold">
-                      Sincronizado na Nuvem em Tempo Real
+                      Governança Corporativa Integrada
                     </div>
                     <h2 className="text-xl sm:text-2xl font-extrabold mt-0.5">
                       Painel Executivo Anual — Exercício 2026
@@ -1553,22 +1477,9 @@ export default function App() {
                           <td className="py-3 px-3 text-right font-bold">{formatCurrency(ct.contractValue)}</td>
                           <td className="py-3 px-3 text-right text-emerald-700">{formatCurrency(ct.receivedValue)}</td>
                           <td className="py-3 px-3 text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              {ct.contractValue > ct.receivedValue && (
-                                <button
-                                  onClick={() => {
-                                    setReceiveInstallmentContract(ct);
-                                    setInstallmentAmount(String(ct.contractValue - ct.receivedValue));
-                                  }}
-                                  className="px-2.5 py-1 rounded-lg bg-emerald-700 text-white text-[11px] font-bold"
-                                >
-                                  + Receber
-                                </button>
-                              )}
-                              <button onClick={() => setDeleteContractTarget(ct)} className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50">
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
+                            <button onClick={() => setDeleteContractTarget(ct)} className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -1734,7 +1645,7 @@ export default function App() {
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={() => setShowTxModal(false)} className="px-4 py-2 rounded-xl border font-bold">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold">Salvar na Nuvem</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold">Salvar</button>
               </div>
             </form>
           </div>
@@ -1767,7 +1678,7 @@ export default function App() {
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={() => setShowContractModal(false)} className="px-4 py-2 rounded-xl border font-bold">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold">Salvar na Nuvem</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold">Salvar</button>
               </div>
             </form>
           </div>
@@ -1796,9 +1707,51 @@ export default function App() {
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={() => setShowClientModal(false)} className="px-4 py-2 rounded-xl border font-bold">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold">Salvar na Nuvem</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold">Salvar</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE EXCLUSÃO DE LANÇAMENTO */}
+      {deleteTxTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl text-center">
+            <h3 className="text-base font-bold text-rose-700">Confirmar Exclusão</h3>
+            <p className="text-xs text-slate-600">Deseja realmente excluir o lançamento {deleteTxTarget.id}?</p>
+            <div className="flex justify-center gap-2 pt-2">
+              <button onClick={() => setDeleteTxTarget(null)} className="px-4 py-2 rounded-xl border text-xs font-bold">Cancelar</button>
+              <button onClick={confirmDeleteTransaction} className="px-5 py-2 rounded-xl bg-rose-700 text-white text-xs font-bold">Excluir</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE EXCLUSÃO DE CONTRATO */}
+      {deleteContractTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl text-center">
+            <h3 className="text-base font-bold text-rose-700">Confirmar Exclusão</h3>
+            <p className="text-xs text-slate-600">Deseja realmente excluir o contrato {deleteContractTarget.id}?</p>
+            <div className="flex justify-center gap-2 pt-2">
+              <button onClick={() => setDeleteContractTarget(null)} className="px-4 py-2 rounded-xl border text-xs font-bold">Cancelar</button>
+              <button onClick={confirmDeleteContract} className="px-5 py-2 rounded-xl bg-rose-700 text-white text-xs font-bold">Excluir</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE EXCLUSÃO DE CLIENTE */}
+      {deleteClientTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl text-center">
+            <h3 className="text-base font-bold text-rose-700">Confirmar Exclusão</h3>
+            <p className="text-xs text-slate-600">Deseja realmente excluir o cliente {deleteClientTarget.name}?</p>
+            <div className="flex justify-center gap-2 pt-2">
+              <button onClick={() => setDeleteClientTarget(null)} className="px-4 py-2 rounded-xl border text-xs font-bold">Cancelar</button>
+              <button onClick={confirmDeleteClient} className="px-5 py-2 rounded-xl bg-rose-700 text-white text-xs font-bold">Excluir</button>
+            </div>
           </div>
         </div>
       )}
@@ -1809,7 +1762,7 @@ export default function App() {
           <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl border text-center space-y-6">
             <GrupoMartinsLogo size="md" className="mx-auto" />
             <div>
-              <h2 className="text-xl font-black text-[#1B3B2B]">Autenticação de Acesso — Nuvem</h2>
+              <h2 className="text-xl font-black text-[#1B3B2B]">Autenticação de Acesso</h2>
               <p className="text-xs text-slate-500 mt-1">Insira seu e-mail corporativo e senha cadastrados.</p>
             </div>
             {authErrorMsg && (
@@ -1842,7 +1795,7 @@ export default function App() {
                 <input type="password" value={authPasswordInput} onChange={(e) => setAuthPasswordInput(e.target.value)} placeholder="••••••••" className="w-full px-3.5 py-2.5 rounded-xl border" required />
               </div>
               <button type="submit" className="w-full py-3 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md">
-                Entrar no ERP (Sincronizado)
+                Entrar no ERP
               </button>
             </form>
           </div>
