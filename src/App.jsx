@@ -309,6 +309,30 @@ const INITIAL_PARAMETERS = {
   cidadeSede: 'Rondonópolis — MT'
 };
 
+// Lançamentos Financeiros (Iniciando limpo/zerado)
+const INITIAL_TRANSACTIONS = [];
+
+// 14 Contratos Técnicos Oficiais (CT-2026-01 a CT-2026-14)
+const INITIAL_CONTRACTS = [
+  { id: 'CT-2026-01', client: 'Agropecuária Santa Fé S/A (Faz. Rio Verde)', service: 'Renovação de Licença de Operação (LO) + Monitoramento', agency: 'SEMA-MT', startDate: '2026-01-05', deadline: '2026-02-20', status: 'Concluído / Licença Emitida', contractValue: 29000, receivedValue: 29000, directCosts: 3200 },
+  { id: 'CT-2026-02', client: 'Frigorífico Vale do Boi & Metalúrgica AçoForte', service: 'Pacote PGR, PCMSO, LTCAT e Ergonomia (NR-17)', agency: 'eSocial / MTE', startDate: '2026-01-09', deadline: '2026-05-25', status: 'Concluído / Licença Emitida', contractValue: 20200, receivedValue: 20200, directCosts: 1800 },
+  { id: 'CT-2026-03', client: 'Grupo Soares & Horizonte (3 Fazendas)', service: 'Retificação de CAR, Reserva Legal e Outorga Irrigação', agency: 'SEMA-MT / ANA', startDate: '2026-01-15', deadline: '2026-09-30', status: 'Concluído / Licença Emitida', contractValue: 33200, receivedValue: 33200, directCosts: 4100 },
+  { id: 'CT-2026-04', client: 'Carteira Recorrente SST (20 Empresas Ativas)', service: 'Gestão Mensal de Envios eSocial SST + Treinamentos NRs', agency: 'eSocial / NRs', startDate: '2026-01-02', deadline: '2026-12-31', status: 'Contrato Recorrente Ativo', contractValue: 55300, receivedValue: 55300, directCosts: 3900 },
+  { id: 'CT-2026-05', client: 'Sementes Ouro Branco Ltda', service: 'Plano de Gerenciamento de Resíduos Sólidos (PGRS + PAE)', agency: 'SEMA-MT / Pref.', startDate: '2026-02-04', deadline: '2026-03-15', status: 'Concluído / Licença Emitida', contractValue: 11500, receivedValue: 11500, directCosts: 950 },
+  { id: 'CT-2026-06', client: 'Construtora Horizonte & CoopSul', service: 'PGR Canteiro, Laudo Insalubridade e Espaço Confinado NR-33', agency: 'MTE / NR-18 / NR-33', startDate: '2026-02-19', deadline: '2026-06-30', status: 'Concluído / Licença Emitida', contractValue: 25100, receivedValue: 25100, directCosts: 2300 },
+  { id: 'CT-2026-07', client: 'Usina BioEnergia Cerrado S/A', service: 'Licença de Instalação (LI) Ampliação Industrial + Emissões', agency: 'SEMA-MT', startDate: '2026-03-05', deadline: '2026-06-15', status: 'Concluído / Licença Emitida', contractValue: 42000, receivedValue: 42000, directCosts: 6400 },
+  { id: 'CT-2026-08', client: 'Fazenda Santa Bárbara & Estância Rio Manso', service: 'Georreferenciamento INCRA + Outorga de Poço e Captação', agency: 'INCRA / SEMA-MT', startDate: '2026-03-12', deadline: '2026-11-30', status: 'Protocolado SEMA / Órgão', contractValue: 38400, receivedValue: 25400, directCosts: 4850 },
+  { id: 'CT-2026-09', client: 'Mineração Serra Dourada & Rodovias do Norte', service: 'PRAD com Drone RTK + Monitoramento Semestral de Fauna', agency: 'SEMA-MT / ANM', startDate: '2026-04-06', deadline: '2026-10-30', status: 'Concluído / Licença Emitida', contractValue: 31500, receivedValue: 31500, directCosts: 7300 },
+  { id: 'CT-2026-10', client: 'Hospital São Lucas, SoloVivo & Águas Quentes', service: 'PGRSS Hospitalar, Auditoria RAPP/IBAMA e ETE Compacta', agency: 'IBAMA / VISA / SEMA', startDate: '2026-06-11', deadline: '2026-12-20', status: 'Concluído / Licença Emitida', contractValue: 40000, receivedValue: 40000, directCosts: 3800 },
+  { id: 'CT-2026-11', client: 'Armazéns Grão Forte & Posto BR-163 Sul', service: 'Licenciamento Trifásico Silos + LO e Estanqueidade Posto', agency: 'SEMA-MT / Corpo Bomb.', startDate: '2026-07-07', deadline: '2026-09-10', status: 'Concluído / Licença Emitida', contractValue: 35500, receivedValue: 35500, directCosts: 4600 },
+  { id: 'CT-2026-12', client: 'Supermercados Bom Preço & SojaBrasil S/A', service: 'Higiene Ocupacional Quantitativa (Ruído/Poeira/Calor) + LTCAT', agency: 'eSocial / NR-15', startDate: '2026-08-12', deadline: '2026-10-25', status: 'Concluído / Licença Emitida', contractValue: 29100, receivedValue: 29100, directCosts: 3100 },
+  { id: 'CT-2026-13', client: 'Algodoeira São Francisco & Complexo Nova Era', service: 'EIA/RIMA Beneficiamento de Algodão + LP/LI Armazém Graneleiro', agency: 'SEMA-MT', startDate: '2026-09-04', deadline: '2026-12-28', status: 'Protocolado SEMA / Órgão', contractValue: 63000, receivedValue: 38000, directCosts: 8200 },
+  { id: 'CT-2026-14', client: 'Construtora Vanguarda & Logística Centro-Oeste', service: 'PGR Obras Civis, LTCAT e Análise Ergonômica do Trabalho (AET)', agency: 'eSocial / NR-17 / NR-18', startDate: '2026-11-18', deadline: '2026-12-30', status: 'Em Elaboração Técnica', contractValue: 26100, receivedValue: 0, directCosts: 1950 }
+];
+
+// Base de Clientes do CRM Zerada
+const INITIAL_CLIENTS = [];
+
 // Árvore de Acessos e Perfis de Governança do Sistema (RBAC)
 const INITIAL_ACCESS_ROLES = [
   {
@@ -349,7 +373,84 @@ const INITIAL_ACCESS_ROLES = [
       acessos: { view: true, create: true, edit: true, delete: true, approve: true }
     }
   },
- 
+  {
+    id: 'ROLE-02',
+    level: 'Nível 2 — Financeiro',
+    name: 'Gestão Financeira & Faturamento',
+    holder: 'Aline Costa (Analista Financeira)',
+    email: 'financeiro@grupomartins.eng.br',
+    password: 'martins2026',
+    badgeColor: 'bg-teal-800 text-white',
+    description: 'Operação diária do Livro Caixa, emissão de boletos/NF, baixa de parcelas de contratos e cadastro de clientes. Sem acesso a saques de Pró-Labore da Diretoria nem exclusão definitiva de contratos.',
+    permissions: {
+      dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
+      prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
+      lancamentos: { view: true, create: true, edit: true, delete: false, approve: true },
+      dre: { view: true, create: false, edit: false, delete: false, approve: false },
+      contratos: { view: true, create: true, edit: true, delete: false, approve: false },
+      clientes: { view: true, create: true, edit: true, delete: false, approve: false },
+      acessos: { view: false, create: false, edit: false, delete: false, approve: false }
+    }
+  },
+  {
+    id: 'ROLE-03',
+    level: 'Nível 3 — Ambiental',
+    name: 'Coordenação de Engenharia Ambiental (SEMA / IBAMA / CAR)',
+    holder: 'Eng. Ambiental & Equipe Geoprocessamento',
+    email: 'ambiental@grupomartins.eng.br',
+    password: 'martins2026',
+    badgeColor: 'bg-emerald-700 text-white',
+    description: 'Gestão técnica de processos LP/LI/LO, PRAD, PGRS, CAR e Outorgas, atualização de status SEMA-MT e consulta técnica ao CRM de Clientes.',
+    permissions: {
+      dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
+      prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
+      lancamentos: { view: false, create: true, edit: false, delete: false, approve: false },
+      dre: { view: false, create: false, edit: false, delete: false, approve: false },
+      contratos: { view: true, create: true, edit: true, delete: false, approve: false },
+      clientes: { view: true, create: true, edit: true, delete: false, approve: false },
+      acessos: { view: false, create: false, edit: false, delete: false, approve: false }
+    }
+  },
+  {
+    id: 'ROLE-04',
+    level: 'Nível 4 — MS SST',
+    name: 'Coordenação de Segurança do Trabalho (MS SST / eSocial)',
+    holder: 'Eng. Segurança & Técnicos SST',
+    email: 'sst@grupomartins.eng.br',
+    password: 'martins2026',
+    badgeColor: 'bg-amber-700 text-white',
+    description: 'Gestão de programas PGR, PCMSO, LTCAT, eventos S-2210/S-2220/S-2240 no eSocial, treinamentos de NRs e carteira de contratos recorrentes.',
+    permissions: {
+      dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
+      prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
+      lancamentos: { view: false, create: false, edit: false, delete: false, approve: false },
+      dre: { view: false, create: false, edit: false, delete: false, approve: false },
+      contratos: { view: true, create: true, edit: true, delete: false, approve: false },
+      clientes: { view: true, create: true, edit: true, delete: false, approve: false },
+      acessos: { view: false, create: false, edit: false, delete: false, approve: false }
+    }
+  },
+  {
+    id: 'ROLE-05',
+    level: 'Nível 5 — Comercial',
+    name: 'Comercial, Prospecção & Parceiros Agro/Industrial',
+    holder: 'Consultores Comerciais Externos',
+    email: 'comercial@grupomartins.eng.br',
+    password: 'martins2026',
+    badgeColor: 'bg-slate-700 text-white',
+    description: 'Prospecção de novos clientes no CRM Ambiental & SST, abertura de propostas de contratos e acompanhamento de status comercial.',
+    permissions: {
+      dashboard: { view: false, create: false, edit: false, delete: false, approve: false },
+      prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
+      lancamentos: { view: false, create: false, edit: false, delete: false, approve: false },
+      dre: { view: false, create: false, edit: false, delete: false, approve: false },
+      contratos: { view: true, create: true, edit: false, delete: false, approve: false },
+      clientes: { view: true, create: true, edit: true, delete: false, approve: false },
+      acessos: { view: false, create: false, edit: false, delete: false, approve: false }
+    }
+  }
+];
+
 // Formatadores utilitários
 const formatCurrency = (val) => {
   if (val === undefined || val === null || isNaN(val)) return 'R$ 0,00';
@@ -372,10 +473,10 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Estados Persistentes (LocalStorage)
+  // Estados Persistentes (LocalStorage atualizado para iniciar zerado)
   const [transactions, setTransactions] = useState(() => {
     try {
-      const saved = localStorage.getItem('martins_erp_transactions_v3');
+      const saved = localStorage.getItem('martins_erp_transactions_v4');
       return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
     } catch {
       return INITIAL_TRANSACTIONS;
@@ -393,7 +494,7 @@ export default function App() {
 
   const [clients, setClients] = useState(() => {
     try {
-      const saved = localStorage.getItem('martins_erp_clients_v3');
+      const saved = localStorage.getItem('martins_erp_clients_v4');
       return saved ? JSON.parse(saved) : INITIAL_CLIENTS;
     } catch {
       return INITIAL_CLIENTS;
@@ -444,7 +545,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('martins_erp_transactions_v3', JSON.stringify(transactions));
+      localStorage.setItem('martins_erp_transactions_v4', JSON.stringify(transactions));
     } catch (e) {
       console.error(e);
     }
@@ -460,7 +561,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('martins_erp_clients_v3', JSON.stringify(clients));
+      localStorage.setItem('martins_erp_clients_v4', JSON.stringify(clients));
       localStorage.setItem('martins_erp_client_segments', JSON.stringify(clientSegments));
       localStorage.setItem('martins_erp_client_statuses', JSON.stringify(clientStatuses));
     } catch (e) {
@@ -1084,12 +1185,12 @@ export default function App() {
     setAccessRoles(INITIAL_ACCESS_ROLES);
     setActiveRoleId('ROLE-01');
     setParams(INITIAL_PARAMETERS);
-    localStorage.removeItem('martins_erp_transactions_v3');
+    localStorage.removeItem('martins_erp_transactions_v4');
     localStorage.removeItem('martins_erp_contracts_v3');
-    localStorage.removeItem('martins_erp_clients_v3');
+    localStorage.removeItem('martins_erp_clients_v4');
     localStorage.removeItem('martins_erp_roles_v3');
     localStorage.removeItem('martins_erp_params_v3');
-    showToast('Base de dados 2026 restaurada para os valores originais!');
+    showToast('Base de dados limpa com sucesso!');
   };
 
   const handleExportCSV = () => {
@@ -5022,9 +5123,6 @@ export default function App() {
                 Entrar no Sistema ERP
               </button>
             </form>
-
-            <div className="text-[11px] text-slate-400">
-            </div>
           </div>
         </div>
       )}
