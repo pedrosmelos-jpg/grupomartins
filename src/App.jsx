@@ -5250,8 +5250,7 @@ export default function App() {
               </button>
             </form>
 
-            <div className="text-[11px] text-slate-400">
-              Padrão de senha para perfis padrão: <code className="text-slate-600 font-bold">martins2026</code>
+            <div className="text-[11px] text-slate-400"
             </div>
           </div>
         </div>
