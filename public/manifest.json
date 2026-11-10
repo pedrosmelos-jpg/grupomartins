@@ -1,0 +1,16 @@
+{
+  "short_name": "Grupo Martins",
+  "name": "Grupo Martins ERP",
+  "description": "Sistema de Gestão Corporativa - Grupo Martins",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1B3B2B",
+  "theme_color": "#1B3B2B",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x16 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}
