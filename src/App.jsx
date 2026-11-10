@@ -40,7 +40,9 @@ import {
   Mail,
   MapPin,
   KeyRound,
-  UserPlus
+  UserPlus,
+  Cloud,
+  CloudRain
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -57,6 +59,17 @@ import {
   Cell,
   BarChart
 } from 'recharts';
+
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+
+// Inicialização Firebase (Regras Obrigatórias)
+const firebaseConfig = JSON.parse(__firebase_config);
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
 // ============================================================================
 // 1. COMPONENTE DA LOGO OFICIAL VETORIZADA — GRUPO MARTINS
@@ -76,43 +89,36 @@ const GrupoMartinsLogo = ({ size = 'md', theme = 'cream', className = '' }) => {
       >
         <svg viewBox="0 0 100 100" className="w-11 h-11 shrink-0">
           <circle cx="50" cy="50" r="44" fill="none" stroke={primaryColor} strokeWidth="5.5" />
-          {/* Tronco com base alargada */}
           <path
             d="M36 93 C44 90, 46 82, 46 68 L46 30 L54 30 L54 68 C54 82, 56 90, 64 93 Z"
             fill={primaryColor}
           />
-          {/* Ramos */}
           <path
             d="M50 67 L32 54 M50 67 L68 54 M50 47 L34 33 M50 47 L66 33"
             stroke={primaryColor}
             strokeWidth="4.5"
             strokeLinecap="round"
           />
-          {/* Folha Topo Central */}
           <path
             d="M50 10 C41 20, 41 31, 50 37 C59 31, 59 20, 50 10 Z"
             fill={primaryColor}
           />
           <path d="M50 17 L50 31" stroke={bgBadge} strokeWidth="2.2" strokeLinecap="round" />
-          {/* Folha Superior Esquerda */}
           <path
             d="M23 22 C22 33, 30 39, 41 37 C39 27, 32 21, 23 22 Z"
             fill={primaryColor}
           />
           <path d="M28 26 L37 34" stroke={bgBadge} strokeWidth="2.2" strokeLinecap="round" />
-          {/* Folha Superior Direita */}
           <path
             d="M77 22 C78 33, 70 39, 59 37 C61 27, 68 21, 77 22 Z"
             fill={primaryColor}
           />
           <path d="M72 26 L63 34" stroke={bgBadge} strokeWidth="2.2" strokeLinecap="round" />
-          {/* Folha Inferior Esquerda */}
           <path
             d="M19 46 C20 57, 29 62, 40 58 C37 48, 29 44, 19 46 Z"
             fill={primaryColor}
           />
           <path d="M25 50 L36 55" stroke={bgBadge} strokeWidth="2.2" strokeLinecap="round" />
-          {/* Folha Inferior Direita */}
           <path
             d="M81 46 C80 57, 71 62, 60 58 C63 48, 71 44, 81 46 Z"
             fill={primaryColor}
@@ -151,46 +157,38 @@ const GrupoMartinsLogo = ({ size = 'md', theme = 'cream', className = '' }) => {
       className={`flex flex-col items-center justify-center p-4 rounded-2xl border shadow-sm select-none ${className}`}
       style={{ backgroundColor: '#F8F3EF', borderColor: '#E2DCD3' }}
     >
-      {/* Símbolo Circular da Árvore */}
       <svg viewBox="0 0 120 120" className={size === 'lg' ? 'w-24 h-24' : 'w-16 h-16'}>
         <circle cx="60" cy="60" r="52" fill="none" stroke="#1B3B2B" strokeWidth="6" />
-        {/* Tronco */}
         <path
           d="M42 111 C52 107, 56 97, 56 80 L56 36 L64 36 L64 80 C64 97, 68 107, 78 111 Z"
           fill="#1B3B2B"
         />
-        {/* Galhos */}
         <path
           d="M60 80 L38 64 M60 80 L82 64 M60 56 L41 40 M60 56 L79 40"
           stroke="#1B3B2B"
           strokeWidth="5"
           strokeLinecap="round"
         />
-        {/* Folha Central Topo */}
         <path
           d="M60 13 C49 25, 49 38, 60 45 C71 38, 71 25, 60 13 Z"
           fill="#1B3B2B"
         />
         <path d="M60 21 L60 39" stroke="#F8F3EF" strokeWidth="2.4" strokeLinecap="round" />
-        {/* Folha Superior Esquerda */}
         <path
           d="M27 27 C26 40, 36 47, 49 45 C47 33, 38 26, 27 27 Z"
           fill="#1B3B2B"
         />
         <path d="M33 32 L44 41" stroke="#F8F3EF" strokeWidth="2.4" strokeLinecap="round" />
-        {/* Folha Superior Direita */}
         <path
           d="M93 27 C94 40, 84 47, 71 45 C73 33, 82 26, 93 27 Z"
           fill="#1B3B2B"
         />
         <path d="M87 32 L76 41" stroke="#F8F3EF" strokeWidth="2.4" strokeLinecap="round" />
-        {/* Folha Inferior Esquerda */}
         <path
           d="M22 55 C24 68, 35 74, 48 69 C45 57, 35 53, 22 55 Z"
           fill="#1B3B2B"
         />
         <path d="M29 59 L43 66" stroke="#F8F3EF" strokeWidth="2.4" strokeLinecap="round" />
-        {/* Folha Inferior Direita */}
         <path
           d="M98 55 C96 68, 85 74, 72 69 C75 57, 85 53, 98 55 Z"
           fill="#1B3B2B"
@@ -198,7 +196,6 @@ const GrupoMartinsLogo = ({ size = 'md', theme = 'cream', className = '' }) => {
         <path d="M91 59 L77 66" stroke="#F8F3EF" strokeWidth="2.4" strokeLinecap="round" />
       </svg>
 
-      {/* Linha --- GRUPO --- */}
       <div className="flex items-center gap-2.5 mt-1.5 w-full justify-center">
         <span className="h-[1px] w-8 bg-[#2D5A43]" />
         <span className="text-[10px] tracking-[0.35em] font-semibold text-[#1B3B2B]">
@@ -207,7 +204,6 @@ const GrupoMartinsLogo = ({ size = 'md', theme = 'cream', className = '' }) => {
         <span className="h-[1px] w-8 bg-[#2D5A43]" />
       </div>
 
-      {/* MARTINS */}
       <div
         className={`${
           size === 'lg' ? 'text-3xl' : 'text-2xl'
@@ -217,9 +213,7 @@ const GrupoMartinsLogo = ({ size = 'md', theme = 'cream', className = '' }) => {
         MARTINS
       </div>
 
-      {/* Sub-divisão Dupla: Soluções Ambientais | MS Segurança do Trabalho */}
       <div className="flex items-center justify-center gap-2.5 mt-2.5 pt-2 border-t border-[#DFD8CE] w-full">
-        {/* Esquerda: Soluções Ambientais */}
         <div className="flex items-center gap-1.5 text-left">
           <svg viewBox="0 0 32 32" className="w-5 h-5 shrink-0">
             <path
@@ -243,7 +237,6 @@ const GrupoMartinsLogo = ({ size = 'md', theme = 'cream', className = '' }) => {
 
         <div className="h-6 w-[1px] bg-[#2D5A43]/40" />
 
-        {/* Direita: MS Segurança do Trabalho */}
         <div className="flex items-center gap-1.5 text-left">
           <div className="w-6 h-6 rounded-full border-[1.5px] border-[#1B3B2B] flex items-center justify-center text-[8px] font-black text-[#1B3B2B] shrink-0">
             MS
@@ -263,7 +256,7 @@ const GrupoMartinsLogo = ({ size = 'md', theme = 'cream', className = '' }) => {
 };
 
 // ============================================================================
-// 2. CONSTANTES, CATEGORIAS E DADOS INICIAIS (100% FIÉIS À PLANILHA V3 2026)
+// 2. CONSTANTES E DADOS INICIAIS
 // ============================================================================
 const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
@@ -309,16 +302,6 @@ const INITIAL_PARAMETERS = {
   cidadeSede: 'Rondonópolis — MT'
 };
 
-// Lançamentos Financeiros (Iniciando limpo/zerado)
-const INITIAL_TRANSACTIONS = [];
-
-// Base de Contratos Técnicos (Iniciando limpo/zerado)
-const INITIAL_CONTRACTS = [];
-
-// Base de Clientes do CRM Zerada
-const INITIAL_CLIENTS = [];
-
-// Árvore de Acessos e Perfis de Governança do Sistema (RBAC)
 const INITIAL_ACCESS_ROLES = [
   {
     id: 'ROLE-01',
@@ -366,7 +349,7 @@ const INITIAL_ACCESS_ROLES = [
     email: 'financeiro@grupomartins.eng.br',
     password: 'martins2026',
     badgeColor: 'bg-teal-800 text-white',
-    description: 'Operação diária do Livro Caixa, emissão de boletos/NF, baixa de parcelas de contratos e cadastro de clientes. Sem acesso a saques de Pró-Labore da Diretoria nem exclusão definitiva de contratos.',
+    description: 'Operação diária do Livro Caixa, emissão de boletos/NF, baixa de parcelas de contratos e cadastro de clientes.',
     permissions: {
       dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
       prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
@@ -385,7 +368,7 @@ const INITIAL_ACCESS_ROLES = [
     email: 'ambiental@grupomartins.eng.br',
     password: 'martins2026',
     badgeColor: 'bg-emerald-700 text-white',
-    description: 'Gestão técnica de processos LP/LI/LO, PRAD, PGRS, CAR e Outorgas, atualização de status SEMA-MT e consulta técnica ao CRM de Clientes.',
+    description: 'Gestão técnica de processos LP/LI/LO, PRAD, PGRS, CAR e Outorgas.',
     permissions: {
       dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
       prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
@@ -404,7 +387,7 @@ const INITIAL_ACCESS_ROLES = [
     email: 'sst@grupomartins.eng.br',
     password: 'martins2026',
     badgeColor: 'bg-amber-700 text-white',
-    description: 'Gestão de programas PGR, PCMSO, LTCAT, eventos S-2210/S-2220/S-2240 no eSocial, treinamentos de NRs e carteira de contratos recorrentes.',
+    description: 'Gestão de programas PGR, PCMSO, LTCAT, eventos no eSocial e treinamentos.',
     permissions: {
       dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
       prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
@@ -423,7 +406,7 @@ const INITIAL_ACCESS_ROLES = [
     email: 'comercial@grupomartins.eng.br',
     password: 'martins2026',
     badgeColor: 'bg-slate-700 text-white',
-    description: 'Prospecção de novos clientes no CRM Ambiental & SST, abertura de propostas de contratos e acompanhamento de status comercial.',
+    description: 'Prospecção de novos clientes no CRM Ambiental & SST e propostas.',
     permissions: {
       dashboard: { view: false, create: false, edit: false, delete: false, approve: false },
       prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
@@ -436,13 +419,9 @@ const INITIAL_ACCESS_ROLES = [
   }
 ];
 
-// Formatadores utilitários
 const formatCurrency = (val) => {
   if (val === undefined || val === null || isNaN(val)) return 'R$ 0,00';
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  }).format(val);
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 };
 
 const formatPercent = (val) => {
@@ -451,110 +430,84 @@ const formatPercent = (val) => {
 };
 
 // ============================================================================
-// 3. COMPONENTE PRINCIPAL DO ERP
+// 3. COMPONENTE PRINCIPAL COM FIREBASE REAL-TIME SYNC
 // ============================================================================
 export default function App() {
-  // Navegação
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [user, setUser] = useState(null);
+  const [isCloudSynced, setIsCloudSynced] = useState(false);
 
-  // Estados Persistentes (LocalStorage atualizado para iniciar zerado)
-  const [transactions, setTransactions] = useState(() => {
-    try {
-      const saved = localStorage.getItem('martins_erp_transactions_v4');
-      return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
-    } catch {
-      return INITIAL_TRANSACTIONS;
-    }
-  });
+  // Estados dos Dados
+  const [transactions, setTransactions] = useState([]);
+  const [contracts, setContracts] = useState([]);
+  const [clients, setClients] = useState([]);
 
-  const [contracts, setContracts] = useState(() => {
-    try {
-      const saved = localStorage.getItem('martins_erp_contracts_v4');
-      return saved ? JSON.parse(saved) : INITIAL_CONTRACTS;
-    } catch {
-      return INITIAL_CONTRACTS;
-    }
-  });
-
-  const [clients, setClients] = useState(() => {
-    try {
-      const saved = localStorage.getItem('martins_erp_clients_v4');
-      return saved ? JSON.parse(saved) : INITIAL_CLIENTS;
-    } catch {
-      return INITIAL_CLIENTS;
-    }
-  });
-
-  const [clientSegments, setClientSegments] = useState(() => {
-    try {
-      const saved = localStorage.getItem('martins_erp_client_segments');
-      return saved ? JSON.parse(saved) : ['Agronegócio', 'Indústria', 'Construtora/Loteamento', 'Transporte/Logística', 'Comércio/Serviços', 'Saúde'];
-    } catch {
-      return ['Agronegócio', 'Indústria', 'Construtora/Loteamento', 'Transporte/Logística', 'Comércio/Serviços', 'Saúde'];
-    }
-  });
-
-  const [clientStatuses, setClientStatuses] = useState(() => {
-    try {
-      const saved = localStorage.getItem('martins_erp_client_statuses');
-      return saved ? JSON.parse(saved) : ['Ativo', 'Em Prospecção', 'Pendência Documental', 'Inativo'];
-    } catch {
-      return ['Ativo', 'Em Prospecção', 'Pendência Documental', 'Inativo'];
-    }
-  });
-
-  const [accessRoles, setAccessRoles] = useState(() => {
-    try {
-      const saved = localStorage.getItem('martins_erp_roles_v3');
-      return saved ? JSON.parse(saved) : INITIAL_ACCESS_ROLES;
-    } catch {
-      return INITIAL_ACCESS_ROLES;
-    }
-  });
-
+  const [clientSegments, setClientSegments] = useState(['Agronegócio', 'Indústria', 'Construtora/Loteamento', 'Transporte/Logística', 'Comércio/Serviços', 'Saúde']);
+  const [clientStatuses, setClientStatuses] = useState(['Ativo', 'Em Prospecção', 'Pendência Documental', 'Inativo']);
+  const [accessRoles, setAccessRoles] = useState(INITIAL_ACCESS_ROLES);
   const [activeRoleId, setActiveRoleId] = useState('ROLE-01');
   const [authLoggedIn, setAuthLoggedIn] = useState(false);
   const [authEmailInput, setAuthEmailInput] = useState('');
   const [authPasswordInput, setAuthPasswordInput] = useState('');
   const [authErrorMsg, setAuthErrorMsg] = useState('');
 
-  const [params, setParams] = useState(() => {
-    try {
-      const saved = localStorage.getItem('martins_erp_params_v3');
-      return saved ? JSON.parse(saved) : INITIAL_PARAMETERS;
-    } catch {
-      return INITIAL_PARAMETERS;
-    }
-  });
+  const [params, setParams] = useState(INITIAL_PARAMETERS);
 
+  // Autenticação Firebase (Regra Obrigatória 3)
   useEffect(() => {
-    try {
-      localStorage.setItem('martins_erp_transactions_v4', JSON.stringify(transactions));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [transactions]);
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (err) {
+        console.error("Auth error:", err);
+      }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
 
+  // Sincronização em Tempo Real com Firestore (Regras 1, 2 e 3)
   useEffect(() => {
-    try {
-      localStorage.setItem('martins_erp_contracts_v4', JSON.stringify(contracts));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [contracts]);
+    if (!user) return;
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('martins_erp_clients_v4', JSON.stringify(clients));
-      localStorage.setItem('martins_erp_client_segments', JSON.stringify(clientSegments));
-      localStorage.setItem('martins_erp_client_statuses', JSON.stringify(clientStatuses));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [clients, clientSegments, clientStatuses]);
+    const txCol = collection(db, 'artifacts', appId, 'public', 'data', 'transactions');
+    const unsubTx = onSnapshot(txCol, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setTransactions(data);
+      setIsCloudSynced(true);
+    }, (error) => {
+      console.error("Firestore transactions error:", error);
+    });
 
-  // Perfil de Acesso Ativo no Simulador
+    const ctCol = collection(db, 'artifacts', appId, 'public', 'data', 'contracts');
+    const unsubCt = onSnapshot(ctCol, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setContracts(data);
+    }, (error) => {
+      console.error("Firestore contracts error:", error);
+    });
+
+    const cliCol = collection(db, 'artifacts', appId, 'public', 'data', 'clients');
+    const unsubCli = onSnapshot(cliCol, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setClients(data);
+    }, (error) => {
+      console.error("Firestore clients error:", error);
+    });
+
+    return () => {
+      unsubTx();
+      unsubCt();
+      unsubCli();
+    };
+  }, [user]);
+
   const currentRole = useMemo(() => {
     return accessRoles.find((r) => r.id === activeRoleId) || accessRoles[0];
   }, [accessRoles, activeRoleId]);
@@ -564,23 +517,21 @@ export default function App() {
     return Boolean(currentRole.permissions[moduleKey][actionKey]);
   };
 
-  // Estados de Filtro — Livro Caixa
+  // Estados de Filtro
   const [txSearch, setTxSearch] = useState('');
   const [txMonthFilter, setTxMonthFilter] = useState('Todos');
   const [txTypeFilter, setTxTypeFilter] = useState('Todos');
   const [txCategoryFilter, setTxCategoryFilter] = useState('Todas');
   const [txStatusFilter, setTxStatusFilter] = useState('Todos');
 
-  // Estados de Filtro — Contratos
   const [ctSearch, setCtSearch] = useState('');
   const [ctStatusFilter, setCtStatusFilter] = useState('Todos');
 
-  // Estados de Filtro — Clientes (CRM)
   const [cliSearch, setCliSearch] = useState('');
   const [cliSegmentFilter, setCliSegmentFilter] = useState('Todos');
   const [cliStatusFilter, setCliStatusFilter] = useState('Todos');
 
-  // Estados de Modais
+  // Modais
   const [showTxModal, setShowTxModal] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
   const [deleteTxTarget, setDeleteTxTarget] = useState(null);
@@ -615,7 +566,6 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Formulário de Lançamento
   const [txForm, setTxForm] = useState({
     date: '2026-11-10',
     month: 'Nov',
@@ -629,7 +579,6 @@ export default function App() {
     amount: ''
   });
 
-  // Formulário de Contrato
   const [ctForm, setCtForm] = useState({
     client: '',
     service: '',
@@ -644,7 +593,6 @@ export default function App() {
     installmentDates: ['2026-12-30', '', '', '']
   });
 
-  // Formulário de Cliente (CRM)
   const [cliForm, setCliForm] = useState({
     name: '',
     document: '',
@@ -662,7 +610,7 @@ export default function App() {
   const [newStatusInput, setNewStatusInput] = useState('');
 
   // ============================================================================
-  // 4. MOTOR CONTÁBIL E FINANCEIRO (MEMOIZED CALCULATIONS)
+  // 4. MOTOR CONTÁBIL E FINANCEIRO
   // ============================================================================
   const financialData = useMemo(() => {
     const getCatMonth = (cat, month = null) => {
@@ -684,8 +632,7 @@ export default function App() {
       .reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
 
     const lucroLiquidoAnual = receitaBrutaAnual - saidasTotaisAnual;
-    const margemLiquidaAnual =
-      receitaBrutaAnual > 0 ? lucroLiquidoAnual / receitaBrutaAnual : 0;
+    const margemLiquidaAnual = receitaBrutaAnual > 0 ? lucroLiquidoAnual / receitaBrutaAnual : 0;
 
     const proLaboreCat = 'Saque de Pró-Labore — Sócio Maikon Martins';
     const proLaboreTotalAnual = transactions
@@ -693,9 +640,7 @@ export default function App() {
       .reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
 
     const proLaborePago = transactions
-      .filter(
-        (t) => t.category === proLaboreCat && t.status === 'Pago / Recebido'
-      )
+      .filter((t) => t.category === proLaboreCat && t.status === 'Pago / Recebido')
       .reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
 
     const proLaborePendente = proLaboreTotalAnual - proLaborePago;
@@ -708,10 +653,7 @@ export default function App() {
       .filter((t) => t.type === 'Saída' && t.status === 'Pago / Recebido')
       .reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
 
-    const saldoAtualCaixa =
-      Number(params.saldoInicialCaixa || 0) +
-      entradasRealizadas -
-      saidasRealizadas;
+    const saldoAtualCaixa = Number(params.saldoInicialCaixa || 0) + entradasRealizadas - saidasRealizadas;
 
     const contasAReceber = transactions
       .filter((t) => t.type === 'Entrada' && t.status !== 'Pago / Recebido')
@@ -724,15 +666,9 @@ export default function App() {
     let runningBalance = Number(params.saldoInicialCaixa || 0);
     const monthlySeries = MONTHS.map((m) => {
       const mTxs = transactions.filter((t) => t.month === m);
-      const entradas = mTxs
-        .filter((t) => t.type === 'Entrada')
-        .reduce((a, b) => a + Number(b.amount || 0), 0);
-      const saidas = mTxs
-        .filter((t) => t.type === 'Saída')
-        .reduce((a, b) => a + Number(b.amount || 0), 0);
-      const proLaboreMes = mTxs
-        .filter((t) => t.category === proLaboreCat)
-        .reduce((a, b) => a + Number(b.amount || 0), 0);
+      const entradas = mTxs.filter((t) => t.type === 'Entrada').reduce((a, b) => a + Number(b.amount || 0), 0);
+      const saidas = mTxs.filter((t) => t.type === 'Saída').reduce((a, b) => a + Number(b.amount || 0), 0);
+      const proLaboreMes = mTxs.filter((t) => t.category === proLaboreCat).reduce((a, b) => a + Number(b.amount || 0), 0);
       const resultadoLiquido = entradas - saidas;
       runningBalance += resultadoLiquido;
       const margem = entradas > 0 ? resultadoLiquido / entradas : 0;
@@ -789,46 +725,57 @@ export default function App() {
   }, [transactions, params]);
 
   // ============================================================================
-  // 5. AÇÕES DO SISTEMA (CRUD LANÇAMENTOS, CONTRATOS, CLIENTES E ACESSOS)
+  // 5. AÇÕES COM PERSISTÊNCIA NA NUVEM (FIRESTORE)
   // ============================================================================
-  const handleToggleStatus = (id) => {
+  const handleToggleStatus = async (id) => {
     if (!hasPermission('lancamentos', 'edit')) {
-      showToast('Acesso restrito: seu perfil atual não possui permissão para alterar status no Livro Caixa.');
+      showToast('Acesso restrito: seu perfil atual não possui permissão.');
       return;
     }
-    setTransactions((prev) =>
-      prev.map((item) => {
-        if (item.id !== id) return item;
-        const nextStatus =
-          item.status === 'Pago / Recebido' ? 'Pendente' : 'Pago / Recebido';
-        return { ...item, status: nextStatus };
-      })
-    );
-    showToast('Status do lançamento atualizado com sucesso!');
+    const item = transactions.find(t => t.id === id);
+    if (!item) return;
+    const nextStatus = item.status === 'Pago / Recebido' ? 'Pendente' : 'Pago / Recebido';
+    try {
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'transactions', id), {
+        ...item,
+        status: nextStatus
+      });
+      showToast('Status atualizado na nuvem em tempo real!');
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const confirmDeleteTransaction = () => {
+  const confirmDeleteTransaction = async () => {
     if (!deleteTxTarget) return;
-    setTransactions((prev) => prev.filter((item) => item.id !== deleteTxTarget.id));
-    showToast(`Lançamento ${deleteTxTarget.id} excluído permanentemente.`);
-    setDeleteTxTarget(null);
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'transactions', deleteTxTarget.id));
+      showToast(`Lançamento ${deleteTxTarget.id} excluído da nuvem.`);
+      setDeleteTxTarget(null);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const confirmDeleteContract = () => {
+  const confirmDeleteContract = async () => {
     if (!deleteContractTarget) return;
     const contractId = deleteContractTarget.id;
-    setContracts((prev) => prev.filter((c) => c.id !== contractId));
-    if (deleteLinkedTransactions) {
-      setTransactions((prev) => prev.filter((t) => t.contractId !== contractId));
-      showToast(`Contrato ${contractId} e seus lançamentos vinculados foram excluídos!`);
-    } else {
-      showToast(`Contrato ${contractId} excluído com sucesso!`);
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'contracts', contractId));
+      if (deleteLinkedTransactions) {
+        const linked = transactions.filter(t => t.contractId === contractId);
+        for (const l of linked) {
+          await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'transactions', l.id));
+        }
+      }
+      showToast(`Contrato ${contractId} excluído da nuvem com sucesso!`);
+      setDeleteContractTarget(null);
+      setDeleteLinkedTransactions(false);
+    } catch (err) {
+      console.error(err);
     }
-    setDeleteContractTarget(null);
-    setDeleteLinkedTransactions(false);
   };
 
-  // CRUD de Clientes (CRM)
   const openNewClientModal = () => {
     setEditingClient(null);
     setCliForm({
@@ -863,126 +810,157 @@ export default function App() {
     setShowClientModal(true);
   };
 
-  const handleSaveClient = (e) => {
+  const handleSaveClient = async (e) => {
     e.preventDefault();
     if (!cliForm.name) return;
-    if (editingClient) {
-      setClients((prev) =>
-        prev.map((c) => (c.id === editingClient.id ? { ...c, ...cliForm } : c))
-      );
-      showToast(`Cadastro do cliente ${editingClient.id} atualizado!`);
-    } else {
-      const nextNum = clients.length + 1;
-      const newId = `CLI-${String(nextNum).padStart(3, '0')}`;
-      setClients((prev) => [{ id: newId, ...cliForm }, ...prev]);
-      showToast(`Novo cliente ${newId} cadastrado no CRM Ambiental & SST!`);
+    try {
+      const clientId = editingClient ? editingClient.id : `CLI-${String(clients.length + 1).padStart(3, '0')}`;
+      const clientData = { id: clientId, ...cliForm };
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', clientId), clientData);
+      showToast(`Cliente ${clientId} salvo na nuvem com sucesso!`);
+      setShowClientModal(false);
+    } catch (err) {
+      console.error(err);
     }
-    setShowClientModal(false);
   };
 
-  const confirmDeleteClient = () => {
+  const confirmDeleteClient = async () => {
     if (!deleteClientTarget) return;
-    setClients((prev) => prev.filter((c) => c.id !== deleteClientTarget.id));
-    showToast(`Cliente ${deleteClientTarget.name} removido da base CRM.`);
-    setDeleteClientTarget(null);
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', deleteClientTarget.id));
+      showToast(`Cliente removido da nuvem.`);
+      setDeleteClientTarget(null);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const handleAddSegment = (e) => {
+  const handleSaveTransaction = async (e) => {
     e.preventDefault();
-    if (!newSegmentInput.trim()) return;
-    if (clientSegments.includes(newSegmentInput.trim())) {
-      showToast('Este segmento econômico já existe.');
-      return;
+    const numericAmount = parseFloat(String(txForm.amount).replace(',', '.'));
+    if (!txForm.entity || isNaN(numericAmount) || numericAmount <= 0) return;
+
+    try {
+      const txId = editingTx ? editingTx.id : `MT-${String(transactions.length + 15).padStart(3, '0')}`;
+      const txData = {
+        id: txId,
+        ...txForm,
+        amount: numericAmount
+      };
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'transactions', txId), txData);
+      showToast(`Lançamento ${txId} salvo na nuvem em tempo real!`);
+      setShowTxModal(false);
+    } catch (err) {
+      console.error(err);
     }
-    setClientSegments([...clientSegments, newSegmentInput.trim()]);
-    setNewSegmentInput('');
-    showToast('Novo segmento econômico cadastrado!');
   };
 
-  const handleDeleteSegment = (seg) => {
-    if (clientSegments.length <= 1) {
-      showToast('É necessário manter pelo menos um segmento econômico.');
-      return;
-    }
-    setClientSegments(clientSegments.filter((s) => s !== seg));
-    showToast(`Segmento "${seg}" removido.`);
-  };
-
-  const handleAddStatus = (e) => {
+  const handleSaveContract = async (e) => {
     e.preventDefault();
-    if (!newStatusInput.trim()) return;
-    if (clientStatuses.includes(newStatusInput.trim())) {
-      showToast('Este status já existe.');
-      return;
-    }
-    setClientStatuses([...clientStatuses, newStatusInput.trim()]);
-    setNewStatusInput('');
-    showToast('Novo status de cliente cadastrado!');
-  };
+    const contractVal = parseFloat(String(ctForm.contractValue).replace(',', '.')) || 0;
+    const receivedVal = parseFloat(String(ctForm.receivedValue).replace(',', '.')) || 0;
+    const directVal = parseFloat(String(ctForm.directCosts).replace(',', '.')) || 0;
+    const nInstallments = parseInt(ctForm.installmentsCount) || 1;
+    if (!ctForm.client || contractVal <= 0) return;
 
-  const handleDeleteStatus = (st) => {
-    if (clientStatuses.length <= 1) {
-      showToast('É necessário manter pelo menos um status.');
-      return;
-    }
-    setClientStatuses(clientStatuses.filter((s) => s !== st));
-    showToast(`Status "${st}" removido.`);
-  };
+    try {
+      const contractId = editingContract ? editingContract.id : `CT-2026-${String(contracts.length + 1).padStart(2, '0')}`;
+      const contractData = {
+        id: contractId,
+        ...ctForm,
+        contractValue: contractVal,
+        receivedValue: receivedVal,
+        directCosts: directVal
+      };
 
-  // Governança e Árvore de Acessos
-  const handleToggleRolePermission = (roleId, moduleKey, actionKey) => {
-    if (roleId === 'ROLE-01') {
-      showToast('O Nível 1 Master (Sócio-Diretor Maikon Martins) possui acesso total permanente.');
-      return;
-    }
-    setAccessRoles((prev) =>
-      prev.map((role) => {
-        if (role.id !== roleId) return role;
-        const currentVal = role.permissions[moduleKey]?.[actionKey] || false;
-        return {
-          ...role,
-          permissions: {
-            ...role.permissions,
-            [moduleKey]: {
-              ...role.permissions[moduleKey],
-              [actionKey]: !currentVal
-            }
-          }
-        };
-      })
-    );
-    showToast('Matriz de permissões atualizada em tempo real!');
-  };
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'contracts', contractId), contractData);
 
-  const handleCreateCustomRole = (e) => {
-    e.preventDefault();
-    if (!newRoleForm.name || !newRoleForm.holder) return;
-    const newId = `ROLE-0${accessRoles.length + 1}`;
-    const generatedEmail = newRoleForm.email || `${newRoleForm.holder.toLowerCase().replace(/\s+/g, '')}@grupomartins.eng.br`;
-    const generatedPassword = newRoleForm.password || 'martins2026';
-    const created = {
-      id: newId,
-      level: newRoleForm.level,
-      name: newRoleForm.name,
-      holder: newRoleForm.holder,
-      email: generatedEmail,
-      password: generatedPassword,
-      badgeColor: 'bg-indigo-800 text-white',
-      description: newRoleForm.description || 'Perfil customizado criado pela Diretoria com acesso autenticado.',
-      permissions: {
-        dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
-        prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
-        lancamentos: { view: true, create: true, edit: false, delete: false, approve: false },
-        dre: { view: false, create: false, edit: false, delete: false, approve: false },
-        contratos: { view: true, create: true, edit: true, delete: false, approve: false },
-        clientes: { view: true, create: true, edit: true, delete: false, approve: false },
-        acessos: { view: false, create: false, edit: false, delete: false, approve: false }
+      if (!editingContract) {
+        const installmentVal = contractVal / nInstallments;
+        for (let i = 0; i < nInstallments; i++) {
+          const instDate = ctForm.installmentDates[i] || ctForm.deadline;
+          const monthNames = { '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez' };
+          const monthNum = instDate.split('-')[1] || '12';
+          const monthStr = monthNames[monthNum] || 'Dez';
+          const tId = `MT-${String(transactions.length + 15 + i).padStart(3, '0')}`;
+          
+          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'transactions', tId), {
+            id: tId,
+            date: instDate,
+            month: monthStr,
+            type: 'Entrada',
+            category: 'Licenciamento Ambiental (LP / LI / LO)',
+            entity: ctForm.client,
+            contractId: contractId,
+            description: `Parcela ${i + 1}/${nInstallments} — Contrato ${contractId}`,
+            paymentMethod: 'Boleto Bancário Faturado',
+            status: 'Pendente',
+            amount: installmentVal
+          });
+        }
       }
-    };
-    setAccessRoles((prev) => [...prev, created]);
-    setNewRoleForm({ level: 'Nível Especial', name: '', holder: '', email: '', password: 'martins2026', description: '' });
-    setShowUserRoleModal(false);
-    showToast(`Novo perfil criado! E-mail: ${generatedEmail} | Senha: ${generatedPassword}`);
+
+      showToast(`Contrato ${contractId} salvo na nuvem com sucesso!`);
+      setShowContractModal(false);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleReceiveContractInstallment = async (e) => {
+    e.preventDefault();
+    if (!receiveInstallmentContract) return;
+    const val = parseFloat(String(installmentAmount).replace(',', '.'));
+    if (isNaN(val) || val <= 0) return;
+
+    try {
+      const newReceived = Math.min(receiveInstallmentContract.contractValue, receiveInstallmentContract.receivedValue + val);
+      const newStatus = newReceived >= receiveInstallmentContract.contractValue ? 'Concluído / Licença Emitida' : receiveInstallmentContract.status;
+
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'contracts', receiveInstallmentContract.id), {
+        ...receiveInstallmentContract,
+        receivedValue: newReceived,
+        status: newStatus
+      });
+
+      const tId = `MT-${String(transactions.length + 15).padStart(3, '0')}`;
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'transactions', tId), {
+        id: tId,
+        date: '2026-11-10',
+        month: 'Nov',
+        type: 'Entrada',
+        category: 'Licenciamento Ambiental (LP / LI / LO)',
+        entity: receiveInstallmentContract.client,
+        contractId: receiveInstallmentContract.id,
+        description: `Recebimento de parcela — Contrato ${receiveInstallmentContract.id}`,
+        paymentMethod: 'PIX Empresarial',
+        status: 'Pago / Recebido',
+        amount: val
+      });
+
+      setReceiveInstallmentContract(null);
+      setInstallmentAmount('');
+      showToast('Parcela recebida e sincronizada na nuvem!');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleResetDatabase = async () => {
+    try {
+      for (const t of transactions) {
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'transactions', t.id));
+      }
+      for (const c of contracts) {
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'contracts', c.id));
+      }
+      for (const cli of clients) {
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', cli.id));
+      }
+      showToast('Base na nuvem limpa com sucesso!');
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const openNewTransactionModal = (preset = null) => {
@@ -1034,180 +1012,12 @@ export default function App() {
     setShowTxModal(true);
   };
 
-  const handleSaveTransaction = (e) => {
-    e.preventDefault();
-    const numericAmount = parseFloat(String(txForm.amount).replace(',', '.'));
-    if (!txForm.entity || isNaN(numericAmount) || numericAmount <= 0) return;
-
-    if (editingTx) {
-      setTransactions((prev) =>
-        prev.map((t) =>
-          t.id === editingTx.id ? { ...t, ...txForm, amount: numericAmount } : t
-        )
-      );
-      showToast(`Lançamento ${editingTx.id} atualizado!`);
-    } else {
-      const nextNum = transactions.length + 15;
-      const newId = `MT-${String(nextNum).padStart(3, '0')}`;
-      const newTx = {
-        id: newId,
-        ...txForm,
-        amount: numericAmount
-      };
-      setTransactions((prev) => [newTx, ...prev]);
-      showToast(`Novo lançamento ${newId} registrado no Livro Caixa!`);
-    }
-    setShowTxModal(false);
-  };
-
-  const handleSaveContract = (e) => {
-    e.preventDefault();
-    const contractVal = parseFloat(String(ctForm.contractValue).replace(',', '.')) || 0;
-    const receivedVal = parseFloat(String(ctForm.receivedValue).replace(',', '.')) || 0;
-    const directVal = parseFloat(String(ctForm.directCosts).replace(',', '.')) || 0;
-    const nInstallments = parseInt(ctForm.installmentsCount) || 1;
-    if (!ctForm.client || contractVal <= 0) return;
-
-    if (editingContract) {
-      setContracts((prev) =>
-        prev.map((c) =>
-          c.id === editingContract.id
-            ? {
-                ...c,
-                ...ctForm,
-                contractValue: contractVal,
-                receivedValue: receivedVal,
-                directCosts: directVal
-              }
-            : c
-        )
-      );
-      showToast(`Contrato ${editingContract.id} atualizado com sucesso!`);
-    } else {
-      const nextNum = contracts.length + 1;
-      const newId = `CT-2026-${String(nextNum).padStart(2, '0')}`;
-      const newContract = {
-        id: newId,
-        ...ctForm,
-        contractValue: contractVal,
-        receivedValue: receivedVal,
-        directCosts: directVal
-      };
-      
-      // Gerar parcelas no Livro Caixa automaticamente
-      const installmentVal = contractVal / nInstallments;
-      const newTxs = [];
-      for (let i = 0; i < nInstallments; i++) {
-        const instDate = ctForm.installmentDates[i] || ctForm.deadline;
-        const monthNames = { '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez' };
-        const monthNum = instDate.split('-')[1] || '12';
-        const monthStr = monthNames[monthNum] || 'Dez';
-
-        newTxs.push({
-          id: `MT-${String(transactions.length + 15 + i).padStart(3, '0')}`,
-          date: instDate,
-          month: monthStr,
-          type: 'Entrada',
-          category: 'Licenciamento Ambiental (LP / LI / LO)',
-          entity: ctForm.client,
-          contractId: newId,
-          description: `Parcela ${i + 1}/${nInstallments} — Contrato ${newId} (${ctForm.service})`,
-          paymentMethod: 'Boleto Bancário Faturado',
-          status: 'Pendente',
-          amount: installmentVal
-        });
-      }
-
-      setContracts((prev) => [...prev, newContract]);
-      setTransactions((prev) => [...newTxs, ...prev]);
-      showToast(`Contrato técnico ${newId} cadastrado com ${nInstallments} parcela(s) gerada(s) no Caixa!`);
-    }
-    setShowContractModal(false);
-  };
-
-  const handleReceiveContractInstallment = (e) => {
-    e.preventDefault();
-    if (!receiveInstallmentContract) return;
-    const val = parseFloat(String(installmentAmount).replace(',', '.'));
-    if (isNaN(val) || val <= 0) return;
-
-    // Atualiza o contrato
-    setContracts((prev) =>
-      prev.map((c) => {
-        if (c.id !== receiveInstallmentContract.id) return c;
-        const newReceived = Math.min(c.contractValue, c.receivedValue + val);
-        const newStatus =
-          newReceived >= c.contractValue ? 'Concluído / Licença Emitida' : c.status;
-        return { ...c, receivedValue: newReceived, status: newStatus };
-      })
-    );
-
-    // Gera lançamento automático no Livro Caixa
-    const newId = `MT-${String(transactions.length + 15).padStart(3, '0')}`;
-    const newTx = {
-      id: newId,
-      date: '2026-11-10',
-      month: 'Nov',
-      type: 'Entrada',
-      category: 'Licenciamento Ambiental (LP / LI / LO)',
-      entity: receiveInstallmentContract.client,
-      contractId: receiveInstallmentContract.id,
-      description: `Recebimento de parcela — Contrato ${receiveInstallmentContract.id} (${receiveInstallmentContract.service})`,
-      paymentMethod: 'PIX Empresarial',
-      status: 'Pago / Recebido',
-      amount: val
-    };
-    setTransactions((prev) => [newTx, ...prev]);
-    setReceiveInstallmentContract(null);
-    setInstallmentAmount('');
-    showToast(`Parcela de ${formatCurrency(val)} recebida e lançada no Caixa!`);
-  };
-
-  const handleResetDatabase = () => {
-    setTransactions(INITIAL_TRANSACTIONS);
-    setContracts(INITIAL_CONTRACTS);
-    setClients(INITIAL_CLIENTS);
-    setAccessRoles(INITIAL_ACCESS_ROLES);
-    setActiveRoleId('ROLE-01');
-    setParams(INITIAL_PARAMETERS);
-    localStorage.removeItem('martins_erp_transactions_v4');
-    localStorage.removeItem('martins_erp_contracts_v4');
-    localStorage.removeItem('martins_erp_clients_v4');
-    localStorage.removeItem('martins_erp_roles_v3');
-    localStorage.removeItem('martins_erp_params_v3');
-    showToast('Base de dados limpa com sucesso!');
-  };
-
   const handleExportCSV = () => {
-    const headers = [
-      'ID',
-      'Data',
-      'Mes',
-      'Tipo',
-      'Categoria',
-      'Favorecido_Cliente_Socio',
-      'Contrato',
-      'Descricao',
-      'Forma_Pagamento',
-      'Status',
-      'Valor'
-    ];
+    const headers = ['ID', 'Data', 'Mes', 'Tipo', 'Categoria', 'Favorecido', 'Contrato', 'Descricao', 'Forma_Pagamento', 'Status', 'Valor'];
     const rows = transactions.map((t) => [
-      t.id,
-      t.date,
-      t.month,
-      t.type,
-      `"${t.category}"`,
-      `"${t.entity}"`,
-      t.contractId,
-      `"${t.description}"`,
-      `"${t.paymentMethod}"`,
-      t.status,
-      t.amount
+      t.id, t.date, t.month, t.type, `"${t.category}"`, `"${t.entity}"`, t.contractId, `"${t.description}"`, `"${t.paymentMethod}"`, t.status, t.amount
     ]);
-    const csvContent =
-      'data:text/csv;charset=utf-8,\uFEFF' +
-      [headers.join(';'), ...rows.map((e) => e.join(';'))].join('\n');
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(';'), ...rows.map((e) => e.join(';'))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
@@ -1218,11 +1028,9 @@ export default function App() {
     showToast('Arquivo CSV exportado com sucesso!');
   };
 
-  // Filtragem Livro Caixa
   const filteredTransactions = useMemo(() => {
     return transactions.filter((t) => {
-      const matchSearch =
-        t.entity.toLowerCase().includes(txSearch.toLowerCase()) ||
+      const matchSearch = t.entity.toLowerCase().includes(txSearch.toLowerCase()) ||
         t.description.toLowerCase().includes(txSearch.toLowerCase()) ||
         t.id.toLowerCase().includes(txSearch.toLowerCase()) ||
         t.category.toLowerCase().includes(txSearch.toLowerCase());
@@ -1234,11 +1042,9 @@ export default function App() {
     });
   }, [transactions, txSearch, txMonthFilter, txTypeFilter, txCategoryFilter, txStatusFilter]);
 
-  // Filtragem Contratos
   const filteredContracts = useMemo(() => {
     return contracts.filter((c) => {
-      const matchSearch =
-        c.client.toLowerCase().includes(ctSearch.toLowerCase()) ||
+      const matchSearch = c.client.toLowerCase().includes(ctSearch.toLowerCase()) ||
         c.service.toLowerCase().includes(ctSearch.toLowerCase()) ||
         c.id.toLowerCase().includes(ctSearch.toLowerCase()) ||
         c.agency.toLowerCase().includes(ctSearch.toLowerCase());
@@ -1247,11 +1053,9 @@ export default function App() {
     });
   }, [contracts, ctSearch, ctStatusFilter]);
 
-  // Filtragem Clientes CRM
   const filteredClients = useMemo(() => {
     return clients.filter((cli) => {
-      const matchSearch =
-        cli.name.toLowerCase().includes(cliSearch.toLowerCase()) ||
+      const matchSearch = cli.name.toLowerCase().includes(cliSearch.toLowerCase()) ||
         cli.document.toLowerCase().includes(cliSearch.toLowerCase()) ||
         cli.city.toLowerCase().includes(cliSearch.toLowerCase()) ||
         cli.contactName.toLowerCase().includes(cliSearch.toLowerCase()) ||
@@ -1262,12 +1066,8 @@ export default function App() {
     });
   }, [clients, cliSearch, cliSegmentFilter, cliStatusFilter]);
 
-  // Cores para Gráficos
   const PIE_COLORS = ['#1B3B2B', '#2D5A43', '#3B7A57', '#557A46', '#7A9A8B'];
 
-  // ============================================================================
-  // 6. RENDERIZAÇÃO DOS MÓDULOS
-  // ============================================================================
   const navItems = [
     { id: 'dashboard', label: 'Painel Executivo', icon: LayoutDashboard, badge: 'KPIs', permKey: 'dashboard' },
     { id: 'prolabore', label: 'Pró-Labore (Maikon Martins)', icon: UserCheck, badge: 'Sócio', permKey: 'prolabore' },
@@ -1281,7 +1081,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex bg-[#F4F7F5] text-slate-800 font-sans">
-      {/* Notificação Flutuante (Toast) */}
       {toastMessage && (
         <div className="fixed bottom-5 right-5 z-50 flex items-center gap-3 bg-[#1B3B2B] text-[#F8F3EF] px-5 py-3.5 rounded-xl shadow-2xl border border-[#3B7A57] animate-bounce">
           <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
@@ -1289,28 +1088,25 @@ export default function App() {
         </div>
       )}
 
-      {/* ====================================================================
-          SIDEBAR CORPORATIVA — GRUPO MARTINS
-      ==================================================================== */}
+      {/* SIDEBAR */}
       <aside
         className={`fixed inset-y-0 left-0 z-40 w-72 bg-[#1B3B2B] text-[#F8F3EF] flex flex-col justify-between transition-transform duration-300 lg:static lg:translate-x-0 ${
           mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div>
-          {/* Topo com a Logo Oficial do Grupo Martins */}
           <div className="p-4 border-b border-[#2D5A43]">
             <GrupoMartinsLogo size="md" />
           </div>
 
-          {/* Card do Sócio-Diretor Maikon Martins / Perfil Ativo */}
           <div className="mx-4 mt-4 p-3.5 rounded-xl bg-[#244B38] border border-[#3B7A57]/50 flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-[#F8F3EF] text-[#1B3B2B] font-extrabold flex items-center justify-center text-sm shrink-0 shadow">
               MM
             </div>
             <div className="overflow-hidden">
-              <div className="text-[10px] text-emerald-300 font-semibold uppercase tracking-wider truncate">
-                {currentRole.level}
+              <div className="text-[10px] text-emerald-300 font-semibold uppercase tracking-wider truncate flex items-center gap-1">
+                {isCloudSynced ? <Cloud className="w-3 h-3 text-emerald-400" /> : <CloudRain className="w-3 h-3 text-amber-400" />}
+                {isCloudSynced ? 'Nuvem Sincronizada' : 'Conectando...'}
               </div>
               <div className="text-sm font-bold text-white truncate">
                 {currentRole.holder}
@@ -1321,7 +1117,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Menu de Navegação */}
           <nav className="mt-4 px-3 space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -1332,7 +1127,7 @@ export default function App() {
                   key={item.id}
                   onClick={() => {
                     if (!allowed) {
-                      showToast(`Módulo bloqueado para o perfil "${currentRole.name}". Altere o Simulador de Perfil no topo para Nível 1 Master.`);
+                      showToast(`Módulo bloqueado para o perfil "${currentRole.name}".`);
                       return;
                     }
                     setActiveTab(item.id);
@@ -1347,24 +1142,14 @@ export default function App() {
                   }`}
                 >
                   <div className="flex items-center gap-2.5 truncate">
-                    <Icon
-                      className={`w-4 h-4 shrink-0 ${
-                        isActive ? 'text-[#1B3B2B]' : allowed ? 'text-emerald-300' : 'text-emerald-600'
-                      }`}
-                    />
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#1B3B2B]' : allowed ? 'text-emerald-300' : 'text-emerald-600'}`} />
                     <span className="truncate">{item.label}</span>
                   </div>
                   {!allowed ? (
                     <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                   ) : (
                     item.badge && (
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${
-                          isActive
-                            ? 'bg-[#1B3B2B] text-[#F8F3EF]'
-                            : 'bg-[#2D5A43] text-emerald-200'
-                        }`}
-                      >
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${isActive ? 'bg-[#1B3B2B] text-[#F8F3EF]' : 'bg-[#2D5A43] text-emerald-200'}`}>
                         {item.badge}
                       </span>
                     )
@@ -1375,39 +1160,31 @@ export default function App() {
           </nav>
         </div>
 
-        {/* Rodapé da Sidebar */}
         <div className="p-4 border-t border-[#2D5A43] space-y-2">
           <button
             onClick={handleResetDatabase}
             className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-[#244B38] hover:bg-[#2D5A43] text-emerald-200 transition"
-            title="Restaura os 72 lançamentos, 14 contratos e 15 clientes originais"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            Restaurar Base Original 2026
+            Zerar Base na Nuvem
           </button>
           <div className="text-[11px] text-center text-emerald-200/60">
-            Grupo Martins ERP v3.5 • Exercício 2026
+            Grupo Martins ERP v3.6 • Nuvem Ativa
           </div>
         </div>
       </aside>
 
-      {/* ====================================================================
-          ÁREA DE CONTEÚDO PRINCIPAL
-      ==================================================================== */}
+      {/* CONTEÚDO PRINCIPAL */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* HEADER EXECUTIVO SUPERIOR COM SIMULADOR DE PERFIL DE ACESSO */}
         <header className="bg-white border-b border-slate-200 px-4 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-30 shadow-sm">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 rounded-lg bg-[#1B3B2B] text-white"
-            >
+            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="lg:hidden p-2 rounded-lg bg-[#1B3B2B] text-white">
               <Menu className="w-5 h-5" />
             </button>
             <div>
               <div className="flex items-center gap-2">
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#E6F4EA] text-[#1B3B2B] border border-[#B7DFC5]">
-                  ERP CORPORATIVO 2026
+                  ERP NUVEM TEMPO REAL
                 </span>
                 <span className="text-xs text-slate-500 hidden sm:inline">
                   CNPJ: {params.cnpj} • {params.cidadeSede}
@@ -1419,29 +1196,24 @@ export default function App() {
             </div>
           </div>
 
-          {/* Autenticação e Perfil Ativo (Governança Segura) */}
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="flex items-center gap-2 bg-[#F8F3EF] px-3 py-1.5 rounded-xl border border-[#D5CFC7]">
               <KeyRound className="w-3.5 h-3.5 text-[#1B3B2B] shrink-0" />
-              <div className="text-[10px] font-bold uppercase text-slate-500 hidden md:block">
-                Sessão Autenticada:
-              </div>
               <span className="text-xs font-extrabold text-[#1B3B2B]">
                 {currentRole.level} ({currentRole.holder})
               </span>
               <button
                 onClick={() => setAuthLoggedIn(false)}
                 className="ml-2 px-2 py-0.5 rounded bg-[#1B3B2B] text-white text-[10px] font-bold hover:bg-[#2D5A43]"
-                title="Encerrar Sessão e Bloquear Troca Livre de Perfil"
               >
-                Bloquear / Sair
+                Sair
               </button>
             </div>
 
             {hasPermission('prolabore', 'create') && (
               <button
                 onClick={() => openNewTransactionModal('prolabore')}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-[#F8F3EF] text-[#1B3B2B] border border-[#D5CFC7] hover:bg-[#EFE7DF] transition shadow-sm"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-[#F8F3EF] text-[#1B3B2B] border border-[#D5CFC7] hover:bg-[#EFE7DF]"
               >
                 <UserCheck className="w-4 h-4 text-[#2D5A43]" />
                 Saque Pró-Labore
@@ -1451,7 +1223,7 @@ export default function App() {
             {hasPermission('lancamentos', 'create') && (
               <button
                 onClick={() => openNewTransactionModal()}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] transition shadow"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] shadow"
               >
                 <Plus className="w-4 h-4" />
                 Novo Lançamento
@@ -1460,26 +1232,21 @@ export default function App() {
           </div>
         </header>
 
-        {/* CONTEÚDO DINÂMICO DAS ABAS */}
         <main className="p-4 lg:p-8 space-y-6 max-w-[1600px] w-full mx-auto">
-          {/* ================================================================
-              ABA 1: PAINEL EXECUTIVO (DASHBOARD)
-          ================================================================ */}
           {activeTab === 'dashboard' && (
             <div className="space-y-6">
-              {/* Banner Institucional com Logo e Resumo do Sócio */}
               <div className="bg-gradient-to-r from-[#1B3B2B] via-[#244B38] to-[#2D5A43] rounded-2xl p-5 text-white shadow-lg flex flex-col lg:flex-row items-center justify-between gap-6">
                 <div className="flex flex-col sm:flex-row items-center gap-5">
                   <GrupoMartinsLogo size="compact" theme="cream" />
                   <div className="text-center sm:text-left">
                     <div className="text-xs uppercase tracking-widest text-emerald-300 font-semibold">
-                      Gestão Financeira, Ambiental & SST
+                      Sincronizado na Nuvem em Tempo Real
                     </div>
                     <h2 className="text-xl sm:text-2xl font-extrabold mt-0.5">
                       Painel Executivo Anual — Exercício 2026
                     </h2>
                     <p className="text-xs sm:text-sm text-emerald-100/90 mt-1">
-                      Sócio-Diretor Responsável: <strong>{params.socioDiretor}</strong> • Licenciamento SEMA-MT, Outorgas, CAR, PGR, LTCAT e eSocial SST.
+                      Sócio-Diretor Responsável: <strong>{params.socioDiretor}</strong>
                     </p>
                   </div>
                 </div>
@@ -1491,221 +1258,79 @@ export default function App() {
                     <div className="text-xl font-black text-white">
                       {formatCurrency(financialData.saldoAtualCaixa)}
                     </div>
-                    <div className="text-[10px] text-emerald-200/80">
-                      Inclui {formatCurrency(params.saldoInicialCaixa)} de saldo inicial
-                    </div>
                   </div>
                   <div className="h-9 w-[1px] bg-emerald-600/40 mx-1" />
                   <div className="text-right">
                     <div className="text-[11px] text-amber-300 uppercase font-semibold">
-                      Pró-Labore (Maikon Martins)
+                      Pró-Labore (Maikon)
                     </div>
                     <div className="text-xl font-black text-amber-300">
                       {formatCurrency(financialData.proLaboreTotalAnual)}
                     </div>
-                    <div className="text-[10px] text-emerald-200/80">
-                      {formatCurrency(financialData.proLaborePago)} já sacados no ano
-                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* 7 CARTÕES DE KPIs EXECUTIVOS (IDÊNTICOS À PLANILHA V3) */}
+              {/* KPIS */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-                {/* KPI 1 */}
                 <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-[#1B3B2B] shadow-sm">
-                  <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase">
-                    <span>Receita Bruta (DRE)</span>
-                    <TrendingUp className="w-4 h-4 text-emerald-700" />
-                  </div>
-                  <div className="text-lg font-black text-[#1B3B2B] mt-2">
-                    {formatCurrency(financialData.receitaBrutaAnual)}
-                  </div>
-                  <div className="text-[11px] text-emerald-700 font-medium mt-1">
-                    Meta Anual: {formatCurrency(params.metaMensalReceita * 12)}
-                  </div>
+                  <div className="text-xs font-bold text-slate-500 uppercase">Receita Bruta</div>
+                  <div className="text-lg font-black text-[#1B3B2B] mt-2">{formatCurrency(financialData.receitaBrutaAnual)}</div>
                 </div>
-
-                {/* KPI 2 */}
                 <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-rose-700 shadow-sm">
-                  <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase">
-                    <span>Custos + Despesas</span>
-                    <TrendingDown className="w-4 h-4 text-rose-700" />
-                  </div>
-                  <div className="text-lg font-black text-rose-700 mt-2">
-                    {formatCurrency(financialData.saidasTotaisAnual)}
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-1">
-                    {formatPercent(
-                      financialData.receitaBrutaAnual > 0
-                        ? financialData.saidasTotaisAnual / financialData.receitaBrutaAnual
-                        : 0
-                    )}{' '}
-                    da receita bruta
-                  </div>
+                  <div className="text-xs font-bold text-slate-500 uppercase">Custos + Despesas</div>
+                  <div className="text-lg font-black text-rose-700 mt-2">{formatCurrency(financialData.saidasTotaisAnual)}</div>
                 </div>
-
-                {/* KPI 3 */}
                 <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-emerald-600 shadow-sm">
-                  <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase">
-                    <span>Lucro Líquido Empresa</span>
-                    <Award className="w-4 h-4 text-emerald-600" />
-                  </div>
-                  <div className="text-lg font-black text-emerald-700 mt-2">
-                    {formatCurrency(financialData.lucroLiquidoAnual)}
-                  </div>
-                  <div className="text-[11px] text-emerald-700 font-bold mt-1">
-                    Margem Líquida: {formatPercent(financialData.margemLiquidaAnual)}
-                  </div>
+                  <div className="text-xs font-bold text-slate-500 uppercase">Lucro Líquido</div>
+                  <div className="text-lg font-black text-emerald-700 mt-2">{formatCurrency(financialData.lucroLiquidoAnual)}</div>
                 </div>
-
-                {/* KPI 4 — PRÓ-LABORE MAIKON MARTINS */}
-                <div
-                  onClick={() => setActiveTab('prolabore')}
-                  className="bg-[#F8F3EF] rounded-2xl p-4 border border-[#D5CFC7] border-t-4 border-t-[#2D5A43] shadow-sm cursor-pointer hover:shadow-md transition"
-                >
-                  <div className="flex items-center justify-between text-xs font-bold text-[#1B3B2B] uppercase">
-                    <span>Pró-Labore (Maikon)</span>
-                    <UserCheck className="w-4 h-4 text-[#2D5A43]" />
-                  </div>
-                  <div className="text-lg font-black text-[#1B3B2B] mt-2">
-                    {formatCurrency(financialData.proLaboreTotalAnual)}
-                  </div>
-                  <div className="text-[11px] text-[#2D5A43] font-semibold mt-1">
-                    Pago: {formatCurrency(financialData.proLaborePago)} (Ver Conta →)
-                  </div>
+                <div onClick={() => setActiveTab('prolabore')} className="bg-[#F8F3EF] rounded-2xl p-4 border border-[#D5CFC7] border-t-4 border-t-[#2D5A43] shadow-sm cursor-pointer hover:shadow-md transition">
+                  <div className="text-xs font-bold text-[#1B3B2B] uppercase">Pró-Labore</div>
+                  <div className="text-lg font-black text-[#1B3B2B] mt-2">{formatCurrency(financialData.proLaboreTotalAnual)}</div>
                 </div>
-
-                {/* KPI 5 */}
                 <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-teal-700 shadow-sm">
-                  <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase">
-                    <span>Saldo Atual Caixa</span>
-                    <Wallet className="w-4 h-4 text-teal-700" />
-                  </div>
-                  <div className="text-lg font-black text-teal-800 mt-2">
-                    {formatCurrency(financialData.saldoAtualCaixa)}
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-1">
-                    Disponibilidade imediata
-                  </div>
+                  <div className="text-xs font-bold text-slate-500 uppercase">Caixa Atual</div>
+                  <div className="text-lg font-black text-teal-800 mt-2">{formatCurrency(financialData.saldoAtualCaixa)}</div>
                 </div>
-
-                {/* KPI 6 */}
                 <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-amber-500 shadow-sm">
-                  <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase">
-                    <span>Contas a Receber</span>
-                    <Clock className="w-4 h-4 text-amber-600" />
-                  </div>
-                  <div className="text-lg font-black text-amber-600 mt-2">
-                    {formatCurrency(financialData.contasAReceber)}
-                  </div>
-                  <div className="text-[11px] text-amber-700 mt-1">
-                    Parcelas de clientes em aberto
-                  </div>
+                  <div className="text-xs font-bold text-slate-500 uppercase">A Receber</div>
+                  <div className="text-lg font-black text-amber-600 mt-2">{formatCurrency(financialData.contasAReceber)}</div>
                 </div>
-
-                {/* KPI 7 */}
                 <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-orange-600 shadow-sm">
-                  <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase">
-                    <span>Contas a Pagar</span>
-                    <AlertTriangle className="w-4 h-4 text-orange-600" />
-                  </div>
-                  <div className="text-lg font-black text-orange-700 mt-2">
-                    {formatCurrency(financialData.contasAPagar)}
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-1">
-                    Provisionado Nov/Dez
-                  </div>
+                  <div className="text-xs font-bold text-slate-500 uppercase">A Pagar</div>
+                  <div className="text-lg font-black text-orange-700 mt-2">{formatCurrency(financialData.contasAPagar)}</div>
                 </div>
               </div>
 
-              {/* GRÁFICOS INTERATIVOS */}
+              {/* GRÁFICOS */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Gráfico Principal: Evolução Mensal */}
                 <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-                    <div>
-                      <h3 className="text-base font-extrabold text-[#1B3B2B]">
-                        Evolução Financeira Mensal (Jan a Dez 2026)
-                      </h3>
-                      <p className="text-xs text-slate-500">
-                        Comparativo de Receitas Brutas, Saídas Totais e Resultado Líquido
-                      </p>
-                    </div>
-                    <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700">
-                      Meta Mensal: {formatCurrency(params.metaMensalReceita)}
-                    </span>
-                  </div>
+                  <h3 className="text-base font-extrabold text-[#1B3B2B] mb-4">Evolução Financeira Mensal (2026)</h3>
                   <div className="h-80 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart data={financialData.monthlySeries}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
                         <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                        <YAxis
-                          tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`}
-                          tick={{ fontSize: 11 }}
-                        />
-                        <Tooltip
-                          formatter={(value) => formatCurrency(value)}
-                          contentStyle={{
-                            borderRadius: '12px',
-                            borderColor: '#CBD5E1'
-                          }}
-                        />
+                        <YAxis tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
+                        <Tooltip formatter={(value) => formatCurrency(value)} />
                         <Legend wrapperStyle={{ fontSize: '12px' }} />
-                        <Bar
-                          dataKey="entradas"
-                          name="Receita Bruta (R$)"
-                          fill="#1B3B2B"
-                          radius={[6, 6, 0, 0]}
-                        />
-                        <Bar
-                          dataKey="saidas"
-                          name="Saídas Totais (R$)"
-                          fill="#C53030"
-                          radius={[6, 6, 0, 0]}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="resultadoLiquido"
-                          name="Lucro Líquido (R$)"
-                          stroke="#3B7A57"
-                          strokeWidth={3}
-                          dot={{ r: 4, fill: '#3B7A57' }}
-                        />
+                        <Bar dataKey="entradas" name="Receita Bruta" fill="#1B3B2B" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="saidas" name="Saídas" fill="#C53030" radius={[6, 6, 0, 0]} />
+                        <Line type="monotone" dataKey="resultadoLiquido" name="Lucro Líquido" stroke="#3B7A57" strokeWidth={3} />
                       </ComposedChart>
                     </ResponsiveContainer>
                   </div>
                 </div>
 
-                {/* Gráfico de Pizza: Receita por Linha Ambiental & SST */}
                 <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-base font-extrabold text-[#1B3B2B]">
-                      Faturamento por Área Técnica
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Participação (Share %) Ambiental vs. Segurança do Trabalho
-                    </p>
-                  </div>
+                  <h3 className="text-base font-extrabold text-[#1B3B2B]">Faturamento por Área</h3>
                   <div className="h-56 w-full my-2">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie
-                          data={financialData.revenueByCategory}
-                          dataKey="value"
-                          nameKey="shortName"
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={48}
-                          outerRadius={80}
-                          paddingAngle={3}
-                        >
+                        <Pie data={financialData.revenueByCategory} dataKey="value" nameKey="shortName" cx="50%" cy="50%" innerRadius={48} outerRadius={80} paddingAngle={3}>
                           {financialData.revenueByCategory.map((entry, index) => (
-                            <Cell
-                              key={`cell-${index}`}
-                              fill={PIE_COLORS[index % PIE_COLORS.length]}
-                            />
+                            <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                           ))}
                         </Pie>
                         <Tooltip formatter={(value) => formatCurrency(value)} />
@@ -1714,304 +1339,38 @@ export default function App() {
                   </div>
                   <div className="space-y-2">
                     {financialData.revenueByCategory.map((item, idx) => (
-                      <div
-                        key={item.category}
-                        className="flex items-center justify-between text-xs border-b border-slate-100 pb-1.5"
-                      >
-                        <div className="flex items-center gap-2 truncate pr-2">
-                          <span
-                            className="w-3 h-3 rounded-sm shrink-0"
-                            style={{ backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }}
-                          />
-                          <span className="text-slate-700 font-medium truncate">
-                            {item.category}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="font-bold text-[#1B3B2B]">
-                            {formatCurrency(item.value)}
-                          </span>
-                          <span className="text-[11px] text-slate-500 w-11 text-right">
-                            {formatPercent(item.share)}
-                          </span>
-                        </div>
+                      <div key={item.category} className="flex items-center justify-between text-xs border-b border-slate-100 pb-1.5">
+                        <span className="text-slate-700 font-medium truncate">{item.category}</span>
+                        <span className="font-bold text-[#1B3B2B]">{formatCurrency(item.value)}</span>
                       </div>
                     ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* TABELA MENSAL CONSOLIDADA + ESTRUTURA DE SAÍDAS */}
-              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                {/* Tabela de Evolução Mensal */}
-                <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="px-5 py-4 bg-[#1B3B2B] text-white flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold uppercase tracking-wider">
-                        1. Evolução Financeira Mensal e Saques do Sócio (2026)
-                      </h3>
-                    </div>
-                    <span className="text-xs text-emerald-200">
-                      Saldo Inicial: {formatCurrency(params.saldoInicialCaixa)}
-                    </span>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-slate-100 text-slate-600 border-b border-slate-200 font-bold uppercase">
-                          <th className="py-3 px-3">Mês</th>
-                          <th className="py-3 px-3 text-right">Receita Bruta</th>
-                          <th className="py-3 px-3 text-right">Saídas Totais</th>
-                          <th className="py-3 px-3 text-right bg-[#F8F3EF] text-[#1B3B2B]">
-                            Pró-Labore (Maikon)
-                          </th>
-                          <th className="py-3 px-3 text-right">Lucro Líquido</th>
-                          <th className="py-3 px-3 text-right">Saldo Acumulado</th>
-                          <th className="py-3 px-3 text-center">Margem %</th>
-                          <th className="py-3 px-3 text-center">Status Meta</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {financialData.monthlySeries.map((row) => (
-                          <tr key={row.month} className="hover:bg-slate-50">
-                            <td className="py-2.5 px-3 font-bold text-[#1B3B2B]">
-                              {row.month}/26
-                            </td>
-                            <td className="py-2.5 px-3 text-right font-semibold text-emerald-800">
-                              {formatCurrency(row.entradas)}
-                            </td>
-                            <td className="py-2.5 px-3 text-right text-rose-700">
-                              {formatCurrency(row.saidas)}
-                            </td>
-                            <td className="py-2.5 px-3 text-right font-bold bg-[#F8F3EF]/60 text-[#1B3B2B]">
-                              {formatCurrency(row.proLaboreMes)}
-                            </td>
-                            <td className="py-2.5 px-3 text-right font-bold text-emerald-700">
-                              {formatCurrency(row.resultadoLiquido)}
-                            </td>
-                            <td className="py-2.5 px-3 text-right font-semibold text-slate-800">
-                              {formatCurrency(row.saldoAcumulado)}
-                            </td>
-                            <td className="py-2.5 px-3 text-center font-medium text-slate-600">
-                              {formatPercent(row.margem)}
-                            </td>
-                            <td className="py-2.5 px-3 text-center">
-                              {row.atingiuMeta ? (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                                  Meta Atingida
-                                </span>
-                              ) : (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
-                                  Abaixo da Meta
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr className="bg-[#E6EFEA] font-extrabold text-[#1B3B2B] border-t-2 border-[#1B3B2B]">
-                          <td className="py-3 px-3">TOTAL 2026</td>
-                          <td className="py-3 px-3 text-right">
-                            {formatCurrency(financialData.receitaBrutaAnual)}
-                          </td>
-                          <td className="py-3 px-3 text-right text-rose-800">
-                            {formatCurrency(financialData.saidasTotaisAnual)}
-                          </td>
-                          <td className="py-3 px-3 text-right bg-[#F8F3EF] text-[#1B3B2B]">
-                            {formatCurrency(financialData.proLaboreTotalAnual)}
-                          </td>
-                          <td className="py-3 px-3 text-right text-emerald-800">
-                            {formatCurrency(financialData.lucroLiquidoAnual)}
-                          </td>
-                          <td className="py-3 px-3 text-right">
-                            {formatCurrency(
-                              Number(params.saldoInicialCaixa) +
-                                financialData.lucroLiquidoAnual
-                            )}
-                          </td>
-                          <td className="py-3 px-3 text-center">
-                            {formatPercent(financialData.margemLiquidaAnual)}
-                          </td>
-                          <td className="py-3 px-3 text-center">
-                            {financialData.receitaBrutaAnual >=
-                            params.metaMensalReceita * 12
-                              ? 'Meta Anual OK'
-                              : 'Em Curso'}
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Destinação de Saídas e Destaque Pró-Labore */}
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col justify-between">
-                  <div>
-                    <div className="px-5 py-4 bg-[#2D5A43] text-white">
-                      <h3 className="text-sm font-bold uppercase tracking-wider">
-                        2. Destinação de Saídas e Saques do Sócio
-                      </h3>
-                    </div>
-                    <div className="p-4 space-y-2.5">
-                      {financialData.expensesByCategory.map((exp) => (
-                        <div
-                          key={exp.category}
-                          className={`p-2.5 rounded-xl border ${
-                            exp.isProLabore
-                              ? 'bg-[#F8F3EF] border-[#1B3B2B] shadow-sm'
-                              : 'bg-slate-50/70 border-slate-200/80'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between text-xs">
-                            <span
-                              className={`font-bold truncate pr-2 ${
-                                exp.isProLabore ? 'text-[#1B3B2B]' : 'text-slate-700'
-                              }`}
-                            >
-                              {exp.isProLabore ? '★ ' : ''}
-                              {exp.category}
-                            </span>
-                            <span
-                              className={`font-extrabold shrink-0 ${
-                                exp.isProLabore ? 'text-[#1B3B2B]' : 'text-rose-700'
-                              }`}
-                            >
-                              {formatCurrency(exp.value)}
-                            </span>
-                          </div>
-                          <div className="mt-1.5 flex items-center gap-2">
-                            <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full ${
-                                  exp.isProLabore ? 'bg-[#1B3B2B]' : 'bg-rose-600'
-                                }`}
-                                style={{ width: `${Math.min(100, exp.share * 100)}%` }}
-                              />
-                            </div>
-                            <span className="text-[10px] font-semibold text-slate-500 w-12 text-right">
-                              {formatPercent(exp.share)}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* ================================================================
-              ABA 2: MÓDULO EXCLUSIVO PRÓ-LABORE & CONTA SÓCIO (MAIKON MARTINS)
-          ================================================================ */}
           {activeTab === 'prolabore' && (
             <div className="space-y-6">
-              {/* Cabeçalho Executivo do Sócio */}
               <div className="bg-[#F8F3EF] border-2 border-[#1B3B2B] rounded-2xl p-6 shadow-md flex flex-col lg:flex-row items-center justify-between gap-6">
                 <div className="flex flex-col sm:flex-row items-center gap-5">
                   <GrupoMartinsLogo size="md" />
                   <div>
-                    <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-[#1B3B2B] text-[#F8F3EF] uppercase tracking-wider">
+                    <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-[#1B3B2B] text-[#F8F3EF] uppercase">
                       Conta Corrente Societária • Pró-Labore
                     </span>
-                    <h2 className="text-2xl font-black text-[#1B3B2B] mt-2">
-                      Sócio-Diretor: {params.socioDiretor}
-                    </h2>
-                    <p className="text-sm text-slate-600 mt-0.5">
-                      Controle individualizado de retiradas mensais de Pró-Labore, bonificações e emissão de recibos oficiais do Grupo Martins.
-                    </p>
+                    <h2 className="text-2xl font-black text-[#1B3B2B] mt-2">Sócio-Diretor: {params.socioDiretor}</h2>
+                    <p className="text-sm text-slate-600 mt-0.5">Controle individualizado de retiradas e emissão de recibos oficiais.</p>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    onClick={() => openNewTransactionModal('prolabore')}
-                    className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] shadow-lg transition"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Registrar Novo Saque de Pró-Labore
-                  </button>
-                </div>
+                <button onClick={() => openNewTransactionModal('prolabore')} className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] shadow-lg">
+                  <Plus className="w-4 h-4" /> Registrar Novo Saque
+                </button>
               </div>
 
-              {/* KPIs do Sócio Maikon Martins */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 border-l-4 border-l-[#1B3B2B] shadow-sm">
-                  <div className="text-xs font-bold text-slate-500 uppercase">
-                    Total Anual Previsto (2026)
-                  </div>
-                  <div className="text-2xl font-black text-[#1B3B2B] mt-2">
-                    {formatCurrency(financialData.proLaboreTotalAnual)}
-                  </div>
-                  <div className="text-xs text-slate-500 mt-1">
-                    12 competências (Jan a Dez)
-                  </div>
-                </div>
-
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 border-l-4 border-l-emerald-600 shadow-sm">
-                  <div className="text-xs font-bold text-slate-500 uppercase">
-                    Total Já Sacado (Realizado)
-                  </div>
-                  <div className="text-2xl font-black text-emerald-700 mt-2">
-                    {formatCurrency(financialData.proLaborePago)}
-                  </div>
-                  <div className="text-xs text-emerald-700 font-semibold mt-1">
-                    Transferido para conta pessoal
-                  </div>
-                </div>
-
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 border-l-4 border-l-amber-500 shadow-sm">
-                  <div className="text-xs font-bold text-slate-500 uppercase">
-                    Saldo Pendente de Saque
-                  </div>
-                  <div className="text-2xl font-black text-amber-600 mt-2">
-                    {formatCurrency(financialData.proLaborePendente)}
-                  </div>
-                  <div className="text-xs text-amber-700 mt-1">
-                    Programado para Dezembro/2026
-                  </div>
-                </div>
-
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 border-l-4 border-l-teal-600 shadow-sm">
-                  <div className="text-xs font-bold text-slate-500 uppercase">
-                    Média Mensal de Retirada
-                  </div>
-                  <div className="text-2xl font-black text-teal-800 mt-2">
-                    {formatCurrency(financialData.proLaboreTotalAnual / 12)}
-                  </div>
-                  <div className="text-xs text-slate-500 mt-1">
-                    Alvo configurado: {formatCurrency(params.proLaboreAlvoMensal)}/mês
-                  </div>
-                </div>
-
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 border-l-4 border-l-indigo-600 shadow-sm">
-                  <div className="text-xs font-bold text-slate-500 uppercase">
-                    % Sobre a Receita Bruta
-                  </div>
-                  <div className="text-2xl font-black text-indigo-900 mt-2">
-                    {formatPercent(
-                      financialData.receitaBrutaAnual > 0
-                        ? financialData.proLaboreTotalAnual / financialData.receitaBrutaAnual
-                        : 0
-                    )}
-                  </div>
-                  <div className="text-xs text-slate-500 mt-1">
-                    Equilíbrio saudável com reserva de 50,1%
-                  </div>
-                </div>
-              </div>
-
-              {/* Tabela Histórica de Saques de Maikon Martins + Emissão de Recibo */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 bg-[#1B3B2B] text-white flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h3 className="text-sm font-bold uppercase tracking-wider">
-                      Histórico de Saques de Pró-Labore — Sócio Maikon Martins (2026)
-                    </h3>
-                    <p className="text-xs text-emerald-200">
-                      Clique em "Emitir Recibo" para visualizar e imprimir o comprovante formal de retirada societária
-                    </p>
-                  </div>
+                <div className="px-6 py-4 bg-[#1B3B2B] text-white">
+                  <h3 className="text-sm font-bold uppercase">Histórico de Saques de Pró-Labore (2026)</h3>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs sm:text-sm">
@@ -2020,73 +1379,32 @@ export default function App() {
                         <th className="py-3.5 px-4">Código</th>
                         <th className="py-3.5 px-4">Data</th>
                         <th className="py-3.5 px-4">Competência</th>
-                        <th className="py-3.5 px-4">Favorecido / Sócio</th>
-                        <th className="py-3.5 px-4">Descrição da Retirada</th>
-                        <th className="py-3.5 px-4">Meio de Pagamento</th>
+                        <th className="py-3.5 px-4">Descrição</th>
                         <th className="py-3.5 px-4 text-center">Status</th>
-                        <th className="py-3.5 px-4 text-right">Valor do Saque</th>
-                        <th className="py-3.5 px-4 text-center">Ações / Recibo</th>
+                        <th className="py-3.5 px-4 text-right">Valor</th>
+                        <th className="py-3.5 px-4 text-center">Ações</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {transactions
-                        .filter(
-                          (t) =>
-                            t.category === 'Saque de Pró-Labore — Sócio Maikon Martins'
-                        )
-                        .map((tx) => (
-                          <tr key={tx.id} className="hover:bg-[#F8F3EF]/50">
-                            <td className="py-3 px-4 font-mono font-bold text-[#1B3B2B]">
-                              {tx.id}
-                            </td>
-                            <td className="py-3 px-4 text-slate-600">{tx.date}</td>
-                            <td className="py-3 px-4 font-bold text-[#1B3B2B]">
-                              {tx.month}/2026
-                            </td>
-                            <td className="py-3 px-4 font-bold text-slate-800">
-                              {tx.entity}
-                            </td>
-                            <td className="py-3 px-4 text-slate-600">{tx.description}</td>
-                            <td className="py-3 px-4 text-slate-600">
-                              {tx.paymentMethod}
-                            </td>
-                            <td className="py-3 px-4 text-center">
-                              <button
-                                onClick={() => handleToggleStatus(tx.id)}
-                                className={`px-3 py-1 rounded-full text-xs font-bold transition ${
-                                  tx.status === 'Pago / Recebido'
-                                    ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
-                                    : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
-                                }`}
-                              >
-                                {tx.status === 'Pago / Recebido'
-                                  ? '✓ Sacado / Pago'
-                                  : '⏳ Pendente (Dar Baixa)'}
-                              </button>
-                            </td>
-                            <td className="py-3 px-4 text-right font-extrabold text-[#1B3B2B]">
-                              {formatCurrency(tx.amount)}
-                            </td>
-                            <td className="py-3 px-4 text-center">
-                              <div className="flex items-center justify-center gap-2">
-                                <button
-                                  onClick={() => setReceiptModalTx(tx)}
-                                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#1B3B2B] text-white text-xs font-semibold hover:bg-[#2D5A43] transition"
-                                >
-                                  <Printer className="w-3.5 h-3.5" />
-                                  Recibo
-                                </button>
-                                <button
-                                  onClick={() => openEditTransactionModal(tx)}
-                                  className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100"
-                                  title="Editar"
-                                >
-                                  <Edit3 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                      {transactions.filter(t => t.category === 'Saque de Pró-Labore — Sócio Maikon Martins').map((tx) => (
+                        <tr key={tx.id} className="hover:bg-[#F8F3EF]/50">
+                          <td className="py-3 px-4 font-mono font-bold text-[#1B3B2B]">{tx.id}</td>
+                          <td className="py-3 px-4">{tx.date}</td>
+                          <td className="py-3 px-4 font-bold">{tx.month}/2026</td>
+                          <td className="py-3 px-4">{tx.description}</td>
+                          <td className="py-3 px-4 text-center">
+                            <button onClick={() => handleToggleStatus(tx.id)} className={`px-3 py-1 rounded-full text-xs font-bold ${tx.status === 'Pago / Recebido' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                              {tx.status}
+                            </button>
+                          </td>
+                          <td className="py-3 px-4 text-right font-extrabold text-[#1B3B2B]">{formatCurrency(tx.amount)}</td>
+                          <td className="py-3 px-4 text-center">
+                            <button onClick={() => setReceiptModalTx(tx)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#1B3B2B] text-white text-xs font-semibold hover:bg-[#2D5A43] mx-auto">
+                              <Printer className="w-3.5 h-3.5" /> Recibo
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -2094,85 +1412,8 @@ export default function App() {
             </div>
           )}
 
-          {/* ================================================================
-              ABA 3: LIVRO CAIXA & LANÇAMENTOS (CONTAS A PAGAR E RECEBER)
-          ================================================================ */}
           {activeTab === 'lancamentos' && (
             <div className="space-y-5">
-              {/* Barra de Subtotais Dinâmicos */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-bold text-slate-500 uppercase">
-                      Entradas Filtradas
-                    </div>
-                    <div className="text-xl font-black text-emerald-700 mt-1">
-                      {formatCurrency(
-                        filteredTransactions
-                          .filter((t) => t.type === 'Entrada')
-                          .reduce((a, b) => a + Number(b.amount), 0)
-                      )}
-                    </div>
-                  </div>
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
-                    <TrendingUp className="w-5 h-5" />
-                  </div>
-                </div>
-
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-bold text-slate-500 uppercase">
-                      Saídas Filtradas
-                    </div>
-                    <div className="text-xl font-black text-rose-700 mt-1">
-                      {formatCurrency(
-                        filteredTransactions
-                          .filter((t) => t.type === 'Saída')
-                          .reduce((a, b) => a + Number(b.amount), 0)
-                      )}
-                    </div>
-                  </div>
-                  <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-800 flex items-center justify-center">
-                    <TrendingDown className="w-5 h-5" />
-                  </div>
-                </div>
-
-                <div className="bg-[#F8F3EF] p-4 rounded-2xl border border-[#D5CFC7] shadow-sm flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-bold text-[#1B3B2B] uppercase">
-                      Pró-Labore Pago (Maikon)
-                    </div>
-                    <div className="text-xl font-black text-[#1B3B2B] mt-1">
-                      {formatCurrency(financialData.proLaborePago)}
-                    </div>
-                  </div>
-                  <div className="w-10 h-10 rounded-xl bg-[#1B3B2B] text-[#F8F3EF] flex items-center justify-center">
-                    <UserCheck className="w-5 h-5" />
-                  </div>
-                </div>
-
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-bold text-slate-500 uppercase">
-                      Saldo Líquido da Seleção
-                    </div>
-                    <div className="text-xl font-black text-[#1B3B2B] mt-1">
-                      {formatCurrency(
-                        filteredTransactions.reduce(
-                          (a, b) =>
-                            a + (b.type === 'Entrada' ? Number(b.amount) : -Number(b.amount)),
-                          0
-                        )
-                      )}
-                    </div>
-                  </div>
-                  <div className="w-10 h-10 rounded-xl bg-slate-100 text-[#1B3B2B] flex items-center justify-center">
-                    <Wallet className="w-5 h-5" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Barra de Filtros e Pesquisa */}
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2.5 flex-1">
                   <div className="relative flex-1 min-w-[220px]">
@@ -2181,87 +1422,21 @@ export default function App() {
                       type="text"
                       value={txSearch}
                       onChange={(e) => setTxSearch(e.target.value)}
-                      placeholder="Buscar por cliente, Maikon Martins, descrição ou código..."
-                      className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-[#1B3B2B]"
+                      placeholder="Buscar lançamentos..."
+                      className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
                     />
                   </div>
-
-                  <select
-                    value={txMonthFilter}
-                    onChange={(e) => setTxMonthFilter(e.target.value)}
-                    className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-slate-50"
-                  >
-                    <option value="Todos">Mês: Todos (Jan-Dez)</option>
-                    {MONTHS.map((m) => (
-                      <option key={m} value={m}>
-                        {m}/2026
-                      </option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={txTypeFilter}
-                    onChange={(e) => setTxTypeFilter(e.target.value)}
-                    className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-slate-50"
-                  >
-                    <option value="Todos">Tipo: Entrada & Saída</option>
-                    <option value="Entrada">Somente Entradas</option>
-                    <option value="Saída">Somente Saídas</option>
-                  </select>
-
-                  <select
-                    value={txCategoryFilter}
-                    onChange={(e) => setTxCategoryFilter(e.target.value)}
-                    className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-slate-50 max-w-[230px]"
-                  >
-                    <option value="Todas">Categoria: Todas</option>
-                    <optgroup label="Receitas Operacionais">
-                      {REVENUE_CATEGORIES.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Custos, Despesas e Pró-Labore">
-                      {EXPENSE_CATEGORIES.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
-
-                  <select
-                    value={txStatusFilter}
-                    onChange={(e) => setTxStatusFilter(e.target.value)}
-                    className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-slate-50"
-                  >
-                    <option value="Todos">Status: Todos</option>
-                    <option value="Pago / Recebido">Pago / Recebido</option>
-                    <option value="Pendente">Pendente</option>
-                    <option value="Atrasado">Atrasado</option>
-                  </select>
                 </div>
-
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleExportCSV}
-                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
-                  >
-                    <Download className="w-4 h-4" />
-                    Exportar CSV
+                  <button onClick={handleExportCSV} className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700">
+                    <Download className="w-4 h-4" /> Exportar CSV
                   </button>
-                  <button
-                    onClick={() => openNewTransactionModal()}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] transition"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Incluir Lançamento
+                  <button onClick={() => openNewTransactionModal()} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white">
+                    <Plus className="w-4 h-4" /> Incluir Lançamento
                   </button>
                 </div>
               </div>
 
-              {/* Tabela Completa de Lançamentos */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
@@ -2269,110 +1444,43 @@ export default function App() {
                       <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
                         <th className="py-3.5 px-3">ID</th>
                         <th className="py-3.5 px-3">Data</th>
-                        <th className="py-3.5 px-2">Mês</th>
                         <th className="py-3.5 px-3">Tipo</th>
-                        <th className="py-3.5 px-3">Categoria Plano de Contas</th>
-                        <th className="py-3.5 px-3">Cliente / Favorecido / Sócio</th>
-                        <th className="py-3.5 px-3">Descrição Técnica</th>
-                        <th className="py-3.5 px-3 text-center">Status (Baixa Rápida)</th>
-                        <th className="py-3.5 px-3 text-right">Valor (R$)</th>
+                        <th className="py-3.5 px-3">Categoria</th>
+                        <th className="py-3.5 px-3">Favorecido / Cliente</th>
+                        <th className="py-3.5 px-3">Descrição</th>
+                        <th className="py-3.5 px-3 text-center">Status</th>
+                        <th className="py-3.5 px-3 text-right">Valor</th>
                         <th className="py-3.5 px-3 text-center">Ações</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {filteredTransactions.map((tx) => {
-                        const isProLabore =
-                          tx.category === 'Saque de Pró-Labore — Sócio Maikon Martins';
-                        return (
-                          <tr
-                            key={tx.id}
-                            className={`hover:bg-slate-50 transition ${
-                              isProLabore ? 'bg-[#F8F3EF]/60' : ''
-                            }`}
-                          >
-                            <td className="py-2.5 px-3 font-mono font-bold text-slate-700">
-                              {tx.id}
-                            </td>
-                            <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">
-                              {tx.date}
-                            </td>
-                            <td className="py-2.5 px-2 font-bold text-[#1B3B2B]">
-                              {tx.month}
-                            </td>
-                            <td className="py-2.5 px-3">
-                              <span
-                                className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                                  tx.type === 'Entrada'
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : 'bg-rose-100 text-rose-800'
-                                }`}
-                              >
-                                {tx.type}
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-3 font-medium text-slate-700 max-w-[210px] truncate">
-                              {isProLabore ? '★ ' : ''}
-                              {tx.category}
-                            </td>
-                            <td className="py-2.5 px-3 font-bold text-slate-800 max-w-[190px] truncate">
-                              {tx.entity}
-                            </td>
-                            <td className="py-2.5 px-3 text-slate-600 max-w-[250px] truncate">
-                              {tx.description}
-                            </td>
-                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                              <button
-                                onClick={() => handleToggleStatus(tx.id)}
-                                title="Clique para alternar entre Pago/Recebido e Pendente"
-                                className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition ${
-                                  tx.status === 'Pago / Recebido'
-                                    ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
-                                    : tx.status === 'Atrasado'
-                                    ? 'bg-red-100 text-red-800 hover:bg-red-200'
-                                    : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
-                                }`}
-                              >
-                                {tx.status}
-                              </button>
-                            </td>
-                            <td
-                              className={`py-2.5 px-3 text-right font-extrabold whitespace-nowrap ${
-                                tx.type === 'Entrada' ? 'text-emerald-700' : 'text-rose-700'
-                              }`}
-                            >
-                              {tx.type === 'Saída' ? '- ' : '+ '}
-                              {formatCurrency(tx.amount)}
-                            </td>
-                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                              <div className="flex items-center justify-center gap-1">
-                                <button
-                                  onClick={() => openEditTransactionModal(tx)}
-                                  className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100"
-                                  title="Editar Lançamento"
-                                >
-                                  <Edit3 className="w-4 h-4" />
-                                </button>
-                                {hasPermission('lancamentos', 'delete') ? (
-                                  <button
-                                    onClick={() => setDeleteTxTarget(tx)}
-                                    className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50"
-                                    title="Excluir Lançamento"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                ) : (
-                                  <span
-                                    className="p-1.5 text-slate-300 cursor-not-allowed"
-                                    title="Seu perfil atual não permite excluir lançamentos"
-                                  >
-                                    <Lock className="w-3.5 h-3.5" />
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {filteredTransactions.map((tx) => (
+                        <tr key={tx.id} className="hover:bg-slate-50">
+                          <td className="py-2.5 px-3 font-mono font-bold">{tx.id}</td>
+                          <td className="py-2.5 px-3">{tx.date}</td>
+                          <td className="py-2.5 px-3">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${tx.type === 'Entrada' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                              {tx.type}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 font-medium">{tx.category}</td>
+                          <td className="py-2.5 px-3 font-bold">{tx.entity}</td>
+                          <td className="py-2.5 px-3">{tx.description}</td>
+                          <td className="py-2.5 px-3 text-center">
+                            <button onClick={() => handleToggleStatus(tx.id)} className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${tx.status === 'Pago / Recebido' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                              {tx.status}
+                            </button>
+                          </td>
+                          <td className={`py-2.5 px-3 text-right font-extrabold ${tx.type === 'Entrada' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                            {formatCurrency(tx.amount)}
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            <button onClick={() => setDeleteTxTarget(tx)} className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -2380,498 +1488,19 @@ export default function App() {
             </div>
           )}
 
-          {/* ================================================================
-              ABA 4: DRE GERENCIAL MENSAL (JAN A DEZ + ANÁLISE VERTICAL AV%)
-          ================================================================ */}
-          {activeTab === 'dre' && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#E6EFEA] text-[#1B3B2B] border border-[#B7DFC5]">
-                      Demonstrativo Contábil Oficial
-                    </span>
-                    <span className="text-xs font-semibold text-slate-500">
-                      Regime de Competência • Exercício 2026
-                    </span>
-                  </div>
-                  <h2 className="text-xl sm:text-2xl font-black text-[#1B3B2B]">
-                    DRE Gerencial — Grupo Martins (Soluções Ambientais & SST)
-                  </h2>
-                  <p className="text-xs sm:text-sm text-slate-600 mt-1">
-                    Demonstrativo padronizado e formal com separação de custos diretos (CSP), despesas operacionais e Pró-Labore do Sócio-Diretor Maikon Martins.
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <button
-                    onClick={() => {
-                      const dreHeaders = ['Estrutura DRE Oficial', ...MONTHS.map(m => `${m}/2026`), 'Acumulado 2026', 'AV %'];
-                      const totalRec = REVENUE_CATEGORIES.reduce((acc, c) => acc + financialData.getCatMonth(c), 0);
-                      const dreRows = [
-                        ['1. RECEITA OPERACIONAL BRUTA', ...MONTHS.map(m => REVENUE_CATEGORIES.reduce((acc, c) => acc + financialData.getCatMonth(c, m), 0)), totalRec, '100,0%'],
-                        ...REVENUE_CATEGORIES.map(cat => [cat, ...MONTHS.map(m => financialData.getCatMonth(cat, m)), financialData.getCatMonth(cat), formatPercent(totalRec > 0 ? financialData.getCatMonth(cat) / totalRec : 0)]),
-                        ['2. DEDUÇÕES E IMPOSTOS SOBRE FATURAMENTO', ...MONTHS.map(m => financialData.getCatMonth(EXPENSE_CATEGORIES[0], m)), financialData.getCatMonth(EXPENSE_CATEGORIES[0]), formatPercent(financialData.getCatMonth(EXPENSE_CATEGORIES[0]) / (totalRec || 1))],
-                        ['3. RECEITA OPERACIONAL LÍQUIDA', ...MONTHS.map(m => REVENUE_CATEGORIES.reduce((acc, c) => acc + financialData.getCatMonth(c, m), 0) - financialData.getCatMonth(EXPENSE_CATEGORIES[0], m)), totalRec - financialData.getCatMonth(EXPENSE_CATEGORIES[0]), formatPercent((totalRec - financialData.getCatMonth(EXPENSE_CATEGORIES[0])) / (totalRec || 1))],
-                        ['4. CUSTOS DIRETOS DE PROJETOS E CAMPO (CSP)', ...MONTHS.map(m => [1,2,3,4].reduce((acc, idx) => acc + financialData.getCatMonth(EXPENSE_CATEGORIES[idx], m), 0)), [1,2,3,4].reduce((acc, idx) => acc + financialData.getCatMonth(EXPENSE_CATEGORIES[idx]), 0), formatPercent([1,2,3,4].reduce((acc, idx) => acc + financialData.getCatMonth(EXPENSE_CATEGORIES[idx]), 0) / (totalRec || 1))],
-                        ...[1,2,3,4].map(idx => [
-                          `(-) ${EXPENSE_CATEGORIES[idx]}`,
-                          ...MONTHS.map(m => financialData.getCatMonth(EXPENSE_CATEGORIES[idx], m)),
-                          financialData.getCatMonth(EXPENSE_CATEGORIES[idx]),
-                          formatPercent(financialData.getCatMonth(EXPENSE_CATEGORIES[idx]) / (totalRec || 1))
-                        ]),
-                        ['5. DESPESAS OPERACIONAIS E PRÓ-LABORE', ...MONTHS.map(m => [5,6,7,8,9,10].reduce((acc, idx) => acc + financialData.getCatMonth(EXPENSE_CATEGORIES[idx], m), 0)), [5,6,7,8,9,10].reduce((acc, idx) => acc + financialData.getCatMonth(EXPENSE_CATEGORIES[idx]), 0), formatPercent([5,6,7,8,9,10].reduce((acc, idx) => acc + financialData.getCatMonth(EXPENSE_CATEGORIES[idx]), 0) / (totalRec || 1))],
-                        ...[5,6,7,8,9,10].map(idx => [
-                          `(-) ${EXPENSE_CATEGORIES[idx]}`,
-                          ...MONTHS.map(m => financialData.getCatMonth(EXPENSE_CATEGORIES[idx], m)),
-                          financialData.getCatMonth(EXPENSE_CATEGORIES[idx]),
-                          formatPercent(financialData.getCatMonth(EXPENSE_CATEGORIES[idx]) / (totalRec || 1))
-                        ]),
-                        ['6. LUCRO LÍQUIDO DO EXERCÍCIO', ...financialData.monthlySeries.map(m => m.resultadoLiquido), financialData.lucroLiquidoAnual, formatPercent(financialData.margemLiquidaAnual)]
-                      ];
-                      const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [dreHeaders.join(';'), ...dreRows.map(r => r.join(';'))].join('\n');
-                      const encodedUri = encodeURI(csvContent);
-                      const link = document.createElement('a');
-                      link.setAttribute('href', encodedUri);
-                      link.setAttribute('download', 'DRE_Gerencial_Oficial_Grupo_Martins_2026.csv');
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                      showToast('Planilha DRE formal e completa exportada com sucesso!');
-                    }}
-                    className="flex items-center gap-2 px-5 py-3 rounded-xl text-xs sm:text-sm font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] transition shadow-md"
-                  >
-                    <Download className="w-4 h-4" />
-                    Baixar Planilha DRE Formal (Excel / CSV)
-                  </button>
-                  <div className="flex items-center gap-4 bg-[#F8F3EF] px-5 py-3 rounded-xl border border-[#D5CFC7] shadow-xs">
-                    <div>
-                      <div className="text-[10px] font-bold uppercase text-slate-500">
-                        Lucro Bruto Consolidado
-                      </div>
-                      <div className="text-base font-black text-[#1B3B2B]">
-                        {formatCurrency(
-                          financialData.receitaBrutaAnual -
-                            financialData.getCatMonth(EXPENSE_CATEGORIES[0]) -
-                            financialData.getCatMonth(EXPENSE_CATEGORIES[1]) -
-                            financialData.getCatMonth(EXPENSE_CATEGORIES[2]) -
-                            financialData.getCatMonth(EXPENSE_CATEGORIES[3]) -
-                            financialData.getCatMonth(EXPENSE_CATEGORIES[4])
-                        )}
-                      </div>
-                    </div>
-                    <div className="h-8 w-[1px] bg-slate-300" />
-                    <div>
-                      <div className="text-[10px] font-bold uppercase text-slate-500">
-                        Resultado Líquido Final
-                      </div>
-                      <div className="text-base font-black text-emerald-700">
-                        {formatCurrency(financialData.lucroLiquidoAnual)} ({formatPercent(financialData.margemLiquidaAnual)})
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Tabela DRE Formal e Padronizada */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-[#1B3B2B] text-white font-extrabold uppercase tracking-wide text-[11px]">
-                        <th className="py-4 px-4 min-w-[280px] sticky left-0 bg-[#1B3B2B] z-10 border-r border-[#2D5A43]">
-                          Estrutura Contábil DRE (R$)
-                        </th>
-                        {MONTHS.map((m) => (
-                          <th key={m} className="py-4 px-3 text-right font-semibold">
-                            {m}/26
-                          </th>
-                        ))}
-                        <th className="py-4 px-4 text-right bg-[#132A1F] font-black border-l border-[#2D5A43]">
-                          ACUMULADO
-                        </th>
-                        <th className="py-4 px-3 text-center bg-[#132A1F] font-black">
-                          AV %
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {/* 1. RECEITA BRUTA */}
-                      <tr className="bg-[#E6EFEA] font-extrabold text-[#1B3B2B]">
-                        <td className="py-3 px-4 sticky left-0 bg-[#E6EFEA] border-r border-slate-200">
-                          1. RECEITA OPERACIONAL BRUTA
-                        </td>
-                        {MONTHS.map((m) => {
-                          const val = REVENUE_CATEGORIES.reduce(
-                            (acc, c) => acc + financialData.getCatMonth(c, m),
-                            0
-                          );
-                          return (
-                            <td key={m} className="py-3 px-3 text-right font-bold text-emerald-900">
-                              {formatCurrency(val)}
-                            </td>
-                          );
-                        })}
-                        <td className="py-3 px-4 text-right bg-[#D5E6DC] font-black text-[#1B3B2B] border-l border-slate-200">
-                          {formatCurrency(financialData.receitaBrutaAnual)}
-                        </td>
-                        <td className="py-3 px-3 text-center bg-[#D5E6DC] font-black text-[#1B3B2B]">
-                          100,0%
-                        </td>
-                      </tr>
-
-                      {REVENUE_CATEGORIES.map((cat) => {
-                        const totalCat = financialData.getCatMonth(cat);
-                        return (
-                          <tr key={cat} className="hover:bg-slate-50/80 text-slate-700">
-                            <td className="py-2.5 px-4 pl-8 sticky left-0 bg-white border-r border-slate-100 font-medium">
-                              (+) {cat}
-                            </td>
-                            {MONTHS.map((m) => (
-                              <td key={m} className="py-2.5 px-3 text-right text-slate-600">
-                                {formatCurrency(financialData.getCatMonth(cat, m))}
-                              </td>
-                            ))}
-                            <td className="py-2.5 px-4 text-right font-bold text-[#1B3B2B] bg-slate-50/50 border-l border-slate-200">
-                              {formatCurrency(totalCat)}
-                            </td>
-                            <td className="py-2.5 px-3 text-center text-slate-500 bg-slate-50/50">
-                              {formatPercent(
-                                financialData.receitaBrutaAnual > 0
-                                  ? totalCat / financialData.receitaBrutaAnual
-                                  : 0
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-
-                      {/* 2. DEDUÇÕES E IMPOSTOS */}
-                      <tr className="bg-rose-50/60 font-bold text-rose-900">
-                        <td className="py-3 px-4 sticky left-0 bg-rose-50 border-r border-rose-200">
-                          2. (-) DEDUÇÕES E IMPOSTOS SOBRE FATURAMENTO
-                        </td>
-                        {MONTHS.map((m) => (
-                          <td key={m} className="py-3 px-3 text-right text-rose-800">
-                            {formatCurrency(
-                              financialData.getCatMonth(EXPENSE_CATEGORIES[0], m)
-                            )}
-                          </td>
-                        ))}
-                        <td className="py-3 px-4 text-right bg-rose-100/70 border-l border-rose-200 font-black">
-                          {formatCurrency(financialData.getCatMonth(EXPENSE_CATEGORIES[0]))}
-                        </td>
-                        <td className="py-3 px-3 text-center bg-rose-100/70 font-black">
-                          {formatPercent(
-                            financialData.getCatMonth(EXPENSE_CATEGORIES[0]) /
-                              (financialData.receitaBrutaAnual || 1)
-                          )}
-                        </td>
-                      </tr>
-
-                      {/* 3. RECEITA LÍQUIDA */}
-                      <tr className="bg-slate-100 font-extrabold text-slate-900 border-t-2 border-slate-300">
-                        <td className="py-3.5 px-4 sticky left-0 bg-slate-100 border-r border-slate-300">
-                          3. (=) RECEITA OPERACIONAL LÍQUIDA
-                        </td>
-                        {MONTHS.map((m) => {
-                          const rec = REVENUE_CATEGORIES.reduce(
-                            (acc, c) => acc + financialData.getCatMonth(c, m),
-                            0
-                          );
-                          const imp = financialData.getCatMonth(EXPENSE_CATEGORIES[0], m);
-                          return (
-                            <td key={m} className="py-3.5 px-3 text-right font-bold">
-                              {formatCurrency(rec - imp)}
-                            </td>
-                          );
-                        })}
-                        <td className="py-3.5 px-4 text-right bg-slate-200/80 border-l border-slate-300 font-black text-slate-950">
-                          {formatCurrency(
-                            financialData.receitaBrutaAnual -
-                              financialData.getCatMonth(EXPENSE_CATEGORIES[0])
-                          )}
-                        </td>
-                        <td className="py-3.5 px-3 text-center bg-slate-200/80 font-black text-slate-950">
-                          {formatPercent(
-                            (financialData.receitaBrutaAnual -
-                              financialData.getCatMonth(EXPENSE_CATEGORIES[0])) /
-                              (financialData.receitaBrutaAnual || 1)
-                          )}
-                        </td>
-                      </tr>
-
-                      {/* 4. CUSTOS DIRETOS (CSP) */}
-                      <tr className="bg-rose-50/60 font-bold text-rose-900">
-                        <td className="py-3 px-4 sticky left-0 bg-rose-50 border-r border-rose-200">
-                          4. (-) CUSTOS DIRETOS DE PROJETOS E CAMPO (CSP)
-                        </td>
-                        {MONTHS.map((m) => {
-                          const csp = [1, 2, 3, 4].reduce(
-                            (acc, idx) =>
-                              acc + financialData.getCatMonth(EXPENSE_CATEGORIES[idx], m),
-                            0
-                          );
-                          return (
-                            <td key={m} className="py-3 px-3 text-right text-rose-800">
-                              {formatCurrency(csp)}
-                            </td>
-                          );
-                        })}
-                        <td className="py-3 px-4 text-right bg-rose-100/70 border-l border-rose-200 font-black">
-                          {formatCurrency(
-                            [1, 2, 3, 4].reduce(
-                              (acc, idx) =>
-                                acc + financialData.getCatMonth(EXPENSE_CATEGORIES[idx]),
-                              0
-                            )
-                          )}
-                        </td>
-                        <td className="py-3 px-3 text-center bg-rose-100/70 font-black">
-                          {formatPercent(
-                            [1, 2, 3, 4].reduce(
-                              (acc, idx) =>
-                                acc + financialData.getCatMonth(EXPENSE_CATEGORIES[idx]),
-                              0
-                            ) / (financialData.receitaBrutaAnual || 1)
-                          )}
-                        </td>
-                      </tr>
-
-                      {[1, 2, 3, 4].map((idx) => {
-                        const cat = EXPENSE_CATEGORIES[idx];
-                        const totalCat = financialData.getCatMonth(cat);
-                        return (
-                          <tr key={cat} className="hover:bg-slate-50/80 text-slate-600">
-                            <td className="py-2.5 px-4 pl-8 sticky left-0 bg-white border-r border-slate-100 font-medium">
-                              (-) {cat}
-                            </td>
-                            {MONTHS.map((m) => (
-                              <td key={m} className="py-2.5 px-3 text-right">
-                                {formatCurrency(financialData.getCatMonth(cat, m))}
-                              </td>
-                            ))}
-                            <td className="py-2.5 px-4 text-right font-semibold bg-slate-50/50 border-l border-slate-200 text-slate-800">
-                              {formatCurrency(totalCat)}
-                            </td>
-                            <td className="py-2.5 px-3 text-center bg-slate-50/50 text-slate-500">
-                              {formatPercent(
-                                totalCat / (financialData.receitaBrutaAnual || 1)
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-
-                      {/* 5. DESPESAS OPERACIONAIS E PRÓ-LABORE MAIKON MARTINS */}
-                      <tr className="bg-rose-50/60 font-bold text-rose-900">
-                        <td className="py-3 px-4 sticky left-0 bg-rose-50 border-r border-rose-200">
-                          5. (-) DESPESAS OPERACIONAIS, COMERCIAIS E PRÓ-LABORE
-                        </td>
-                        {MONTHS.map((m) => {
-                          const desp = [5, 6, 7, 8, 9, 10].reduce(
-                            (acc, idx) =>
-                              acc + financialData.getCatMonth(EXPENSE_CATEGORIES[idx], m),
-                            0
-                          );
-                          return (
-                            <td key={m} className="py-3 px-3 text-right text-rose-800">
-                              {formatCurrency(desp)}
-                            </td>
-                          );
-                        })}
-                        <td className="py-3 px-4 text-right bg-rose-100/70 border-l border-rose-200 font-black">
-                          {formatCurrency(
-                            [5, 6, 7, 8, 9, 10].reduce(
-                              (acc, idx) =>
-                                acc + financialData.getCatMonth(EXPENSE_CATEGORIES[idx]),
-                              0
-                            )
-                          )}
-                        </td>
-                        <td className="py-3 px-3 text-center bg-rose-100/70 font-black">
-                          {formatPercent(
-                            [5, 6, 7, 8, 9, 10].reduce(
-                              (acc, idx) =>
-                                acc + financialData.getCatMonth(EXPENSE_CATEGORIES[idx]),
-                              0
-                            ) / (financialData.receitaBrutaAnual || 1)
-                          )}
-                        </td>
-                      </tr>
-
-                      {[5, 6, 7, 8, 9, 10].map((idx) => {
-                        const cat = EXPENSE_CATEGORIES[idx];
-                        const isProLabore = idx === 5;
-                        const totalCat = financialData.getCatMonth(cat);
-                        return (
-                          <tr
-                            key={cat}
-                            className={
-                              isProLabore
-                                ? 'bg-[#F8F3EF] font-extrabold text-[#1B3B2B]'
-                                : 'hover:bg-slate-50/80 text-slate-600'
-                            }
-                          >
-                            <td
-                              className={`py-2.5 px-4 pl-8 sticky left-0 border-r border-slate-100 ${
-                                isProLabore ? 'bg-[#F8F3EF] text-[#1B3B2B]' : 'bg-white'
-                              }`}
-                            >
-                              {isProLabore ? '★ (-) ' : '(-) '}
-                              {cat}
-                            </td>
-                            {MONTHS.map((m) => (
-                              <td key={m} className="py-2.5 px-3 text-right">
-                                {formatCurrency(financialData.getCatMonth(cat, m))}
-                              </td>
-                            ))}
-                            <td
-                              className={`py-2.5 px-4 text-right font-bold border-l border-slate-200 ${
-                                isProLabore ? 'bg-[#EDE3D9] text-[#1B3B2B]' : 'bg-slate-50/50 text-slate-800'
-                              }`}
-                            >
-                              {formatCurrency(totalCat)}
-                            </td>
-                            <td
-                              className={`py-2.5 px-3 text-center ${
-                                isProLabore ? 'bg-[#EDE3D9] text-[#1B3B2B]' : 'bg-slate-50/50 text-slate-500'
-                              }`}
-                            >
-                              {formatPercent(
-                                totalCat / (financialData.receitaBrutaAnual || 1)
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-
-                      {/* 6. LUCRO LÍQUIDO DO EXERCÍCIO */}
-                      <tr className="bg-[#1B3B2B] text-white font-black text-xs border-t-4 border-[#132A1F]">
-                        <td className="py-4 px-4 sticky left-0 bg-[#1B3B2B] border-r border-[#2D5A43] text-emerald-300">
-                          6. (=) LUCRO LÍQUIDO DO EXERCÍCIO (APÓS PRÓ-LABORE)
-                        </td>
-                        {financialData.monthlySeries.map((m) => (
-                          <td key={m.month} className="py-4 px-3 text-right font-black text-emerald-200">
-                            {formatCurrency(m.resultadoLiquido)}
-                          </td>
-                        ))}
-                        <td className="py-4 px-4 text-right bg-[#132A1F] text-emerald-300 border-l border-[#2D5A43] text-sm">
-                          {formatCurrency(financialData.lucroLiquidoAnual)}
-                        </td>
-                        <td className="py-4 px-3 text-center bg-[#132A1F] text-emerald-300 text-sm font-black">
-                          {formatPercent(financialData.margemLiquidaAnual)}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ================================================================
-              ABA 5: GESTÃO DE CONTRATOS AMBIENTAIS & SST (PIPELINE TÉCNICO)
-          ================================================================ */}
           {activeTab === 'contratos' && (
             <div className="space-y-6">
-              {/* KPIs da Carteira de Contratos */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 border-t-4 border-t-[#1B3B2B] shadow-sm">
-                  <div className="text-xs font-bold text-slate-500 uppercase">
-                    Valor Total Contratado ({contracts.length} Contratos)
-                  </div>
-                  <div className="text-2xl font-black text-[#1B3B2B] mt-1">
-                    {formatCurrency(
-                      contracts.reduce((a, b) => a + Number(b.contractValue), 0)
-                    )}
-                  </div>
-                  <div className="text-xs text-slate-500 mt-1">
-                    Carteira Ambiental SEMA-MT & SST
-                  </div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                  <input
+                    type="text"
+                    value={ctSearch}
+                    onChange={(e) => setCtSearch(e.target.value)}
+                    placeholder="Buscar contratos..."
+                    className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
+                  />
                 </div>
-
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 border-t-4 border-t-emerald-600 shadow-sm">
-                  <div className="text-xs font-bold text-slate-500 uppercase">
-                    Total Já Recebido dos Contratos
-                  </div>
-                  <div className="text-2xl font-black text-emerald-700 mt-1">
-                    {formatCurrency(
-                      contracts.reduce((a, b) => a + Number(b.receivedValue), 0)
-                    )}
-                  </div>
-                  <div className="text-xs text-emerald-700 font-semibold mt-1">
-                    Parcelas quitadas pelos clientes
-                  </div>
-                </div>
-
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 border-t-4 border-t-amber-500 shadow-sm">
-                  <div className="text-xs font-bold text-slate-500 uppercase">
-                    Saldo a Faturar / Receber
-                  </div>
-                  <div className="text-2xl font-black text-amber-600 mt-1">
-                    {formatCurrency(
-                      contracts.reduce(
-                        (a, b) => a + (Number(b.contractValue) - Number(b.receivedValue)),
-                        0
-                      )
-                    )}
-                  </div>
-                  <div className="text-xs text-amber-700 mt-1">
-                    Vinculado à entrega de licenças/laudos
-                  </div>
-                </div>
-
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 border-t-4 border-t-teal-700 shadow-sm">
-                  <div className="text-xs font-bold text-slate-500 uppercase">
-                    Margem Técnica Média dos Projetos
-                  </div>
-                  <div className="text-2xl font-black text-teal-800 mt-1">
-                    {formatPercent(
-                      contracts.reduce(
-                        (a, b) => a + (Number(b.contractValue) - Number(b.directCosts)),
-                        0
-                      ) /
-                        (contracts.reduce((a, b) => a + Number(b.contractValue), 0) || 1)
-                    )}
-                  </div>
-                  <div className="text-xs text-slate-500 mt-1">
-                    Após custos laboratoriais, drone e taxas
-                  </div>
-                </div>
-              </div>
-
-              {/* Filtro e Botão de Novo Contrato */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-3 flex-1">
-                  <div className="relative flex-1 min-w-[240px]">
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                    <input
-                      type="text"
-                      value={ctSearch}
-                      onChange={(e) => setCtSearch(e.target.value)}
-                      placeholder="Buscar por cliente, fazenda, SEMA-MT, eSocial ou código..."
-                      className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
-                    />
-                  </div>
-                  <select
-                    value={ctStatusFilter}
-                    onChange={(e) => setCtStatusFilter(e.target.value)}
-                    className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-slate-50"
-                  >
-                    <option value="Todos">Status Técnico: Todos</option>
-                    <option value="Concluído / Licença Emitida">
-                      Concluído / Licença Emitida
-                    </option>
-                    <option value="Protocolado SEMA / Órgão">
-                      Protocolado SEMA / Órgão
-                    </option>
-                    <option value="Contrato Recorrente Ativo">
-                      Contrato Recorrente Ativo
-                    </option>
-                    <option value="Em Elaboração Técnica">Em Elaboração Técnica</option>
-                  </select>
-                </div>
-
                 <button
                   onClick={() => {
                     setEditingContract(null);
@@ -2890,487 +1519,115 @@ export default function App() {
                     });
                     setShowContractModal(true);
                   }}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] transition shadow"
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43]"
                 >
-                  <Plus className="w-4 h-4" />
-                  Novo Contrato Ambiental / SST
+                  <Plus className="w-4 h-4" /> Novo Contrato
                 </button>
               </div>
 
-              {/* Tabela de Contratos */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
-                        <th className="py-3.5 px-3">Código</th>
-                        <th className="py-3.5 px-3">Cliente / Empreendimento</th>
-                        <th className="py-3.5 px-3">Escopo Técnico (Ambiental / SST)</th>
-                        <th className="py-3.5 px-3 text-center">Órgão / Norma</th>
-                        <th className="py-3.5 px-3 text-center">Vencimento</th>
-                        <th className="py-3.5 px-3 text-center">Status Técnico</th>
-                        <th className="py-3.5 px-3 text-right">Valor Contrato</th>
-                        <th className="py-3.5 px-3 text-right">Já Recebido</th>
-                        <th className="py-3.5 px-3 text-right">Saldo a Receber</th>
-                        <th className="py-3.5 px-3 text-right">Custos Diretos</th>
-                        <th className="py-3.5 px-3 text-center">Margem %</th>
-                        <th className="py-3.5 px-3 text-center">Ações / Exclusão</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredContracts.map((ct) => {
-                        const pending = ct.contractValue - ct.receivedValue;
-                        const netMargin = ct.contractValue - ct.directCosts;
-                        const marginPct =
-                          ct.contractValue > 0 ? netMargin / ct.contractValue : 0;
-
-                        return (
-                          <tr key={ct.id} className="hover:bg-slate-50">
-                            <td className="py-3 px-3 font-mono font-bold text-[#1B3B2B]">
-                              {ct.id}
-                            </td>
-                            <td className="py-3 px-3 font-bold text-slate-800">
-                              {ct.client}
-                            </td>
-                            <td className="py-3 px-3 text-slate-600">{ct.service}</td>
-                            <td className="py-3 px-3 text-center">
-                              <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold">
-                                {ct.agency}
-                              </span>
-                            </td>
-                            <td className="py-3 px-3 text-center font-medium text-slate-700">
-                              {ct.deadline || '—'}
-                            </td>
-                            <td className="py-3 px-3 text-center">
-                              <span
-                                className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                                  ct.status === 'Concluído / Licença Emitida'
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : ct.status === 'Contrato Recorrente Ativo'
-                                    ? 'bg-teal-100 text-teal-800'
-                                    : ct.status === 'Protocolado SEMA / Órgão'
-                                    ? 'bg-blue-100 text-blue-800'
-                                    : 'bg-amber-100 text-amber-800'
-                                }`}
-                              >
-                                {ct.status}
-                              </span>
-                            </td>
-                            <td className="py-3 px-3 text-right font-bold text-slate-800">
-                              {formatCurrency(ct.contractValue)}
-                            </td>
-                            <td className="py-3 px-3 text-right font-semibold text-emerald-700">
-                              {formatCurrency(ct.receivedValue)}
-                            </td>
-                            <td
-                              className={`py-3 px-3 text-right font-extrabold ${
-                                pending > 0 ? 'text-amber-600' : 'text-emerald-700'
-                              }`}
-                            >
-                              {formatCurrency(pending)}
-                            </td>
-                            <td className="py-3 px-3 text-right text-rose-700">
-                              {formatCurrency(ct.directCosts)}
-                            </td>
-                            <td className="py-3 px-3 text-center font-bold text-[#1B3B2B]">
-                              {formatPercent(marginPct)}
-                            </td>
-                            <td className="py-3 px-3 text-center">
-                              <div className="flex items-center justify-center gap-1.5">
-                                {pending > 0 && hasPermission('contratos', 'edit') && (
-                                  <button
-                                    onClick={() => {
-                                      setReceiveInstallmentContract(ct);
-                                      setInstallmentAmount(String(pending));
-                                    }}
-                                    className="px-2.5 py-1 rounded-lg bg-emerald-700 text-white text-[11px] font-bold hover:bg-emerald-800 transition"
-                                    title="Receber Parcela e Lançar no Caixa"
-                                  >
-                                    + Receber
-                                  </button>
-                                )}
-                                {hasPermission('contratos', 'edit') && (
-                                  <button
-                                    onClick={() => {
-                                      setEditingContract(ct);
-                                      setCtForm({
-                                        client: ct.client,
-                                        service: ct.service,
-                                        agency: ct.agency,
-                                        startDate: ct.startDate,
-                                        deadline: ct.deadline,
-                                        status: ct.status,
-                                        contractValue: String(ct.contractValue),
-                                        receivedValue: String(ct.receivedValue),
-                                        directCosts: String(ct.directCosts),
-                                        installmentsCount: ct.installmentsCount || '1',
-                                        installmentDates: ct.installmentDates || [ct.deadline || '2026-12-30', '', '', '']
-                                      });
-                                      setShowContractModal(true);
-                                    }}
-                                    className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100"
-                                    title="Editar Contrato"
-                                  >
-                                    <Edit3 className="w-4 h-4" />
-                                  </button>
-                                )}
-                                {hasPermission('contratos', 'delete') ? (
-                                  <button
-                                    onClick={() => {
-                                      setDeleteContractTarget(ct);
-                                      setDeleteLinkedTransactions(false);
-                                    }}
-                                    className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition"
-                                    title="Excluir Contrato"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                ) : (
-                                  <span
-                                    className="p-1.5 text-slate-300 cursor-not-allowed"
-                                    title="Exclusão permitida apenas para Nível 1 Master (Maikon Martins)"
-                                  >
-                                    <Lock className="w-3.5 h-3.5" />
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ================================================================
-              ABA 6 (NOVA): CADASTRO DE CLIENTES (CRM AMBIENTAL & SST)
-          ================================================================ */}
-          {activeTab === 'clientes' && (
-            <div className="space-y-6">
-              {/* Cabeçalho CRM Clientes */}
-              <div className="bg-gradient-to-r from-[#1B3B2B] to-[#2D5A43] rounded-2xl p-6 text-white shadow-md flex flex-col lg:flex-row items-center justify-between gap-4">
-                <div>
-                  <span className="px-3 py-0.5 rounded-full text-[11px] font-bold bg-[#F8F3EF] text-[#1B3B2B] uppercase tracking-wider">
-                    Base Corporativa & Rural • Mato Grosso
-                  </span>
-                  <h2 className="text-xl sm:text-2xl font-black mt-2">
-                    Cadastro de Clientes — CRM Ambiental & Segurança do Trabalho
-                  </h2>
-                  <p className="text-xs sm:text-sm text-emerald-100/90 mt-1">
-                    Gestão centralizada de Fazendas, Agroindústrias, Frigoríficos, Construtoras, matrículas CAR/INCRA e histórico financeiro por cliente.
-                  </p>
-                </div>
-                {hasPermission('clientes', 'create') && (
-                  <button
-                    onClick={openNewClientModal}
-                    className="flex items-center gap-2 px-5 py-3 rounded-xl text-xs sm:text-sm font-bold bg-[#F8F3EF] text-[#1B3B2B] hover:bg-white transition shadow-lg shrink-0"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    Cadastrar Novo Cliente
-                  </button>
-                )}
-              </div>
-
-              {/* GERENCIADOR DE SEGMENTOS ECONÔMICOS E STATUS */}
-              <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#1B3B2B] mb-3">
-                    Gerenciar Segmentos Econômicos ({clientSegments.length})
-                  </h3>
-                  <form onSubmit={handleAddSegment} className="flex gap-2 mb-3">
-                    <input
-                      type="text"
-                      value={newSegmentInput}
-                      onChange={(e) => setNewSegmentInput(e.target.value)}
-                      placeholder="Novo segmento (ex: Energias Renováveis)"
-                      className="flex-1 px-3 py-1.5 rounded-xl border border-slate-300 text-xs"
-                    />
-                    <button
-                      type="submit"
-                      className="px-3 py-1.5 rounded-xl bg-[#1B3B2B] text-white text-xs font-bold hover:bg-[#2D5A43]"
-                    >
-                      Adicionar
-                    </button>
-                  </form>
-                  <div className="flex flex-wrap gap-1.5">
-                    {clientSegments.map((seg) => (
-                      <span
-                        key={seg}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#E6EFEA] text-[#1B3B2B] text-xs font-semibold"
-                      >
-                        {seg}
-                        {clientSegments.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteSegment(seg)}
-                            className="text-slate-400 hover:text-rose-700 font-bold ml-1"
-                            title="Excluir segmento"
-                          >
-                            ×
-                          </button>
-                        )}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#1B3B2B] mb-3">
-                    Gerenciar Status de Clientes ({clientStatuses.length})
-                  </h3>
-                  <form onSubmit={handleAddStatus} className="flex gap-2 mb-3">
-                    <input
-                      type="text"
-                      value={newStatusInput}
-                      onChange={(e) => setNewStatusInput(e.target.value)}
-                      placeholder="Novo status (ex: Contrato Renovado)"
-                      className="flex-1 px-3 py-1.5 rounded-xl border border-slate-300 text-xs"
-                    />
-                    <button
-                      type="submit"
-                      className="px-3 py-1.5 rounded-xl bg-[#1B3B2B] text-white text-xs font-bold hover:bg-[#2D5A43]"
-                    >
-                      Adicionar
-                    </button>
-                  </form>
-                  <div className="flex flex-wrap gap-1.5">
-                    {clientStatuses.map((st) => (
-                      <span
-                        key={st}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 text-xs font-semibold"
-                      >
-                        {st}
-                        {clientStatuses.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteStatus(st)}
-                            className="text-slate-400 hover:text-rose-700 font-bold ml-1"
-                            title="Excluir status"
-                          >
-                            ×
-                          </button>
-                        )}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* KPIs da Carteira de Clientes */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 border-l-4 border-l-[#1B3B2B] shadow-sm">
-                  <div className="text-xs font-bold text-slate-500 uppercase">
-                    Total de Clientes Cadastrados
-                  </div>
-                  <div className="text-2xl font-black text-[#1B3B2B] mt-1">
-                    {clients.length} Empresas / Fazendas
-                  </div>
-                  <div className="text-xs text-emerald-700 font-semibold mt-1">
-                    {clients.filter((c) => c.status === 'Ativo').length} clientes ativos em carteira
-                  </div>
-                </div>
-
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 border-l-4 border-l-emerald-600 shadow-sm">
-                  <div className="text-xs font-bold text-slate-500 uppercase">
-                    Segmento Agronegócio & Rural
-                  </div>
-                  <div className="text-2xl font-black text-emerald-700 mt-1">
-                    {clients.filter((c) => c.segment === 'Agronegócio').length} Clientes
-                  </div>
-                  <div className="text-xs text-slate-500 mt-1">
-                    CAR, Georreferenciamento, Outorga e LO
-                  </div>
-                </div>
-
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 border-l-4 border-l-teal-600 shadow-sm">
-                  <div className="text-xs font-bold text-slate-500 uppercase">
-                    Indústrias, Frigoríficos & Saúde
-                  </div>
-                  <div className="text-2xl font-black text-teal-800 mt-1">
-                    {
-                      clients.filter((c) =>
-                        ['Indústria', 'Saúde'].includes(c.segment)
-                      ).length
-                    }{' '}
-                    Clientes
-                  </div>
-                  <div className="text-xs text-slate-500 mt-1">
-                    PGR, LTCAT, PRAD, PGRS e Licenciamento
-                  </div>
-                </div>
-
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 border-l-4 border-l-amber-500 shadow-sm">
-                  <div className="text-xs font-bold text-slate-500 uppercase">
-                    Construção, Logística & Comércio
-                  </div>
-                  <div className="text-2xl font-black text-amber-600 mt-1">
-                    {
-                      clients.filter((c) =>
-                        ['Construtora/Loteamento', 'Transporte/Logística', 'Comércio/Serviços'].includes(
-                          c.segment
-                        )
-                      ).length
-                    }{' '}
-                    Clientes
-                  </div>
-                  <div className="text-xs text-slate-500 mt-1">
-                    Gestão Recorrente eSocial SST e NRs
-                  </div>
-                </div>
-              </div>
-
-              {/* Barra de Busca e Filtros do CRM */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-3 flex-1">
-                  <div className="relative flex-1 min-w-[240px]">
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                    <input
-                      type="text"
-                      value={cliSearch}
-                      onChange={(e) => setCliSearch(e.target.value)}
-                      placeholder="Buscar por Razão Social, Fazenda, CNPJ/CPF, Cidade ou Contato..."
-                      className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
-                    />
-                  </div>
-
-                  <select
-                    value={cliSegmentFilter}
-                    onChange={(e) => setCliSegmentFilter(e.target.value)}
-                    className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-slate-50"
-                  >
-                    <option value="Todos">Segmento: Todos</option>
-                    {clientSegments.map((seg) => (
-                      <option key={seg} value={seg}>
-                        {seg}
-                      </option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={cliStatusFilter}
-                    onChange={(e) => setCliStatusFilter(e.target.value)}
-                    className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-slate-50"
-                  >
-                    <option value="Todos">Status: Todos</option>
-                    {clientStatuses.map((st) => (
-                      <option key={st} value={st}>
-                        {st}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Tabela Completa de Clientes */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
                         <th className="py-3.5 px-3">ID</th>
-                        <th className="py-3.5 px-3">Razão Social / Propriedade Rural</th>
-                        <th className="py-3.5 px-3">CNPJ / CPF & Registro (CAR/IE)</th>
-                        <th className="py-3.5 px-3">Segmento</th>
-                        <th className="py-3.5 px-3">Cidade / UF</th>
-                        <th className="py-3.5 px-3">Responsável & Contato</th>
-                        <th className="py-3.5 px-3">Programa / Licença Principal</th>
+                        <th className="py-3.5 px-3">Cliente</th>
+                        <th className="py-3.5 px-3">Serviço Técnico</th>
                         <th className="py-3.5 px-3 text-center">Status</th>
-                        <th className="py-3.5 px-3 text-center">Ações / Histórico</th>
+                        <th className="py-3.5 px-3 text-right">Valor</th>
+                        <th className="py-3.5 px-3 text-right">Recebido</th>
+                        <th className="py-3.5 px-3 text-center">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredContracts.map((ct) => (
+                        <tr key={ct.id} className="hover:bg-slate-50">
+                          <td className="py-3 px-3 font-mono font-bold">{ct.id}</td>
+                          <td className="py-3 px-3 font-bold">{ct.client}</td>
+                          <td className="py-3 px-3">{ct.service}</td>
+                          <td className="py-3 px-3 text-center">
+                            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">
+                              {ct.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-right font-bold">{formatCurrency(ct.contractValue)}</td>
+                          <td className="py-3 px-3 text-right text-emerald-700">{formatCurrency(ct.receivedValue)}</td>
+                          <td className="py-3 px-3 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              {ct.contractValue > ct.receivedValue && (
+                                <button
+                                  onClick={() => {
+                                    setReceiveInstallmentContract(ct);
+                                    setInstallmentAmount(String(ct.contractValue - ct.receivedValue));
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-700 text-white text-[11px] font-bold"
+                                >
+                                  + Receber
+                                </button>
+                              )}
+                              <button onClick={() => setDeleteContractTarget(ct)} className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'clientes' && (
+            <div className="space-y-6">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                  <input
+                    type="text"
+                    value={cliSearch}
+                    onChange={(e) => setCliSearch(e.target.value)}
+                    placeholder="Buscar clientes..."
+                    className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
+                  />
+                </div>
+                <button onClick={openNewClientModal} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#1B3B2B] text-white">
+                  <UserPlus className="w-4 h-4" /> Cadastrar Cliente
+                </button>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
+                        <th className="py-3.5 px-3">ID</th>
+                        <th className="py-3.5 px-3">Razão Social</th>
+                        <th className="py-3.5 px-3">CNPJ / CPF</th>
+                        <th className="py-3.5 px-3">Segmento</th>
+                        <th className="py-3.5 px-3">Cidade</th>
+                        <th className="py-3.5 px-3 text-center">Status</th>
+                        <th className="py-3.5 px-3 text-center">Ações</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {filteredClients.map((cli) => (
-                        <tr key={cli.id} className="hover:bg-slate-50 transition">
-                          <td className="py-3 px-3 font-mono font-bold text-[#1B3B2B]">
-                            {cli.id}
-                          </td>
-                          <td className="py-3 px-3 font-bold text-slate-800">
-                            {cli.name}
-                          </td>
-                          <td className="py-3 px-3">
-                            <div className="font-mono font-semibold text-slate-700">
-                              {cli.document}
-                            </div>
-                            <div className="text-[11px] text-slate-500">
-                              {cli.registration}
-                            </div>
-                          </td>
-                          <td className="py-3 px-3">
-                            <span className="px-2.5 py-0.5 rounded-md bg-[#E6EFEA] text-[#1B3B2B] font-semibold">
-                              {cli.segment}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3 text-slate-700 font-medium whitespace-nowrap">
-                            <div className="flex items-center gap-1">
-                              <MapPin className="w-3.5 h-3.5 text-[#2D5A43]" />
-                              {cli.city}
-                            </div>
-                          </td>
-                          <td className="py-3 px-3">
-                            <div className="font-semibold text-slate-800">
-                              {cli.contactName}
-                            </div>
-                            <div className="text-[11px] text-slate-500">
-                              {cli.phone} • {cli.email}
-                            </div>
-                          </td>
-                          <td className="py-3 px-3 text-slate-600 font-medium">
-                            {cli.mainProgram}
-                          </td>
+                        <tr key={cli.id} className="hover:bg-slate-50">
+                          <td className="py-3 px-3 font-mono font-bold">{cli.id}</td>
+                          <td className="py-3 px-3 font-bold">{cli.name}</td>
+                          <td className="py-3 px-3">{cli.document}</td>
+                          <td className="py-3 px-3">{cli.segment}</td>
+                          <td className="py-3 px-3">{cli.city}</td>
                           <td className="py-3 px-3 text-center">
-                            <span
-                              className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                                cli.status === 'Ativo'
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : cli.status === 'Em Prospecção'
-                                  ? 'bg-blue-100 text-blue-800'
-                                  : cli.status === 'Pendência Documental'
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : 'bg-slate-100 text-slate-600'
-                              }`}
-                            >
+                            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
                               {cli.status}
                             </span>
                           </td>
                           <td className="py-3 px-3 text-center">
-                            <div className="flex items-center justify-center gap-1.5">
-                              <button
-                                onClick={() => setHistoryClientTarget(cli)}
-                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#1B3B2B] text-white text-[11px] font-bold hover:bg-[#2D5A43] transition"
-                                title="Ver Histórico Financeiro e Contratos do Cliente"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                                Ficha
-                              </button>
-                              {hasPermission('clientes', 'edit') && (
-                                <button
-                                  onClick={() => openEditClientModal(cli)}
-                                  className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100"
-                                  title="Editar Cliente"
-                                >
-                                  <Edit3 className="w-4 h-4" />
-                                </button>
-                              )}
-                              {hasPermission('clientes', 'delete') ? (
-                                <button
-                                  onClick={() => setDeleteClientTarget(cli)}
-                                  className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50"
-                                  title="Excluir Cliente"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              ) : (
-                                <span
-                                  className="p-1.5 text-slate-300 cursor-not-allowed"
-                                  title="Exclusão restrita ao Nível 1 Master"
-                                >
-                                  <Lock className="w-3.5 h-3.5" />
-                                </span>
-                              )}
-                            </div>
+                            <button onClick={() => setDeleteClientTarget(cli)} className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -3381,380 +1638,47 @@ export default function App() {
             </div>
           )}
 
-          {/* ================================================================
-              ABA 7 (NOVA): ÁRVORE DE ACESSOS & PERMISSÕES (GOVERNANÇA RBAC)
-          ================================================================ */}
           {activeTab === 'acessos' && (
             <div className="space-y-6">
-              {/* Banner da Árvore de Acessos */}
-              <div className="bg-[#F8F3EF] border-2 border-[#1B3B2B] rounded-2xl p-6 shadow-md flex flex-col lg:flex-row items-center justify-between gap-6">
-                <div className="flex flex-col sm:flex-row items-center gap-5">
-                  <GrupoMartinsLogo size="compact" />
-                  <div>
-                    <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-[#1B3B2B] text-[#F8F3EF] uppercase tracking-wider">
-                      Governança Corporativa & Segurança da Informação
-                    </span>
-                    <h2 className="text-2xl font-black text-[#1B3B2B] mt-2">
-                      Árvore de Acessos, Alçadas e Permissões do Sistema
-                    </h2>
-                    <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-                      Hierarquia organizacional comandada pelo Sócio-Diretor <strong>Maikon Martins (Nível 1 Master)</strong> com controle granular por módulo.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <button
-                    onClick={() => setShowUserRoleModal(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] transition shadow"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    Novo Perfil / Colaborador
-                  </button>
-                </div>
-              </div>
-
-              {/* DIAGRAMA VISUAL DA ÁRVORE DE HIERARQUIA DO GRUPO MARTINS */}
               <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4 mb-6">
-                  <div>
-                    <h3 className="text-base font-extrabold text-[#1B3B2B]">
-                      1. Estrutura Hierárquica — Árvore de Acessos Grupo Martins
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Clique em "Simular Este Perfil" em qualquer cartão para testar o comportamento do ERP na visão daquele colaborador
-                    </p>
-                  </div>
-                  <span className="text-xs font-bold px-3 py-1 rounded-lg bg-[#E6F4EA] text-[#1B3B2B]">
-                    Perfil Simulado Agora: {currentRole.level} ({currentRole.holder})
-                  </span>
-                </div>
-
-                {/* Nó Raiz: Nível 1 Master (Maikon Martins) */}
-                <div className="flex flex-col items-center">
-                  <div className="w-full max-w-xl bg-gradient-to-r from-[#1B3B2B] to-[#244B38] text-white rounded-2xl p-5 border-2 border-[#1B3B2B] shadow-lg relative">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-[#F8F3EF] text-[#1B3B2B] font-black flex items-center justify-center text-base shrink-0">
-                          N1
-                        </div>
-                        <div>
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-400 text-slate-950 uppercase">
-                            Nível 1 — Sócio-Administrador (Master)
-                          </span>
-                          <h4 className="text-lg font-black text-white mt-1">
-                            Maikon Martins — Sócio-Diretor
-                          </h4>
-                          <p className="text-xs text-emerald-200">
-                            Alçada Total: DRE, Saques de Pró-Labore, Exclusão de Contratos, Caixa e Governança
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setActiveRoleId('ROLE-01');
-                          showToast('Perfil Nível 1 Master (Maikon Martins) ativado!');
-                        }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 ${
-                          activeRoleId === 'ROLE-01'
-                            ? 'bg-emerald-400 text-slate-950'
-                            : 'bg-white/15 text-white hover:bg-white/25'
-                        }`}
-                      >
-                        {activeRoleId === 'ROLE-01' ? '✓ Perfil Ativo' : 'Ativar Master'}
+                <h3 className="text-base font-extrabold text-[#1B3B2B] mb-4">Árvore de Acessos & Perfis</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {accessRoles.map((role) => (
+                    <div key={role.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+                      <div className="font-extrabold text-[#1B3B2B]">{role.name}</div>
+                      <div className="text-xs text-slate-600">Titular: {role.holder}</div>
+                      <div className="text-xs text-slate-500">E-mail: {role.email}</div>
+                      <button onClick={() => setActiveRoleId(role.id)} className={`mt-2 w-full py-1.5 rounded-lg text-xs font-bold ${activeRoleId === role.id ? 'bg-[#1B3B2B] text-white' : 'bg-white text-[#1B3B2B] border'}`}>
+                        {activeRoleId === role.id ? 'Perfil Ativo' : 'Simular Perfil'}
                       </button>
                     </div>
-                  </div>
-
-                  {/* Linhas Conectoras da Árvore */}
-                  <div className="w-0.5 h-8 bg-[#1B3B2B]" />
-                  <div className="w-4/5 border-t-2 border-[#1B3B2B] hidden lg:block" />
-
-                  {/* Nós Filhos: Níveis 2, 3, 4, 5 e adicionais */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 w-full mt-4">
-                    {accessRoles.slice(1).map((role) => {
-                      const isSimulated = activeRoleId === role.id;
-                      return (
-                        <div
-                          key={role.id}
-                          className={`rounded-2xl p-4 border-2 transition flex flex-col justify-between ${
-                            isSimulated
-                              ? 'bg-[#F8F3EF] border-[#1B3B2B] shadow-md'
-                              : 'bg-white border-slate-200 hover:border-[#2D5A43]'
-                          }`}
-                        >
-                          <div>
-                            <div className="flex items-center justify-between gap-2 mb-2">
-                              <span
-                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${role.badgeColor}`}
-                              >
-                                {role.level}
-                              </span>
-                              <span className="text-[11px] font-mono text-slate-400">
-                                {role.id}
-                              </span>
-                            </div>
-                            <h4 className="text-sm font-extrabold text-[#1B3B2B]">
-                              {role.name}
-                            </h4>
-                            <div className="text-xs font-bold text-slate-700 mt-1">
-                              👤 {role.holder}
-                            </div>
-                            <div className="text-[11px] text-slate-500 truncate">
-                              ✉️ {role.email}
-                            </div>
-                            <p className="text-xs text-slate-600 mt-2.5 leading-relaxed">
-                              {role.description}
-                            </p>
-                          </div>
-
-                          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                            <div className="text-[10px] font-semibold text-slate-500">
-                              Pró-Labore / Exclusão:{' '}
-                              <strong className="text-rose-700">Bloqueado</strong>
-                            </div>
-                            <button
-                              onClick={() => {
-                                setActiveRoleId(role.id);
-                                showToast(`Simulando visão de: ${role.name}`);
-                              }}
-                              className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
-                                isSimulated
-                                  ? 'bg-[#1B3B2B] text-white'
-                                  : 'bg-slate-100 text-[#1B3B2B] hover:bg-slate-200'
-                              }`}
-                            >
-                              {isSimulated ? '✓ Em Simulação' : 'Simular Perfil'}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {/* MATRIZ INTERATIVA DE PERMISSÕES POR MÓDULO */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 bg-[#1B3B2B] text-white flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h3 className="text-sm font-bold uppercase tracking-wider">
-                      2. Matriz Interativa de Alçadas e Permissões por Módulo
-                    </h3>
-                    <p className="text-xs text-emerald-200">
-                      Clique nos botões Ver, Criar, Editar ou Excluir abaixo para liberar ou bloquear acessos de cada departamento
-                    </p>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-slate-100 text-slate-700 border-b border-slate-200 font-bold uppercase">
-                        <th className="py-3.5 px-4">Nível / Perfil de Usuário</th>
-                        <th className="py-3.5 px-3 text-center">Painel KPIs</th>
-                        <th className="py-3.5 px-3 text-center bg-[#F8F3EF] text-[#1B3B2B]">
-                          Pró-Labore (Maikon)
-                        </th>
-                        <th className="py-3.5 px-3 text-center">Livro Caixa</th>
-                        <th className="py-3.5 px-3 text-center">DRE Mensal</th>
-                        <th className="py-3.5 px-3 text-center">Contratos (Ver/Editar/Excluir)</th>
-                        <th className="py-3.5 px-3 text-center">Clientes CRM</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {accessRoles.map((role) => (
-                        <tr key={role.id} className="hover:bg-slate-50">
-                          <td className="py-3.5 px-4">
-                            <div className="font-extrabold text-[#1B3B2B]">
-                              {role.level} — {role.name}
-                            </div>
-                            <div className="text-[11px] text-slate-500">
-                              Titular: {role.holder}
-                            </div>
-                          </td>
-
-                          {/* Colunas de Módulos */}
-                          {[
-                            { key: 'dashboard', actions: ['view'] },
-                            { key: 'prolabore', actions: ['view', 'create', 'approve'] },
-                            { key: 'lancamentos', actions: ['view', 'create', 'edit', 'delete'] },
-                            { key: 'dre', actions: ['view'] },
-                            { key: 'contratos', actions: ['view', 'create', 'edit', 'delete'] },
-                            { key: 'clientes', actions: ['view', 'create', 'edit', 'delete'] }
-                          ].map((mod) => (
-                            <td
-                              key={mod.key}
-                              className={`py-3 px-2.5 text-center ${
-                                mod.key === 'prolabore' ? 'bg-[#F8F3EF]/60' : ''
-                              }`}
-                            >
-                              <div className="flex flex-wrap items-center justify-center gap-1">
-                                {mod.actions.map((act) => {
-                                  const active = role.permissions[mod.key]?.[act];
-                                  const labelMap = {
-                                    view: 'Ver',
-                                    create: 'Criar',
-                                    edit: 'Editar',
-                                    delete: 'Excluir',
-                                    approve: 'Sacar'
-                                  };
-                                  return (
-                                    <button
-                                      key={act}
-                                      onClick={() =>
-                                        handleToggleRolePermission(role.id, mod.key, act)
-                                      }
-                                      className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
-                                        active
-                                          ? act === 'delete'
-                                            ? 'bg-rose-700 text-white'
-                                            : 'bg-emerald-700 text-white'
-                                          : 'bg-slate-200 text-slate-500 hover:bg-slate-300'
-                                      }`}
-                                    >
-                                      {active ? '✓ ' : '✕ '}
-                                      {labelMap[act]}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  ))}
                 </div>
               </div>
             </div>
           )}
 
-          {/* ================================================================
-              ABA 8: PLANO DE CONTAS & PARÂMETROS FINANCEIROS
-          ================================================================ */}
           {activeTab === 'config' && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-                <h2 className="text-lg font-extrabold text-[#1B3B2B]">
-                  Parâmetros Financeiros e Metas — Grupo Martins (2026)
-                </h2>
-                <p className="text-xs text-slate-500 mt-1">
-                  Ajuste o Saldo Inicial de Caixa, Meta de Faturamento e Pró-Labore Alvo do Sócio-Diretor Maikon Martins.
-                </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-5">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                      Saldo Inicial de Caixa (R$)
-                    </label>
-                    <input
-                      type="number"
-                      value={params.saldoInicialCaixa}
-                      onChange={(e) =>
-                        setParams({
-                          ...params,
-                          saldoInicialCaixa: Number(e.target.value)
-                        })
-                      }
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-[#1B3B2B]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                      Meta Mensal de Receita (R$)
-                    </label>
-                    <input
-                      type="number"
-                      value={params.metaMensalReceita}
-                      onChange={(e) =>
-                        setParams({
-                          ...params,
-                          metaMensalReceita: Number(e.target.value)
-                        })
-                      }
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-emerald-700"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                      Pró-Labore Mensal Alvo (R$)
-                    </label>
-                    <input
-                      type="number"
-                      value={params.proLaboreAlvoMensal}
-                      onChange={(e) =>
-                        setParams({
-                          ...params,
-                          proLaboreAlvoMensal: Number(e.target.value)
-                        })
-                      }
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-[#1B3B2B] bg-[#F8F3EF]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                      Sócio-Diretor Responsável
-                    </label>
-                    <input
-                      type="text"
-                      value={params.socioDiretor}
-                      onChange={(e) =>
-                        setParams({ ...params, socioDiretor: e.target.value })
-                      }
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800"
-                    />
-                  </div>
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+              <h2 className="text-lg font-extrabold text-[#1B3B2B]">Parâmetros Financeiros</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase mb-1">Saldo Inicial de Caixa (R$)</label>
+                  <input
+                    type="number"
+                    value={params.saldoInicialCaixa}
+                    onChange={(e) => setParams({ ...params, saldoInicialCaixa: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-xl border"
+                  />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                  <h3 className="text-sm font-extrabold text-[#1B3B2B] uppercase mb-3">
-                    Categorias de Receita Operacional (Ambiental & SST)
-                  </h3>
-                  <ul className="space-y-2 text-xs">
-                    {REVENUE_CATEGORIES.map((c, i) => (
-                      <li
-                        key={c}
-                        className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200/70 font-semibold text-[#1B3B2B] flex items-center justify-between"
-                      >
-                        <span>
-                          {i + 1}. {c}
-                        </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-200/70 text-emerald-900">
-                          Entrada
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                  <h3 className="text-sm font-extrabold text-rose-900 uppercase mb-3">
-                    Categorias de Custos Diretos, Despesas e Pró-Labore
-                  </h3>
-                  <ul className="space-y-2 text-xs">
-                    {EXPENSE_CATEGORIES.map((c, i) => (
-                      <li
-                        key={c}
-                        className={`p-2.5 rounded-xl border font-semibold flex items-center justify-between ${
-                          c.includes('Maikon Martins')
-                            ? 'bg-[#F8F3EF] border-[#1B3B2B] text-[#1B3B2B]'
-                            : 'bg-rose-50/50 border-rose-200/60 text-slate-700'
-                        }`}
-                      >
-                        <span>
-                          {i + 1}. {c}
-                        </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-rose-100 text-rose-800">
-                          Saída
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                <div>
+                  <label className="block text-xs font-bold uppercase mb-1">Meta Mensal Receita (R$)</label>
+                  <input
+                    type="number"
+                    value={params.metaMensalReceita}
+                    onChange={(e) => setParams({ ...params, metaMensalReceita: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-xl border"
+                  />
                 </div>
               </div>
             </div>
@@ -3762,1350 +1686,163 @@ export default function App() {
         </main>
       </div>
 
-      {/* ====================================================================
-          MODAL 1: INCLUIR / EDITAR LANÇAMENTO FINANCEIRO
-      ==================================================================== */}
+      {/* MODAL LANÇAMENTO */}
       {showTxModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200">
-            <div className="px-6 py-4 bg-[#1B3B2B] text-white flex items-center justify-between">
-              <h3 className="text-base font-bold">
-                {editingTx
-                  ? `Editar Lançamento ${editingTx.id}`
-                  : 'Novo Lançamento no Livro Caixa'}
-              </h3>
-              <button
-                onClick={() => setShowTxModal(false)}
-                className="text-emerald-200 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveTransaction} className="p-6 space-y-4 text-xs sm:text-sm">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <h3 className="text-base font-bold text-[#1B3B2B]">Novo Lançamento no Livro Caixa</h3>
+            <form onSubmit={handleSaveTransaction} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Data
-                  </label>
-                  <input
-                    type="date"
-                    value={txForm.date}
-                    onChange={(e) => setTxForm({ ...txForm, date: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                    required
-                  />
+                  <label className="block font-bold mb-1">Data</label>
+                  <input type="date" value={txForm.date} onChange={(e) => setTxForm({ ...txForm, date: e.target.value })} className="w-full px-3 py-2 rounded-xl border" required />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Mês Competência
-                  </label>
-                  <select
-                    value={txForm.month}
-                    onChange={(e) => setTxForm({ ...txForm, month: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 font-semibold"
-                  >
-                    {MONTHS.map((m) => (
-                      <option key={m} value={m}>
-                        {m}/2026
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Natureza
-                  </label>
-                  <select
-                    value={txForm.type}
-                    onChange={(e) => {
-                      const nextType = e.target.value;
-                      setTxForm({
-                        ...txForm,
-                        type: nextType,
-                        category:
-                          nextType === 'Entrada'
-                            ? REVENUE_CATEGORIES[0]
-                            : EXPENSE_CATEGORIES[0]
-                      });
-                    }}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold"
-                  >
+                  <label className="block font-bold mb-1">Natureza</label>
+                  <select value={txForm.type} onChange={(e) => setTxForm({ ...txForm, type: e.target.value })} className="w-full px-3 py-2 rounded-xl border font-bold">
                     <option value="Entrada">Entrada (+)</option>
                     <option value="Saída">Saída (-)</option>
                   </select>
                 </div>
               </div>
-
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                  Categoria do Plano de Contas
-                </label>
-                <select
-                  value={txForm.category}
-                  onChange={(e) => setTxForm({ ...txForm, category: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 font-semibold"
-                >
-                  {(txForm.type === 'Entrada'
-                    ? REVENUE_CATEGORIES
-                    : EXPENSE_CATEGORIES
-                  ).map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
+                <label className="block font-bold mb-1">Categoria</label>
+                <select value={txForm.category} onChange={(e) => setTxForm({ ...txForm, category: e.target.value })} className="w-full px-3 py-2 rounded-xl border">
+                  {(txForm.type === 'Entrada' ? REVENUE_CATEGORIES : EXPENSE_CATEGORIES).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Cliente / Favorecido / Sócio
-                  </label>
-                  <input
-                    type="text"
-                    list="crm-clients-list"
-                    value={txForm.entity}
-                    onChange={(e) => setTxForm({ ...txForm, entity: e.target.value })}
-                    placeholder="Selecione um cliente do CRM ou digite..."
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                    required
-                  />
-                  <datalist id="crm-clients-list">
-                    <option value="Maikon Martins (Sócio-Diretor)" />
-                    {clients.map((cl) => (
-                      <option key={cl.id} value={cl.name} />
-                    ))}
-                  </datalist>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Valor (R$)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={txForm.amount}
-                    onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })}
-                    placeholder="0,00"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold text-[#1B3B2B]"
-                    required
-                  />
-                </div>
-              </div>
-
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                  Descrição Detalhada
-                </label>
-                <input
-                  type="text"
-                  value={txForm.description}
-                  onChange={(e) =>
-                    setTxForm({ ...txForm, description: e.target.value })
-                  }
-                  placeholder="Ex: 1ª Parcela Licenciamento Ambiental ou Saque Pró-Labore"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                  required
-                />
+                <label className="block font-bold mb-1">Favorecido / Cliente</label>
+                <input type="text" value={txForm.entity} onChange={(e) => setTxForm({ ...txForm, entity: e.target.value })} placeholder="Nome do cliente ou sócio" className="w-full px-3 py-2 rounded-xl border" required />
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Meio de Pagamento
-                  </label>
-                  <select
-                    value={txForm.paymentMethod}
-                    onChange={(e) =>
-                      setTxForm({ ...txForm, paymentMethod: e.target.value })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                  >
-                    {PAYMENT_METHODS.map((pm) => (
-                      <option key={pm} value={pm}>
-                        {pm}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="block font-bold mb-1">Valor (R$)</label>
+                  <input type="number" step="0.01" value={txForm.amount} onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} placeholder="0.00" className="w-full px-3 py-2 rounded-xl border font-bold" required />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Status Financeiro
-                  </label>
-                  <select
-                    value={txForm.status}
-                    onChange={(e) => setTxForm({ ...txForm, status: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold"
-                  >
+                  <label className="block font-bold mb-1">Status</label>
+                  <select value={txForm.status} onChange={(e) => setTxForm({ ...txForm, status: e.target.value })} className="w-full px-3 py-2 rounded-xl border font-bold">
                     <option value="Pago / Recebido">Pago / Recebido</option>
                     <option value="Pendente">Pendente</option>
-                    <option value="Atrasado">Atrasado</option>
                   </select>
                 </div>
               </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowTxModal(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 font-semibold text-slate-600"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold hover:bg-[#2D5A43]"
-                >
-                  Salvar Lançamento
-                </button>
+              <div>
+                <label className="block font-bold mb-1">Descrição</label>
+                <input type="text" value={txForm.description} onChange={(e) => setTxForm({ ...txForm, description: e.target.value })} placeholder="Descrição detalhada" className="w-full px-3 py-2 rounded-xl border" required />
               </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ====================================================================
-          MODAL 2: RECIBO OFICIAL DE PRÓ-LABORE (MAIKON MARTINS)
-      ==================================================================== */}
-      {receiptModalTx && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[#F8F3EF] rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border-2 border-[#1B3B2B]">
-            <div className="px-6 py-4 bg-[#1B3B2B] text-white flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Printer className="w-4 h-4 text-emerald-300" />
-                <h3 className="text-sm font-bold uppercase tracking-wider">
-                  Recibo Oficial de Saque de Pró-Labore Societário
-                </h3>
-              </div>
-              <button
-                onClick={() => setReceiptModalTx(null)}
-                className="text-emerald-200 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-5 text-xs sm:text-sm text-slate-800">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-[#D5CFC7] pb-4">
-                <GrupoMartinsLogo size="compact" />
-                <div className="text-right">
-                  <div className="text-xs font-bold uppercase text-slate-500">
-                    Recibo Nº {receiptModalTx.id}
-                  </div>
-                  <div className="text-2xl font-black text-[#1B3B2B] mt-1">
-                    {formatCurrency(receiptModalTx.amount)}
-                  </div>
-                  <div className="text-[11px] text-emerald-800 font-semibold">
-                    Competência: {receiptModalTx.month}/2026
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white p-4 rounded-xl border border-[#D5CFC7] leading-relaxed">
-                Recebi da empresa{' '}
-                <strong>
-                  GRUPO MARTINS — ENGENHARIA, SOLUÇÕES AMBIENTAIS E SEGURANÇA DO TRABALHO
-                </strong>{' '}
-                (CNPJ {params.cnpj}), a importância líquida de{' '}
-                <strong>{formatCurrency(receiptModalTx.amount)}</strong> referente a{' '}
-                <strong>{receiptModalTx.description}</strong>, pago via{' '}
-                <strong>{receiptModalTx.paymentMethod}</strong> na data de{' '}
-                <strong>{receiptModalTx.date}</strong>, dando plena e rasa quitação.
-              </div>
-
-              <div className="pt-6 border-t border-[#D5CFC7] flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="text-xs text-slate-500">
-                  {params.cidadeSede}, {receiptModalTx.date}
-                </div>
-                <div className="text-center">
-                  <div className="w-56 border-b border-[#1B3B2B] mb-1" />
-                  <div className="font-bold text-[#1B3B2B]">{params.socioDiretor}</div>
-                  <div className="text-[10px] text-slate-500">{params.cargoSocio}</div>
-                </div>
-              </div>
-
               <div className="flex justify-end gap-2 pt-2">
-                <button
-                  onClick={() => setReceiptModalTx(null)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-bold"
-                >
-                  Fechar
-                </button>
-                <button
-                  onClick={() => window.print()}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1B3B2B] text-white text-xs font-bold hover:bg-[#2D5A43]"
-                >
-                  <Printer className="w-4 h-4" />
-                  Imprimir Comprovante
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ====================================================================
-          MODAL 3: RECEBER PARCELA DE CONTRATO
-      ==================================================================== */}
-      {receiveInstallmentContract && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-200">
-            <div className="px-6 py-4 bg-emerald-800 text-white flex items-center justify-between">
-              <h3 className="text-sm font-bold uppercase">
-                Receber Parcela — {receiveInstallmentContract.id}
-              </h3>
-              <button
-                onClick={() => setReceiveInstallmentContract(null)}
-                className="text-emerald-200 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form
-              onSubmit={handleReceiveContractInstallment}
-              className="p-6 space-y-4 text-xs sm:text-sm"
-            >
-              <div className="text-slate-600">
-                Cliente: <strong className="text-slate-800">{receiveInstallmentContract.client}</strong>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                  Valor Recebido Agora (R$)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={installmentAmount}
-                  onChange={(e) => setInstallmentAmount(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold text-emerald-800"
-                  required
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setReceiveInstallmentContract(null)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-bold"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-emerald-700 text-white text-xs font-bold hover:bg-emerald-800"
-                >
-                  Confirmar e Lançar no Caixa
-                </button>
+                <button type="button" onClick={() => setShowTxModal(false)} className="px-4 py-2 rounded-xl border font-bold">Cancelar</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold">Salvar na Nuvem</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* ====================================================================
-          MODAL 4: NOVO / EDITAR CONTRATO TÉCNICO
-      ==================================================================== */}
+      {/* MODAL CONTRATO */}
       {showContractModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
-            <div className="px-6 py-4 bg-[#1B3B2B] text-white flex items-center justify-between sticky top-0 z-10">
-              <h3 className="text-base font-bold">
-                {editingContract
-                  ? `Editar Contrato ${editingContract.id}`
-                  : 'Novo Contrato Ambiental & SST'}
-              </h3>
-              <button
-                onClick={() => setShowContractModal(false)}
-                className="text-emerald-200 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveContract} className="p-6 space-y-4 text-xs sm:text-sm">
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <h3 className="text-base font-bold text-[#1B3B2B]">Novo Contrato Ambiental & SST</h3>
+            <form onSubmit={handleSaveContract} className="space-y-3 text-xs">
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                  Cliente / Fazenda / Indústria (Vinculado ao CRM)
-                </label>
-                <input
-                  type="text"
-                  list="crm-clients-list-contract"
-                  value={ctForm.client}
-                  onChange={(e) => setCtForm({ ...ctForm, client: e.target.value })}
-                  placeholder="Selecione da base de clientes ou digite novo..."
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                  required
-                />
-                <datalist id="crm-clients-list-contract">
-                  {clients.map((cl) => (
-                    <option key={cl.id} value={cl.name} />
-                  ))}
-                </datalist>
+                <label className="block font-bold mb-1">Cliente</label>
+                <input type="text" value={ctForm.client} onChange={(e) => setCtForm({ ...ctForm, client: e.target.value })} placeholder="Nome do cliente" className="w-full px-3 py-2 rounded-xl border" required />
               </div>
-
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                  Serviço Técnico (Ambiental / SST)
-                </label>
-                <input
-                  type="text"
-                  value={ctForm.service}
-                  onChange={(e) => setCtForm({ ...ctForm, service: e.target.value })}
-                  placeholder="Ex: Licenciamento LP/LI/LO SEMA-MT + PGR/LTCAT"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                  required
-                />
+                <label className="block font-bold mb-1">Serviço Técnico</label>
+                <input type="text" value={ctForm.service} onChange={(e) => setCtForm({ ...ctForm, service: e.target.value })} placeholder="Ex: Licenciamento SEMA-MT" className="w-full px-3 py-2 rounded-xl border" required />
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Órgão Regulador / Norma
-                  </label>
-                  <input
-                    type="text"
-                    value={ctForm.agency}
-                    onChange={(e) => setCtForm({ ...ctForm, agency: e.target.value })}
-                    placeholder="SEMA-MT / eSocial / INCRA"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                  />
+                  <label className="block font-bold mb-1">Valor Contrato (R$)</label>
+                  <input type="number" value={ctForm.contractValue} onChange={(e) => setCtForm({ ...ctForm, contractValue: e.target.value })} className="w-full px-3 py-2 rounded-xl border font-bold" required />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Vencimento Final
-                  </label>
-                  <input
-                    type="date"
-                    value={ctForm.deadline}
-                    onChange={(e) => setCtForm({ ...ctForm, deadline: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 font-semibold"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Status do Processo
-                  </label>
-                  <select
-                    value={ctForm.status}
-                    onChange={(e) => setCtForm({ ...ctForm, status: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 font-semibold"
-                  >
-                    <option value="Em Elaboração Técnica">Em Elaboração Técnica</option>
-                    <option value="Protocolado SEMA / Órgão">
-                      Protocolado SEMA / Órgão
-                    </option>
-                    <option value="Concluído / Licença Emitida">
-                      Concluído / Licença Emitida
-                    </option>
-                    <option value="Contrato Recorrente Ativo">
-                      Contrato Recorrente Ativo
-                    </option>
-                  </select>
+                  <label className="block font-bold mb-1">Vencimento</label>
+                  <input type="date" value={ctForm.deadline} onChange={(e) => setCtForm({ ...ctForm, deadline: e.target.value })} className="w-full px-3 py-2 rounded-xl border" required />
                 </div>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Valor Contrato (R$)
-                  </label>
-                  <input
-                    type="number"
-                    value={ctForm.contractValue}
-                    onChange={(e) =>
-                      setCtForm({ ...ctForm, contractValue: e.target.value })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold text-[#1B3B2B]"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Já Recebido (R$)
-                  </label>
-                  <input
-                    type="number"
-                    value={ctForm.receivedValue}
-                    onChange={(e) =>
-                      setCtForm({ ...ctForm, receivedValue: e.target.value })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold text-emerald-700"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Custos Diretos (R$)
-                  </label>
-                  <input
-                    type="number"
-                    value={ctForm.directCosts}
-                    onChange={(e) =>
-                      setCtForm({ ...ctForm, directCosts: e.target.value })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold text-rose-700"
-                  />
-                </div>
-              </div>
-
-              {/* OPÇÃO DE PARCELAMENTO EM ATÉ 4 VEZES COM DATAS EDITÁVEIS */}
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                    Forma de Pagamento / Parcelamento (Até 4x)
-                  </label>
-                  <select
-                    value={ctForm.installmentsCount}
-                    onChange={(e) => setCtForm({ ...ctForm, installmentsCount: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold bg-white text-slate-800"
-                  >
-                    <option value="1">À Vista (1 Parcela)</option>
-                    <option value="2">Parcelado em 2 Vezes (50% / 50%)</option>
-                    <option value="3">Parcelado em 3 Vezes (33% / 33% / 34%)</option>
-                    <option value="4">Parcelado em 4 Vezes (25% cada)</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="text-[11px] font-bold uppercase text-slate-500">
-                    Datas de Vencimento de Cada Parcela:
-                  </div>
-                  {Array.from({ length: parseInt(ctForm.installmentsCount) || 1 }).map((_, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-slate-600 w-24">
-                        Parcela {idx + 1} ({formatCurrency((parseFloat(ctForm.contractValue) || 0) / parseInt(ctForm.installmentsCount))}):
-                      </span>
-                      <input
-                        type="date"
-                        value={ctForm.installmentDates[idx] || ctForm.deadline}
-                        onChange={(e) => {
-                          const newDates = [...ctForm.installmentDates];
-                          newDates[idx] = e.target.value;
-                          setCtForm({ ...ctForm, installmentDates: newDates });
-                        }}
-                        className="flex-1 px-3 py-1.5 rounded-xl border border-slate-300 text-xs bg-white font-semibold"
-                        required
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowContractModal(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-600 font-semibold"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold hover:bg-[#2D5A43]"
-                >
-                  Salvar Contrato e Gerar Parcelas
-                </button>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setShowContractModal(false)} className="px-4 py-2 rounded-xl border font-bold">Cancelar</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold">Salvar na Nuvem</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* ====================================================================
-          MODAL 5: CONFIRMAÇÃO DE EXCLUSÃO DE CONTRATO
-      ==================================================================== */}
-      {deleteContractTarget && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-rose-200">
-            <div className="px-6 py-4 bg-rose-700 text-white flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Trash2 className="w-5 h-5" />
-                <h3 className="text-sm font-bold uppercase">
-                  Excluir Contrato {deleteContractTarget.id}
-                </h3>
-              </div>
-              <button
-                onClick={() => setDeleteContractTarget(null)}
-                className="text-rose-200 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4 text-xs sm:text-sm">
-              <p className="text-slate-700 leading-relaxed">
-                Tem certeza que deseja excluir o contrato{' '}
-                <strong>{deleteContractTarget.id}</strong> do cliente{' '}
-                <strong>{deleteContractTarget.client}</strong> no valor de{' '}
-                <strong>{formatCurrency(deleteContractTarget.contractValue)}</strong>?
-              </p>
-
-              <label className="flex items-start gap-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={deleteLinkedTransactions}
-                  onChange={(e) => setDeleteLinkedTransactions(e.target.checked)}
-                  className="mt-0.5 rounded border-rose-400 text-rose-700"
-                />
-                <span className="text-xs text-rose-900 font-medium">
-                  Remover também todos os lançamentos financeiros vinculados a este contrato (
-                  {
-                    transactions.filter((t) => t.contractId === deleteContractTarget.id)
-                      .length
-                  }{' '}
-                  lançamentos no Livro Caixa)
-                </span>
-              </label>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setDeleteContractTarget(null)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-700"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={confirmDeleteContract}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-700 text-white text-xs font-bold hover:bg-rose-800 transition"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Confirmar Exclusão
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ====================================================================
-          MODAL 6: CONFIRMAÇÃO DE EXCLUSÃO DE LANÇAMENTO DO LIVRO CAIXA
-      ==================================================================== */}
-      {deleteTxTarget && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-rose-200">
-            <div className="px-6 py-4 bg-rose-700 text-white flex items-center justify-between">
-              <h3 className="text-sm font-bold uppercase">
-                Excluir Lançamento {deleteTxTarget.id}
-              </h3>
-              <button
-                onClick={() => setDeleteTxTarget(null)}
-                className="text-rose-200 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6 space-y-4 text-xs sm:text-sm">
-              <p className="text-slate-700">
-                Deseja realmente remover o lançamento{' '}
-                <strong>{deleteTxTarget.id}</strong> ({deleteTxTarget.description}) de{' '}
-                <strong>{formatCurrency(deleteTxTarget.amount)}</strong>? O saldo de caixa e o DRE serão recalculados automaticamente.
-              </p>
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => setDeleteTxTarget(null)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-bold"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={confirmDeleteTransaction}
-                  className="px-4 py-2 rounded-xl bg-rose-700 text-white text-xs font-bold hover:bg-rose-800"
-                >
-                  Excluir Lançamento
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ====================================================================
-          MODAL 7: NOVO / EDITAR CLIENTE (CRM AMBIENTAL & SST)
-      ==================================================================== */}
+      {/* MODAL CLIENTE */}
       {showClientModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-slate-200">
-            <div className="px-6 py-4 bg-[#1B3B2B] text-white flex items-center justify-between">
-              <h3 className="text-base font-bold">
-                {editingClient
-                  ? `Editar Cliente ${editingClient.id}`
-                  : 'Novo Cadastro de Cliente — CRM Ambiental & SST'}
-              </h3>
-              <button
-                onClick={() => setShowClientModal(false)}
-                className="text-emerald-200 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveClient} className="p-6 space-y-4 text-xs sm:text-sm">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Razão Social / Nome da Fazenda ou Empreendimento
-                  </label>
-                  <input
-                    type="text"
-                    value={cliForm.name}
-                    onChange={(e) => setCliForm({ ...cliForm, name: e.target.value })}
-                    placeholder="Ex: Agropecuária Rio Vermelho S/A (Fazenda São João)"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold"
-                    required
-                  />
-                </div>
-
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <h3 className="text-base font-bold text-[#1B3B2B]">Cadastrar Cliente (CRM)</h3>
+            <form onSubmit={handleSaveClient} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold mb-1">Razão Social / Nome</label>
+                <input type="text" value={cliForm.name} onChange={(e) => setCliForm({ ...cliForm, name: e.target.value })} className="w-full px-3 py-2 rounded-xl border font-bold" required />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    CNPJ / CPF
-                  </label>
-                  <input
-                    type="text"
-                    value={cliForm.document}
-                    onChange={(e) => setCliForm({ ...cliForm, document: e.target.value })}
-                    placeholder="00.000.000/0001-00"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                    required
-                  />
+                  <label className="block font-bold mb-1">CNPJ / CPF</label>
+                  <input type="text" value={cliForm.document} onChange={(e) => setCliForm({ ...cliForm, document: e.target.value })} className="w-full px-3 py-2 rounded-xl border" required />
                 </div>
-
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Nº CAR / Inscrição Estadual / Matrícula
-                  </label>
-                  <input
-                    type="text"
-                    value={cliForm.registration}
-                    onChange={(e) =>
-                      setCliForm({ ...cliForm, registration: e.target.value })
-                    }
-                    placeholder="Ex: CAR MT-5107602 / IE 13.000.000-0"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Segmento Econômico
-                  </label>
-                  <select
-                    value={cliForm.segment}
-                    onChange={(e) => setCliForm({ ...cliForm, segment: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 font-semibold"
-                  >
-                    {clientSegments.map((seg) => (
-                      <option key={seg} value={seg}>
-                        {seg}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Cidade / UF
-                  </label>
-                  <input
-                    type="text"
-                    value={cliForm.city}
-                    onChange={(e) => setCliForm({ ...cliForm, city: e.target.value })}
-                    placeholder="Ex: Rondonópolis — MT"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Responsável / Contato Técnico
-                  </label>
-                  <input
-                    type="text"
-                    value={cliForm.contactName}
-                    onChange={(e) =>
-                      setCliForm({ ...cliForm, contactName: e.target.value })
-                    }
-                    placeholder="Nome do Engenheiro, Gerente ou Proprietário"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Telefone / WhatsApp
-                  </label>
-                  <input
-                    type="text"
-                    value={cliForm.phone}
-                    onChange={(e) => setCliForm({ ...cliForm, phone: e.target.value })}
-                    placeholder="(66) 99999-0000"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    E-mail Corporativo
-                  </label>
-                  <input
-                    type="email"
-                    value={cliForm.email}
-                    onChange={(e) => setCliForm({ ...cliForm, email: e.target.value })}
-                    placeholder="contato@empresa.com.br"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Status do Cliente
-                  </label>
-                  <select
-                    value={cliForm.status}
-                    onChange={(e) => setCliForm({ ...cliForm, status: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold"
-                  >
-                    {clientStatuses.map((st) => (
-                      <option key={st} value={st}>
-                        {st}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Licença / Programa Principal Contratado
-                  </label>
-                  <input
-                    type="text"
-                    value={cliForm.mainProgram}
-                    onChange={(e) =>
-                      setCliForm({ ...cliForm, mainProgram: e.target.value })
-                    }
-                    placeholder="Ex: Licenciamento LO SEMA-MT + Gestão Mensal eSocial SST"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                  />
+                  <label className="block font-bold mb-1">Cidade</label>
+                  <input type="text" value={cliForm.city} onChange={(e) => setCliForm({ ...cliForm, city: e.target.value })} className="w-full px-3 py-2 rounded-xl border" required />
                 </div>
               </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowClientModal(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 font-semibold text-slate-600"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold hover:bg-[#2D5A43]"
-                >
-                  Salvar Cliente no CRM
-                </button>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setShowClientModal(false)} className="px-4 py-2 rounded-xl border font-bold">Cancelar</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold">Salvar na Nuvem</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* ====================================================================
-          MODAL 8: FICHA FINANCEIRA E HISTÓRICO DE CONTRATOS DO CLIENTE
-      ==================================================================== */}
-      {historyClientTarget && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-slate-200">
-            <div className="px-6 py-4 bg-[#1B3B2B] text-white flex items-center justify-between">
-              <div>
-                <span className="text-[10px] uppercase tracking-widest text-emerald-300 font-bold">
-                  Ficha Técnica & Financeira do Cliente ({historyClientTarget.id})
-                </span>
-                <h3 className="text-base font-extrabold">{historyClientTarget.name}</h3>
-              </div>
-              <button
-                onClick={() => setHistoryClientTarget(null)}
-                className="text-emerald-200 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-5 text-xs sm:text-sm max-h-[80vh] overflow-y-auto">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-[#F8F3EF] p-4 rounded-xl border border-[#D5CFC7]">
-                <div>
-                  <div className="text-[10px] font-bold uppercase text-slate-500">
-                    CNPJ / CPF & Registro
-                  </div>
-                  <div className="font-bold text-[#1B3B2B]">
-                    {historyClientTarget.document}
-                  </div>
-                  <div className="text-[11px] text-slate-600">
-                    {historyClientTarget.registration}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[10px] font-bold uppercase text-slate-500">
-                    Contato & Cidade
-                  </div>
-                  <div className="font-bold text-slate-800">
-                    {historyClientTarget.contactName}
-                  </div>
-                  <div className="text-[11px] text-slate-600">
-                    {historyClientTarget.city} • {historyClientTarget.phone}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[10px] font-bold uppercase text-slate-500">
-                    Escopo Principal
-                  </div>
-                  <div className="font-bold text-emerald-800">
-                    {historyClientTarget.mainProgram}
-                  </div>
-                </div>
-              </div>
-
-              {/* Lançamentos vinculados ao nome do cliente */}
-              <div>
-                <h4 className="text-xs font-extrabold uppercase text-[#1B3B2B] mb-2">
-                  Movimentações no Livro Caixa deste Cliente
-                </h4>
-                {(() => {
-                  const prefix = historyClientTarget.name.split(' ')[0].toLowerCase();
-                  const clientTxs = transactions.filter(
-                    (t) =>
-                      t.entity
-                        .toLowerCase()
-                        .includes(historyClientTarget.name.toLowerCase()) ||
-                      (prefix.length > 4 && t.entity.toLowerCase().includes(prefix))
-                  );
-                  if (clientTxs.length === 0) {
-                    return (
-                      <p className="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl">
-                        Nenhum lançamento direto localizado com esta razão social exata.
-                      </p>
-                    );
-                  }
-                  return (
-                    <div className="border border-slate-200 rounded-xl overflow-hidden">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-slate-100 font-bold text-slate-600">
-                          <tr>
-                            <th className="py-2 px-3">Data</th>
-                            <th className="py-2 px-3">Descrição</th>
-                            <th className="py-2 px-3 text-center">Status</th>
-                            <th className="py-2 px-3 text-right">Valor</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {clientTxs.map((t) => (
-                            <tr key={t.id}>
-                              <td className="py-2 px-3">{t.date}</td>
-                              <td className="py-2 px-3">{t.description}</td>
-                              <td className="py-2 px-3 text-center font-bold">
-                                {t.status}
-                              </td>
-                              <td className="py-2 px-3 text-right font-bold text-[#1B3B2B]">
-                                {formatCurrency(t.amount)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              <div className="flex justify-end pt-2">
-                <button
-                  onClick={() => setHistoryClientTarget(null)}
-                  className="px-4 py-2 rounded-xl bg-[#1B3B2B] text-white text-xs font-bold"
-                >
-                  Fechar Ficha do Cliente
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ====================================================================
-          MODAL 9: CONFIRMAÇÃO DE EXCLUSÃO DE CLIENTE DO CRM
-      ==================================================================== */}
-      {deleteClientTarget && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-rose-200">
-            <div className="px-6 py-4 bg-rose-700 text-white flex items-center justify-between">
-              <h3 className="text-sm font-bold uppercase">
-                Remover Cliente {deleteClientTarget.id}
-              </h3>
-              <button
-                onClick={() => setDeleteClientTarget(null)}
-                className="text-rose-200 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6 space-y-4 text-xs sm:text-sm">
-              <p className="text-slate-700">
-                Confirma a exclusão do cliente{' '}
-                <strong>{deleteClientTarget.name}</strong> do CRM Ambiental & SST?
-              </p>
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => setDeleteClientTarget(null)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-bold"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={confirmDeleteClient}
-                  className="px-4 py-2 rounded-xl bg-rose-700 text-white text-xs font-bold hover:bg-rose-800"
-                >
-                  Confirmar Exclusão
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ====================================================================
-          MODAL 10: NOVO PERFIL / COLABORADOR NA ÁRVore DE ACESSOS
-      ==================================================================== */}
-      {showUserRoleModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200">
-            <div className="px-6 py-4 bg-[#1B3B2B] text-white flex items-center justify-between">
-              <h3 className="text-base font-bold">
-                Adicionar Colaborador / Nível na Árvore de Acessos
-              </h3>
-              <button
-                onClick={() => setShowUserRoleModal(false)}
-                className="text-emerald-200 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleCreateCustomRole} className="p-6 space-y-4 text-xs sm:text-sm">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Nível Hierárquico
-                  </label>
-                  <input
-                    type="text"
-                    value={newRoleForm.level}
-                    onChange={(e) =>
-                      setNewRoleForm({ ...newRoleForm, level: e.target.value })
-                    }
-                    placeholder="Ex: Nível 6 — Campo / Biólogo"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Cargo / Departamento
-                  </label>
-                  <input
-                    type="text"
-                    value={newRoleForm.name}
-                    onChange={(e) =>
-                      setNewRoleForm({ ...newRoleForm, name: e.target.value })
-                    }
-                    placeholder="Ex: Analista de Licenciamento"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Nome do Colaborador
-                  </label>
-                  <input
-                    type="text"
-                    value={newRoleForm.holder}
-                    onChange={(e) =>
-                      setNewRoleForm({ ...newRoleForm, holder: e.target.value })
-                    }
-                    placeholder="Ex: Eng. Lucas Andrade"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    E-mail de Acesso
-                  </label>
-                  <input
-                    type="email"
-                    value={newRoleForm.email}
-                    onChange={(e) =>
-                      setNewRoleForm({ ...newRoleForm, email: e.target.value })
-                    }
-                    placeholder="lucas@grupomartins.eng.br"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                  Escopo de Alçada e Responsabilidades
-                </label>
-                <input
-                  type="text"
-                  value={newRoleForm.description}
-                  onChange={(e) =>
-                    setNewRoleForm({ ...newRoleForm, description: e.target.value })
-                  }
-                  placeholder="Ex: Acesso a contratos e CRM, sem visualização de DRE e Pró-Labore"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowUserRoleModal(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 font-semibold text-slate-600"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold hover:bg-[#2D5A43]"
-                >
-                  Criar Perfil na Árvore
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ====================================================================
-          MODAL 10: NOVO PERFIL / COLABORADOR NA ÁRVORE DE ACESSOS
-      ==================================================================== */}
-      {showUserRoleModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200">
-            <div className="px-6 py-4 bg-[#1B3B2B] text-white flex items-center justify-between">
-              <h3 className="text-base font-bold">
-                Adicionar Colaborador / Nível na Árvore de Acessos
-              </h3>
-              <button
-                onClick={() => setShowUserRoleModal(false)}
-                className="text-emerald-200 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleCreateCustomRole} className="p-6 space-y-4 text-xs sm:text-sm">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Nível Hierárquico
-                  </label>
-                  <input
-                    type="text"
-                    value={newRoleForm.level}
-                    onChange={(e) =>
-                      setNewRoleForm({ ...newRoleForm, level: e.target.value })
-                    }
-                    placeholder="Ex: Nível 6 — Campo / Biólogo"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Cargo / Departamento
-                  </label>
-                  <input
-                    type="text"
-                    value={newRoleForm.name}
-                    onChange={(e) =>
-                      setNewRoleForm({ ...newRoleForm, name: e.target.value })
-                    }
-                    placeholder="Ex: Analista de Licenciamento"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    Nome do Colaborador
-                  </label>
-                  <input
-                    type="text"
-                    value={newRoleForm.holder}
-                    onChange={(e) =>
-                      setNewRoleForm({ ...newRoleForm, holder: e.target.value })
-                    }
-                    placeholder="Ex: Eng. Lucas Andrade"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                    E-mail de Acesso
-                  </label>
-                  <input
-                    type="email"
-                    value={newRoleForm.email}
-                    onChange={(e) =>
-                      setNewRoleForm({ ...newRoleForm, email: e.target.value })
-                    }
-                    placeholder="lucas@grupomartins.eng.br"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                  Senha de Acesso Personalizada
-                </label>
-                <input
-                  type="text"
-                  value={newRoleForm.password}
-                  onChange={(e) =>
-                    setNewRoleForm({ ...newRoleForm, password: e.target.value })
-                  }
-                  placeholder="Defina a senha do colaborador (ex: martins2026)"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-                  Escopo de Alçada e Responsabilidades
-                </label>
-                <input
-                  type="text"
-                  value={newRoleForm.description}
-                  onChange={(e) =>
-                    setNewRoleForm({ ...newRoleForm, description: e.target.value })
-                  }
-                  placeholder="Ex: Acesso a contratos e CRM, sem visualização de DRE e Pró-Labore"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowUserRoleModal(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 font-semibold text-slate-600"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold hover:bg-[#2D5A43]"
-                >
-                  Criar Perfil na Árvore
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ====================================================================
-          TELA DE LOGIN SEGURA (IMPEDE TROCA LIVRE DE PERFIL E ERRO DE MASTER)
-      ==================================================================== */}
+      {/* TELA DE LOGIN */}
       {!authLoggedIn && (
         <div className="fixed inset-0 z-50 bg-[#1B3B2B]/95 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl border border-emerald-900/20 text-center space-y-6">
+          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl border text-center space-y-6">
             <GrupoMartinsLogo size="md" className="mx-auto" />
             <div>
-              <h2 className="text-xl font-black text-[#1B3B2B]">
-                Autenticação de Acesso — Grupo Martins
-              </h2>
-              <p className="text-xs text-slate-500 mt-1">
-                Insira seu e-mail corporativo e senha cadastrados para acessar seu respectivo perfil.
-              </p>
+              <h2 className="text-xl font-black text-[#1B3B2B]">Autenticação de Acesso — Nuvem</h2>
+              <p className="text-xs text-slate-500 mt-1">Insira seu e-mail corporativo e senha cadastrados.</p>
             </div>
-
             {authErrorMsg && (
-              <div className="p-3 rounded-xl bg-rose-100 border border-rose-300 text-rose-800 text-xs font-bold animate-bounce">
+              <div className="p-3 rounded-xl bg-rose-100 text-rose-800 text-xs font-bold">
                 {authErrorMsg}
               </div>
             )}
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                setAuthErrorMsg('');
-                const inputEmail = authEmailInput.trim().toLowerCase();
-                const inputPass = authPasswordInput.trim();
-
-                const found = accessRoles.find(
-                  (r) => r.email && r.email.toLowerCase() === inputEmail
-                );
-
-                if (!found) {
-                  setAuthErrorMsg('E-mail não cadastrado na base de acessos. Verifique o endereço digitado.');
-                  return;
-                }
-
-                if (found.password && found.password !== inputPass) {
-                  setAuthErrorMsg('Senha incorreta para este usuário.');
-                  return;
-                }
-
-                setActiveRoleId(found.id);
-                setAuthLoggedIn(true);
-                showToast(`Bem-vindo(a), ${found.holder}! Acesso autorizado.`);
-              }}
-              className="space-y-4 text-left text-xs"
-            >
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              setAuthErrorMsg('');
+              const found = accessRoles.find(r => r.email && r.email.toLowerCase() === authEmailInput.trim().toLowerCase());
+              if (!found) {
+                setAuthErrorMsg('E-mail não cadastrado.');
+                return;
+              }
+              if (found.password && found.password !== authPasswordInput.trim()) {
+                setAuthErrorMsg('Senha incorreta.');
+                return;
+              }
+              setActiveRoleId(found.id);
+              setAuthLoggedIn(true);
+              showToast(`Bem-vindo(a), ${found.holder}! Acesso autorizado.`);
+            }} className="space-y-4 text-left text-xs">
               <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">
-                  E-mail Corporativo
-                </label>
-                <input
-                  type="email"
-                  value={authEmailInput}
-                  onChange={(e) => setAuthEmailInput(e.target.value)}
-                  placeholder="ex: maikon@grupomartins.eng.br"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-semibold text-slate-800 focus:outline-none focus:border-[#1B3B2B]"
-                  required
-                />
+                <label className="block font-bold text-slate-700 uppercase mb-1">E-mail Corporativo</label>
+                <input type="email" value={authEmailInput} onChange={(e) => setAuthEmailInput(e.target.value)} placeholder="ex: maikon@grupomartins.eng.br" className="w-full px-3.5 py-2.5 rounded-xl border" required />
               </div>
-
               <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">
-                  Senha de Acesso
-                </label>
-                <input
-                  type="password"
-                  value={authPasswordInput}
-                  onChange={(e) => setAuthPasswordInput(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-semibold text-slate-800 focus:outline-none focus:border-[#1B3B2B]"
-                  required
-                />
+                <label className="block font-bold text-slate-700 uppercase mb-1">Senha</label>
+                <input type="password" value={authPasswordInput} onChange={(e) => setAuthPasswordInput(e.target.value)} placeholder="••••••••" className="w-full px-3.5 py-2.5 rounded-xl border" required />
               </div>
-
-              <button
-                type="submit"
-                className="w-full py-3 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] transition shadow-md"
-              >
-                Entrar no Sistema ERP
+              <button type="submit" className="w-full py-3 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md">
+                Entrar no ERP (Sincronizado)
               </button>
             </form>
           </div>
