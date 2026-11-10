@@ -10,7 +10,7 @@
     {
       "src": "logo.jpeg",
       "sizes": "512x512",
-      "type": "image/PNG",
+      "type": "image/jpeg",
       "purpose": "any maskable"
     }
   ]
