@@ -312,23 +312,8 @@ const INITIAL_PARAMETERS = {
 // Lançamentos Financeiros (Iniciando limpo/zerado)
 const INITIAL_TRANSACTIONS = [];
 
-// 14 Contratos Técnicos Oficiais (CT-2026-01 a CT-2026-14)
-const INITIAL_CONTRACTS = [
-  { id: 'CT-2026-01', client: 'Agropecuária Santa Fé S/A (Faz. Rio Verde)', service: 'Renovação de Licença de Operação (LO) + Monitoramento', agency: 'SEMA-MT', startDate: '2026-01-05', deadline: '2026-02-20', status: 'Concluído / Licença Emitida', contractValue: 29000, receivedValue: 29000, directCosts: 3200 },
-  { id: 'CT-2026-02', client: 'Frigorífico Vale do Boi & Metalúrgica AçoForte', service: 'Pacote PGR, PCMSO, LTCAT e Ergonomia (NR-17)', agency: 'eSocial / MTE', startDate: '2026-01-09', deadline: '2026-05-25', status: 'Concluído / Licença Emitida', contractValue: 20200, receivedValue: 20200, directCosts: 1800 },
-  { id: 'CT-2026-03', client: 'Grupo Soares & Horizonte (3 Fazendas)', service: 'Retificação de CAR, Reserva Legal e Outorga Irrigação', agency: 'SEMA-MT / ANA', startDate: '2026-01-15', deadline: '2026-09-30', status: 'Concluído / Licença Emitida', contractValue: 33200, receivedValue: 33200, directCosts: 4100 },
-  { id: 'CT-2026-04', client: 'Carteira Recorrente SST (20 Empresas Ativas)', service: 'Gestão Mensal de Envios eSocial SST + Treinamentos NRs', agency: 'eSocial / NRs', startDate: '2026-01-02', deadline: '2026-12-31', status: 'Contrato Recorrente Ativo', contractValue: 55300, receivedValue: 55300, directCosts: 3900 },
-  { id: 'CT-2026-05', client: 'Sementes Ouro Branco Ltda', service: 'Plano de Gerenciamento de Resíduos Sólidos (PGRS + PAE)', agency: 'SEMA-MT / Pref.', startDate: '2026-02-04', deadline: '2026-03-15', status: 'Concluído / Licença Emitida', contractValue: 11500, receivedValue: 11500, directCosts: 950 },
-  { id: 'CT-2026-06', client: 'Construtora Horizonte & CoopSul', service: 'PGR Canteiro, Laudo Insalubridade e Espaço Confinado NR-33', agency: 'MTE / NR-18 / NR-33', startDate: '2026-02-19', deadline: '2026-06-30', status: 'Concluído / Licença Emitida', contractValue: 25100, receivedValue: 25100, directCosts: 2300 },
-  { id: 'CT-2026-07', client: 'Usina BioEnergia Cerrado S/A', service: 'Licença de Instalação (LI) Ampliação Industrial + Emissões', agency: 'SEMA-MT', startDate: '2026-03-05', deadline: '2026-06-15', status: 'Concluído / Licença Emitida', contractValue: 42000, receivedValue: 42000, directCosts: 6400 },
-  { id: 'CT-2026-08', client: 'Fazenda Santa Bárbara & Estância Rio Manso', service: 'Georreferenciamento INCRA + Outorga de Poço e Captação', agency: 'INCRA / SEMA-MT', startDate: '2026-03-12', deadline: '2026-11-30', status: 'Protocolado SEMA / Órgão', contractValue: 38400, receivedValue: 25400, directCosts: 4850 },
-  { id: 'CT-2026-09', client: 'Mineração Serra Dourada & Rodovias do Norte', service: 'PRAD com Drone RTK + Monitoramento Semestral de Fauna', agency: 'SEMA-MT / ANM', startDate: '2026-04-06', deadline: '2026-10-30', status: 'Concluído / Licença Emitida', contractValue: 31500, receivedValue: 31500, directCosts: 7300 },
-  { id: 'CT-2026-10', client: 'Hospital São Lucas, SoloVivo & Águas Quentes', service: 'PGRSS Hospitalar, Auditoria RAPP/IBAMA e ETE Compacta', agency: 'IBAMA / VISA / SEMA', startDate: '2026-06-11', deadline: '2026-12-20', status: 'Concluído / Licença Emitida', contractValue: 40000, receivedValue: 40000, directCosts: 3800 },
-  { id: 'CT-2026-11', client: 'Armazéns Grão Forte & Posto BR-163 Sul', service: 'Licenciamento Trifásico Silos + LO e Estanqueidade Posto', agency: 'SEMA-MT / Corpo Bomb.', startDate: '2026-07-07', deadline: '2026-09-10', status: 'Concluído / Licença Emitida', contractValue: 35500, receivedValue: 35500, directCosts: 4600 },
-  { id: 'CT-2026-12', client: 'Supermercados Bom Preço & SojaBrasil S/A', service: 'Higiene Ocupacional Quantitativa (Ruído/Poeira/Calor) + LTCAT', agency: 'eSocial / NR-15', startDate: '2026-08-12', deadline: '2026-10-25', status: 'Concluído / Licença Emitida', contractValue: 29100, receivedValue: 29100, directCosts: 3100 },
-  { id: 'CT-2026-13', client: 'Algodoeira São Francisco & Complexo Nova Era', service: 'EIA/RIMA Beneficiamento de Algodão + LP/LI Armazém Graneleiro', agency: 'SEMA-MT', startDate: '2026-09-04', deadline: '2026-12-28', status: 'Protocolado SEMA / Órgão', contractValue: 63000, receivedValue: 38000, directCosts: 8200 },
-  { id: 'CT-2026-14', client: 'Construtora Vanguarda & Logística Centro-Oeste', service: 'PGR Obras Civis, LTCAT e Análise Ergonômica do Trabalho (AET)', agency: 'eSocial / NR-17 / NR-18', startDate: '2026-11-18', deadline: '2026-12-30', status: 'Em Elaboração Técnica', contractValue: 26100, receivedValue: 0, directCosts: 1950 }
-];
+// Base de Contratos Técnicos (Iniciando limpo/zerado)
+const INITIAL_CONTRACTS = [];
 
 // Base de Clientes do CRM Zerada
 const INITIAL_CLIENTS = [];
@@ -485,7 +470,7 @@ export default function App() {
 
   const [contracts, setContracts] = useState(() => {
     try {
-      const saved = localStorage.getItem('martins_erp_contracts_v3');
+      const saved = localStorage.getItem('martins_erp_contracts_v4');
       return saved ? JSON.parse(saved) : INITIAL_CONTRACTS;
     } catch {
       return INITIAL_CONTRACTS;
@@ -553,7 +538,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('martins_erp_contracts_v3', JSON.stringify(contracts));
+      localStorage.setItem('martins_erp_contracts_v4', JSON.stringify(contracts));
     } catch (e) {
       console.error(e);
     }
@@ -1186,7 +1171,7 @@ export default function App() {
     setActiveRoleId('ROLE-01');
     setParams(INITIAL_PARAMETERS);
     localStorage.removeItem('martins_erp_transactions_v4');
-    localStorage.removeItem('martins_erp_contracts_v3');
+    localStorage.removeItem('martins_erp_contracts_v4');
     localStorage.removeItem('martins_erp_clients_v4');
     localStorage.removeItem('martins_erp_roles_v3');
     localStorage.removeItem('martins_erp_params_v3');
@@ -2793,7 +2778,7 @@ export default function App() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white p-5 rounded-2xl border border-slate-200 border-t-4 border-t-[#1B3B2B] shadow-sm">
                   <div className="text-xs font-bold text-slate-500 uppercase">
-                    Valor Total Contratado (14 Contratos)
+                    Valor Total Contratado ({contracts.length} Contratos)
                   </div>
                   <div className="text-2xl font-black text-[#1B3B2B] mt-1">
                     {formatCurrency(
