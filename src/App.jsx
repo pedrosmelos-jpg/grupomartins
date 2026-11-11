@@ -687,7 +687,9 @@ export default function App() {
           number: i + 1,
           amount: instVal,
           dueDate: ctForm.installmentDates[i] || '2026-12-30',
-          status: existingInst ? existingInst.status : 'Pendente'
+          status: existingInst ? existingInst.status : 'Pendente',
+          paymentDate: existingInst?.paymentDate || null,
+          interestPaid: existingInst?.interestPaid || 0
         });
       }
 
@@ -697,7 +699,7 @@ export default function App() {
         service: ctForm.service,
         agency: ctForm.agency,
         status: ctForm.status,
-        contractValue: contractVal, // Valor total fixo do contrato
+        contractValue: contractVal,
         receivedValue: installments.filter(i => i.status === 'Pago').reduce((acc, cur) => acc + Number(cur.amount), 0),
         directCosts: directVal,
         installmentsCount: String(nInstallments),
@@ -824,9 +826,67 @@ export default function App() {
       await supabase.from('transactions').upsert(newTransactionsList);
     }
 
+    // ATUALIZAÇÃO IMEDIATA DO MODAL DE PARCELAS ABERTO
+    setViewingContractInstallments(updatedContract);
+
     showToast(`Recebimento registrado com sucesso em 2 lançamentos separados no Caixa!`);
     setReceivingInstallmentData(null);
     setReceiveForm({ paymentDate: new Date().toISOString().split('T')[0], interestAmount: '' });
+  };
+
+  // Função para CANCELAR / ESTORNAR o recebimento de uma parcela
+  const handleCancelReceiveInstallment = async (contractId, installmentNumber) => {
+    if (!window.confirm(`Deseja realmente cancelar o recebimento da Parcela ${installmentNumber}? Os lançamentos correspondentes no Livro Caixa serão removidos.`)) return;
+
+    const contract = contracts.find(c => c.id === contractId);
+    if (!contract) return;
+
+    // Identifica a descrição exata gerada no caixa para remover
+    const descPrefix1 = `Parcela ${installmentNumber}/${contract.installmentsData.length}`;
+    const descPrefix2 = `Juros / Multa Parcela ${installmentNumber} — Contrato ${contractId}`;
+
+    const updatedInstallments = contract.installmentsData.map(inst => {
+      if (inst.number === installmentNumber) {
+        return { 
+          ...inst, 
+          status: 'Pendente', 
+          paymentDate: null, 
+          interestPaid: 0,
+          totalPaid: 0 
+        };
+      }
+      return inst;
+    });
+
+    const receivedSum = updatedInstallments.filter(i => i.status === 'Pago').reduce((acc, cur) => acc + Number(cur.amount), 0);
+
+    const updatedContract = {
+      ...contract,
+      receivedValue: receivedSum,
+      installmentsData: updatedInstallments
+    };
+
+    setContracts(prev => prev.map(c => c.id === contractId ? updatedContract : c));
+    if (supabase) {
+      await supabase.from('contracts').upsert([updatedContract]);
+    }
+
+    // Remove do Livro Caixa (transactions) os registros vinculados a este contrato e parcela
+    const txsToRemove = transactions.filter(t => t.contractId === contractId && (t.description.includes(descPrefix1) || t.description.includes(descPrefix2)));
+    const txIdsToRemove = txsToRemove.map(t => t.id);
+
+    setTransactions(prev => prev.filter(t => !txIdsToRemove.includes(t.id)));
+
+    if (supabase && txIdsToRemove.length > 0) {
+      for (const tId of txIdsToRemove) {
+        await supabase.from('transactions').delete().eq('id', tId);
+      }
+    }
+
+    // ATUALIZAÇÃO IMEDIATA DO MODAL ABERTO
+    setViewingContractInstallments(updatedContract);
+
+    showToast(`Recebimento da Parcela ${installmentNumber} cancelado e estornado do Caixa!`);
   };
 
   const confirmDeleteContract = async () => {
@@ -2174,7 +2234,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL GERENCIAR / RECEBER PARCELAS DO CONTRATO */}
+      {/* MODAL GERENCIAR / RECEBER / CANCELAR PARCELAS DO CONTRATO */}
       {viewingContractInstallments && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -2190,7 +2250,7 @@ export default function App() {
 
             <div className="space-y-3">
               <p className="text-xs text-slate-500 bg-emerald-50 p-3 rounded-xl border border-emerald-200">
-                Clique em <strong>"Receber Parcela"</strong> para informar a data de recebimento e juros. O sistema criará dois lançamentos separados no Caixa (um para a parcela e outro para os juros).
+                Gerencie os recebimentos abaixo. É possível receber com juros ou estornar/cancelar um recebimento caso necessário.
               </p>
 
               <div className="border rounded-xl overflow-hidden">
@@ -2229,14 +2289,23 @@ export default function App() {
                                   interestAmount: ''
                                 });
                               }}
-                              className="px-3 py-1 bg-emerald-700 text-white font-bold rounded-lg text-[10px] hover:bg-emerald-800"
+                              className="px-3 py-1 bg-emerald-700 text-white font-bold rounded-lg text-[10px] hover:bg-emerald-800 cursor-pointer"
                             >
                               Receber Parcela
                             </button>
                           ) : (
-                            <span className="text-emerald-700 font-bold flex items-center justify-center gap-1">
-                              <Check className="w-3.5 h-3.5" /> Liquidado
-                            </span>
+                            <div className="flex items-center justify-center gap-2">
+                              <span className="text-emerald-700 font-bold flex items-center gap-1">
+                                <Check className="w-3.5 h-3.5" /> Liquidado
+                              </span>
+                              <button
+                                onClick={() => handleCancelReceiveInstallment(viewingContractInstallments.id, inst.number)}
+                                className="px-2 py-1 bg-rose-100 text-rose-700 font-bold rounded-lg text-[10px] hover:bg-rose-200 cursor-pointer"
+                                title="Cancelar / Estornar Recebimento"
+                              >
+                                Cancelar Baixa
+                              </button>
+                            </div>
                           )}
                         </td>
                       </tr>
@@ -2249,7 +2318,7 @@ export default function App() {
             <div className="flex justify-end pt-3 border-t">
               <button
                 onClick={() => setViewingContractInstallments(null)}
-                className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold text-xs"
+                className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold text-xs cursor-pointer"
               >
                 Fechar
               </button>
@@ -2321,11 +2390,7 @@ export default function App() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    handleConfirmReceiveInstallment();
-                    const updated = contracts.find(c => c.id === viewingContractInstallments?.id);
-                    if (updated) setViewingContractInstallments(updated);
-                  }}
+                  onClick={handleConfirmReceiveInstallment}
                   className="px-5 py-2 rounded-xl bg-emerald-700 text-white font-bold hover:bg-emerald-800 shadow-md cursor-pointer"
                 >
                   Confirmar e Gerar Lançamentos
