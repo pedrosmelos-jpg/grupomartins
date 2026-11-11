@@ -637,7 +637,7 @@ export default function App() {
     }
   };
 
-  const handleSaveContract = async (e) => {
+const handleSaveContract = async (e) => {
     e.preventDefault();
     const contractVal = parseFloat(String(ctForm.contractValue).replace(',', '.')) || 0;
     const receivedVal = parseFloat(String(ctForm.receivedValue).replace(',', '.')) || 0;
@@ -678,38 +678,30 @@ export default function App() {
         }
       });
 
-      if (!editingContract) {
-        const installmentVal = contractVal / nInstallments;
-        const newTxs = [];
-        for (let i = 0; i < nInstallments; i++) {
-          const instDate = ctForm.installmentDates[i] || '2026-12-30';
-          const monthNames = { '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez' };
-          const monthNum = instDate.split('-')[1] || '12';
-          const monthStr = monthNames[monthNum] || 'Dez';
-          const tId = `MT-${String(transactions.length + 15 + i).padStart(3, '0')}`;
-          
-          const newTx = {
-            id: tId,
-            date: instDate,
-            month: monthStr,
-            type: 'Entrada',
-            category: revenueCategories[0],
-            entity: ctForm.client,
-            contractId: contractId,
-            description: `Parcela ${i + 1}/${nInstallments} (${ctForm.paymentMethod}) — Contrato ${contractId}`,
-            paymentMethod: ctForm.paymentMethod,
-            status: i === 0 && receivedVal > 0 ? 'Pago / Recebido' : 'Pendente',
-            amount: installmentVal
-          };
-          newTxs.push(newTx);
-        }
-        setTransactions(prev => [...prev, ...newTxs]);
-        if (supabase && newTxs.length > 0) {
-          await supabase.from('transactions').upsert(newTxs);
+      // Gera lançamento apenas se houver valor já recebido registrado
+      if (!editingContract && receivedVal > 0) {
+        const tId = `MT-${String(transactions.length + 15).padStart(3, '0')}`;
+        const newTx = {
+          id: tId,
+          date: ctForm.installmentDates[0] || '2026-12-30',
+          month: 'Nov', // Ajuste conforme o mês da data
+          type: 'Entrada',
+          category: revenueCategories[0],
+          entity: ctForm.client,
+          contractId: contractId,
+          description: `Recebimento Inicial / Sinal — Contrato ${contractId}`,
+          paymentMethod: ctForm.paymentMethod,
+          status: 'Pago / Recebido',
+          amount: receivedVal
+        };
+
+        setTransactions(prev => [...prev, newTx]);
+        if (supabase) {
+          await supabase.from('transactions').upsert([newTx]);
         }
       }
 
-      showToast('Contrato salvo permanentemente na nuvem!');
+      showToast('Contrato salvo permanentemente e valor recebido lançado no caixa!');
       setShowContractModal(false);
     } catch (err) {
       console.error('Erro ao salvar contrato:', err);
