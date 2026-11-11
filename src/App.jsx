@@ -63,10 +63,10 @@ import {
 
 import { createClient } from '@supabase/supabase-js';
 
-// Inicialização Supabase
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+// Inicialização Supabase direta
+const supabaseUrl = "https://fhmgpgqqhcbxuqmpjrlh.supabase.co";
+const supabaseKey = "sb_publishable_P1Xy1OH2KBqp-oITOLz0_g_615LlpyM";
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // ============================================================================
 // 1. COMPONENTE DA LOGO OFICIAL VETORIZADA — GRUPO MARTINS
