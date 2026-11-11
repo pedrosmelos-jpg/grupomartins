@@ -393,6 +393,12 @@ export default function App() {
     'Inativo'
   ]);
 
+  // Estados locais para controlar a abertura dos inputs inline de adição
+  const [isAddingSegment, setIsAddingSegment] = useState(false);
+  const [newSegmentText, setNewSegmentText] = useState('');
+  const [isAddingStatus, setIsAddingStatus] = useState(false);
+  const [newStatusText, setNewStatusText] = useState('');
+
   const [accessRoles, setAccessRoles] = useState(INITIAL_ACCESS_ROLES);
   const [activeRoleId, setActiveRoleId] = useState('ROLE-01');
   const [authLoggedIn, setAuthLoggedIn] = useState(false);
@@ -1388,7 +1394,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CLIENTE (COM BOTÕES PARA CADASTRAR NOVO SEGMENTO E NOVO STATUS) */}
+      {/* MODAL CLIENTE */}
       {showClientModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B]">
@@ -1441,21 +1447,47 @@ export default function App() {
                     <label className="block font-bold text-slate-700 uppercase">SEGMENTO ECONÔMICO</label>
                     <button
                       type="button"
-                      onClick={() => {
-                        const newSeg = prompt('Digite o nome do novo Segmento Econômico:');
-                        if (newSeg && newSeg.trim() !== '') {
-                          if (!availableSegments.includes(newSeg.trim())) {
-                            setAvailableSegments([...availableSegments, newSeg.trim()]);
-                            setCliForm({ ...cliForm, segment: newSeg.trim() });
-                            showToast('Novo segmento adicionado!');
-                          }
-                        }
-                      }}
+                      onClick={() => setIsAddingSegment(true)}
                       className="text-[10px] text-emerald-700 font-bold hover:underline cursor-pointer flex items-center gap-0.5"
                     >
                       <Plus className="w-3 h-3" /> Adicionar Segmento
                     </button>
                   </div>
+                  {isAddingSegment && (
+                    <div className="flex gap-2 mb-2">
+                      <input
+                        type="text"
+                        value={newSegmentText}
+                        onChange={(e) => setNewSegmentText(e.target.value)}
+                        placeholder="Novo segmento..."
+                        className="w-full px-3 py-1.5 rounded-xl border text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (newSegmentText.trim()) {
+                            if (!availableSegments.includes(newSegmentText.trim())) {
+                              setAvailableSegments([...availableSegments, newSegmentText.trim()]);
+                              setCliForm({ ...cliForm, segment: newSegmentText.trim() });
+                              showToast('Novo segmento adicionado!');
+                            }
+                            setNewSegmentText('');
+                            setIsAddingSegment(false);
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-[#1B3B2B] text-white rounded-xl text-xs font-bold shrink-0"
+                      >
+                        OK
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingSegment(false)}
+                        className="px-2 py-1.5 border rounded-xl text-xs text-slate-500 shrink-0"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                   <select
                     value={cliForm.segment}
                     onChange={(e) => setCliForm({ ...cliForm, segment: e.target.value })}
@@ -1518,21 +1550,47 @@ export default function App() {
                     <label className="block font-bold text-slate-700 uppercase">STATUS DO CLIENTE</label>
                     <button
                       type="button"
-                      onClick={() => {
-                        const newStat = prompt('Digite o nome do novo Status de Cliente:');
-                        if (newStat && newStat.trim() !== '') {
-                          if (!availableStatuses.includes(newStat.trim())) {
-                            setAvailableStatuses([...availableStatuses, newStat.trim()]);
-                            setCliForm({ ...cliForm, status: newStat.trim() });
-                            showToast('Novo status adicionado!');
-                          }
-                        }
-                      }}
+                      onClick={() => setIsAddingStatus(true)}
                       className="text-[10px] text-emerald-700 font-bold hover:underline cursor-pointer flex items-center gap-0.5"
                     >
                       <Plus className="w-3 h-3" /> Adicionar Status
                     </button>
                   </div>
+                  {isAddingStatus && (
+                    <div className="flex gap-2 mb-2">
+                      <input
+                        type="text"
+                        value={newStatusText}
+                        onChange={(e) => setNewStatusText(e.target.value)}
+                        placeholder="Novo status..."
+                        className="w-full px-3 py-1.5 rounded-xl border text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (newStatusText.trim()) {
+                            if (!availableStatuses.includes(newStatusText.trim())) {
+                              setAvailableStatuses([...availableStatuses, newStatusText.trim()]);
+                              setCliForm({ ...cliForm, status: newStatusText.trim() });
+                              showToast('Novo status adicionado!');
+                            }
+                            setNewStatusText('');
+                            setIsAddingStatus(false);
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-[#1B3B2B] text-white rounded-xl text-xs font-bold shrink-0"
+                      >
+                        OK
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingStatus(false)}
+                        className="px-2 py-1.5 border rounded-xl text-xs text-slate-500 shrink-0"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                   <select
                     value={cliForm.status}
                     onChange={(e) => setCliForm({ ...cliForm, status: e.target.value })}
