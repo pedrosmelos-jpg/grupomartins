@@ -676,10 +676,9 @@ export default function App() {
     setDeleteContractTarget(null);
   };
 
-  const handleSaveClient = async (e) => {
-    e.preventDefault();
+const handleSaveClient = async () => {
     if (!cliForm.name) {
-      alert('Por favor, preencha o nome/razão social.');
+      alert('Por favor, preencha a Razão Social / Nome.');
       return;
     }
 
@@ -687,30 +686,48 @@ export default function App() {
       const clientId = editingClient ? editingClient.id : `CLI-${String(clients.length + 1).padStart(3, '0')}`;
       const clientData = { id: clientId, ...cliForm };
 
+      console.log('Enviando para o Supabase:', clientData);
+
       if (supabase) {
         const { error } = await supabase.from('clients').upsert([clientData]);
         if (error) {
-          console.error('Erro detalhado do Supabase:', error);
-          alert('Erro ao salvar no Supabase: ' + error.message);
+          console.error('Erro no Supabase:', error);
+          alert('Erro ao salvar no banco: ' + error.message);
           return;
         }
       }
 
-      setClients(prev => editingClient ? prev.map(c => c.id === clientId ? clientData : c) : [...prev, clientData]);
-      
-      if (supabase) {
-        const { data, error: fetchError } = await supabase.from('clients').select('*');
-        if (!fetchError && data) setClients(data);
-      }
+      setClients(prev => {
+        const exists = prev.some(c => c.id === clientId);
+        if (exists) {
+          return prev.map(c => c.id === clientId ? clientData : c);
+        } else {
+          return [...prev, clientData];
+        }
+      });
 
       setShowClientModal(false);
-      showToast('Cliente salvo com sucesso!');
+      showToast('Cliente salvo com sucesso na nuvem!');
+      
+      // Limpa o formulário
+      setCliForm({
+        name: '',
+        document: '',
+        registration: '',
+        segment: availableSegments[0],
+        city: 'Rondonópolis — MT',
+        contactName: '',
+        phone: '',
+        email: '',
+        mainProgram: 'Licenciamento Ambiental (LP / LI / LO)',
+        status: availableStatuses[0]
+      });
+
     } catch (err) {
-      console.error('Erro crítico ao salvar:', err);
-      alert('Erro ao processar o salvamento.');
+      console.error('Erro crítico:', err);
+      alert('Erro inesperado ao salvar.');
     }
   };
-
   const handleSaveNewUserRole = (e) => {
     e.preventDefault();
     if (!newRoleForm.name || !newRoleForm.holder || !newRoleForm.email) return;
