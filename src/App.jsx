@@ -1015,7 +1015,7 @@ export default function App() {
   };
 
   // FUNÇÃO ATUALIZADA PARA SALVAR O NOVO UTILIZADOR DIRETAMENTE NO SUPABASE
-  const handleSaveNewUserRole = async (e) => {
+const handleSaveNewUserRole = async (e) => {
     e.preventDefault();
     if (!newRoleForm.name || !newRoleForm.holder || !newRoleForm.email) return;
     
@@ -1026,7 +1026,6 @@ export default function App() {
       holder: newRoleForm.holder,
       email: newRoleForm.email,
       password: newRoleForm.password || 'martins2026',
-      badgeColor: 'bg-[#1B3B2B] text-white',
       description: newRoleForm.description || 'Perfil personalizado de acesso.',
       permissions: JSON.parse(JSON.stringify(DEFAULT_PERMISSIONS))
     };
@@ -1057,7 +1056,7 @@ export default function App() {
       alert('Erro inesperado ao salvar utilizador.');
     }
   };
-
+  
   const handlePermissionToggle = (roleId, moduleKey, actionKey) => {
     setAccessRoles(prevRoles =>
       prevRoles.map(role => {
