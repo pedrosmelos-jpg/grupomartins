@@ -293,7 +293,7 @@ const INITIAL_PARAMETERS = {
 const DEFAULT_PERMISSIONS = {
   dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
   prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
-  lancamentos: { view: true, create: true, edit: true, delete: false, approve: true },
+  lancamentos: { view: true, create: true, edit: true, delete: false, approve: false },
   dre: { view: true, create: false, edit: false, delete: false, approve: false },
   contratos: { view: true, create: true, edit: true, delete: false, approve: false },
   clientes: { view: true, create: true, edit: true, delete: false, approve: false },
@@ -490,7 +490,7 @@ export default function App() {
     installmentDates: ['2026-12-30', '', '', '']
   });
 
-  // Estado atualizado do Cliente conforme a referência visual
+  // Estado completo do Cliente com Segmento Econômico e Status
   const [cliForm, setCliForm] = useState({
     name: '',
     document: '',
@@ -1184,8 +1184,8 @@ export default function App() {
                       <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
                         <th className="py-3.5 px-3">ID</th>
                         <th className="py-3.5 px-3">Razão Social / Empreendimento</th>
-                        <th className="py-3.5 px-3">CNPJ / CPF</th>
-                        <th className="py-3.5 px-3">Segmento</th>
+                        <th className="py-3.5 px-3">Segmento Econômico</th>
+                        <th className="py-3.5 px-3">Responsável / Contato</th>
                         <th className="py-3.5 px-3">Cidade</th>
                         <th className="py-3.5 px-3 text-center">Status</th>
                       </tr>
@@ -1195,12 +1195,12 @@ export default function App() {
                         <tr key={cli.id} className="hover:bg-slate-50">
                           <td className="py-3 px-3 font-mono font-bold">{cli.id}</td>
                           <td className="py-3 px-3 font-bold">{cli.name}</td>
-                          <td className="py-3 px-3">{cli.document}</td>
                           <td className="py-3 px-3">{cli.segment}</td>
+                          <td className="py-3 px-3">{cli.contactName || '—'}</td>
                           <td className="py-3 px-3">{cli.city}</td>
                           <td className="py-3 px-3 text-center">
                             <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
-                              {cli.status}
+                              {cli.status || 'Ativo'}
                             </span>
                           </td>
                         </tr>
@@ -1373,7 +1373,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CLIENTE (EXATAMENTE COMO NA IMAGEM DE REFERÊNCIA) */}
+      {/* MODAL CLIENTE (IDÊNTICO À REFERÊNCIA VISUAL) */}
       {showClientModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B]">
@@ -1386,7 +1386,7 @@ export default function App() {
             
             <form onSubmit={handleSaveClient} className="p-6 space-y-4 text-xs">
               <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">Razão Social / Nome da Fazenda ou Empreendimento</label>
+                <label className="block font-bold text-slate-700 uppercase mb-1">RAZÃO SOCIAL / NOME DA FAZENDA OU EMPREENDIMENTO</label>
                 <input
                   type="text"
                   value={cliForm.name}
@@ -1409,317 +1409,5 @@ export default function App() {
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Nº CAR / Inscrição Estadual / Matrícula</label>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Nº CAR / INSCRIÇÃO ESTADUAL / MATRÍCULA</label>
                   <input
-                    type="text"
-                    value={cliForm.registration}
-                    onChange={(e) => setCliForm({ ...cliForm, registration: e.target.value })}
-                    placeholder="Ex: CAR MT-5107602 / IE 13.000.000-0"
-                    className="w-full px-3.5 py-2.5 rounded-xl border"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Segmento Econômico</label>
-                  <select
-                    value={cliForm.segment}
-                    onChange={(e) => setCliForm({ ...cliForm, segment: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
-                  >
-                    <option value="Agronegócio / Propriedade Rural">Agronegócio / Propriedade Rural</option>
-                    <option value="Indústria / Agroindústria">Indústria / Agroindústria</option>
-                    <option value="Construtora / Loteamento">Construtora / Loteamento</option>
-                    <option value="Transporte / Logística">Transporte / Logística</option>
-                    <option value="Comércio / Serviços">Comércio / Serviços</option>
-                    <option value="Saúde / Hospitalar">Saúde / Hospitalar</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Cidade / UF</label>
-                  <input
-                    type="text"
-                    value={cliForm.city}
-                    onChange={(e) => setCliForm({ ...cliForm, city: e.target.value })}
-                    placeholder="Rondonópolis — MT"
-                    className="w-full px-3.5 py-2.5 rounded-xl border"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Responsável / Contato Técnico</label>
-                  <input
-                    type="text"
-                    value={cliForm.contactName}
-                    onChange={(e) => setCliForm({ ...cliForm, contactName: e.target.value })}
-                    placeholder="Nome do Engenheiro, Gerente ou Proprietário"
-                    className="w-full px-3.5 py-2.5 rounded-xl border"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Telefone / WhatsApp</label>
-                  <input
-                    type="text"
-                    value={cliForm.phone}
-                    onChange={(e) => setCliForm({ ...cliForm, phone: e.target.value })}
-                    placeholder="(66) 99999-0000"
-                    className="w-full px-3.5 py-2.5 rounded-xl border"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">E-mail Corporativo</label>
-                  <input
-                    type="email"
-                    value={cliForm.email}
-                    onChange={(e) => setCliForm({ ...cliForm, email: e.target.value })}
-                    placeholder="contato@empresa.com.br"
-                    className="w-full px-3.5 py-2.5 rounded-xl border"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Status do Cliente</label>
-                  <select
-                    value={cliForm.status}
-                    onChange={(e) => setCliForm({ ...cliForm, status: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
-                  >
-                    <option value="Ativo">Ativo</option>
-                    <option value="Em Prospecção">Em Prospecção</option>
-                    <option value="Pendência Documental">Pendência Documental</option>
-                    <option value="Inativo">Inativo</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">Licença / Programa Principal Contratado</label>
-                <input
-                  type="text"
-                  value={cliForm.mainProgram}
-                  onChange={(e) => setCliForm({ ...cliForm, mainProgram: e.target.value })}
-                  placeholder="Ex: Licenciamento Ambiental (LP / LI / LO) ou PGR / PCMSO"
-                  className="w-full px-3.5 py-2.5 rounded-xl border"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t">
-                <button
-                  type="button"
-                  onClick={() => setShowClientModal(false)}
-                  className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
-                >
-                  Salvar Cliente no CRM
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL CADASTRAR NOVO UTILIZADOR */}
-      {showUserRoleModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="text-base font-bold text-[#1B3B2B]">Cadastrar Novo Utilizador / Perfil</h3>
-            <form onSubmit={handleSaveNewUserRole} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold mb-1">Nome do Cargo / Função</label>
-                <input
-                  type="text"
-                  value={newRoleForm.name}
-                  onChange={(e) => setNewRoleForm({ ...newRoleForm, name: e.target.value })}
-                  placeholder="Ex: Analista Ambiental Júnior"
-                  className="w-full px-3 py-2 rounded-xl border font-bold"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Nome do Titular</label>
-                <input
-                  type="text"
-                  value={newRoleForm.holder}
-                  onChange={(e) => setNewRoleForm({ ...newRoleForm, holder: e.target.value })}
-                  placeholder="Ex: Carlos Silva"
-                  className="w-full px-3 py-2 rounded-xl border"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold mb-1">E-mail Corporativo de Acesso</label>
-                <input
-                  type="email"
-                  value={newRoleForm.email}
-                  onChange={(e) => setNewRoleForm({ ...newRoleForm, email: e.target.value })}
-                  placeholder="carlos@grupomartins.eng.br"
-                  className="w-full px-3 py-2 rounded-xl border"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Senha Inicial</label>
-                <input
-                  type="password"
-                  value={newRoleForm.password}
-                  onChange={(e) => setNewRoleForm({ ...newRoleForm, password: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Descrição</label>
-                <input
-                  type="text"
-                  value={newRoleForm.description}
-                  onChange={(e) => setNewRoleForm({ ...newRoleForm, description: e.target.value })}
-                  placeholder="Breve resumo das responsabilidades"
-                  className="w-full px-3 py-2 rounded-xl border"
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowUserRoleModal(false)} className="px-4 py-2 rounded-xl border font-bold">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold">Cadastrar Utilizador</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL CONFIGURAR PERMISSÕES (FLAGS) */}
-      {editingRolePermissions && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b pb-3">
-              <div>
-                <h3 className="text-base font-extrabold text-[#1B3B2B]">Configurar Permissões (Flags)</h3>
-                <p className="text-xs text-slate-500">Perfil: <strong className="text-[#1B3B2B]">{editingRolePermissions.name}</strong> ({editingRolePermissions.holder})</p>
-              </div>
-              <button onClick={() => setEditingRolePermissions(null)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <p className="text-xs text-slate-600 bg-emerald-50 p-3 rounded-xl border border-emerald-200">
-                Altere abaixo as permissões em tempo real. Cada clique atualiza imediatamente o estado de acesso deste perfil.
-              </p>
-
-              <div className="border rounded-xl overflow-hidden">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-100 text-slate-700 font-bold uppercase border-b">
-                      <th className="p-3">Módulo do Sistema</th>
-                      <th className="p-3 text-center">Visualizar</th>
-                      <th className="p-3 text-center">Criar</th>
-                      <th className="p-3 text-center">Editar</th>
-                      <th className="p-3 text-center">Excluir</th>
-                      <th className="p-3 text-center">Aprovar</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {[
-                      { key: 'dashboard', label: 'Painel Executivo / KPIs' },
-                      { key: 'prolabore', label: 'Pró-Labore (Sócio)' },
-                      { key: 'lancamentos', label: 'Livro Caixa & Transações' },
-                      { key: 'dre', label: 'DRE Gerencial Mensal' },
-                      { key: 'contratos', label: 'Contratos Ambientais & SST' },
-                      { key: 'clientes', label: 'Cadastro de Clientes (CRM)' },
-                      { key: 'acessos', label: 'Árvore de Acessos & Perfis' }
-                    ].map(mod => {
-                      const perms = editingRolePermissions.permissions?.[mod.key] || { view: false, create: false, edit: false, delete: false, approve: false };
-                      return (
-                        <tr key={mod.key} className="hover:bg-slate-50">
-                          <td className="p-3 font-bold text-slate-800">{mod.label}</td>
-                          {['view', 'create', 'edit', 'delete', 'approve'].map(action => (
-                            <td key={action} className="p-3 text-center">
-                              <input
-                                type="checkbox"
-                                checked={Boolean(perms[action])}
-                                onChange={() => handlePermissionToggle(editingRolePermissions.id, mod.key, action)}
-                                className="w-4 h-4 accent-[#1B3B2B] cursor-pointer"
-                              />
-                            </td>
-                          ))}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-3 border-t">
-              <button
-                onClick={() => {
-                  showToast('Permissões salvas com sucesso!');
-                  setEditingRolePermissions(null);
-                }}
-                className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-bold text-xs hover:bg-[#2D5A43] cursor-pointer"
-              >
-                Concluir & Fechar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TELA DE LOGIN */}
-      {!authLoggedIn && (
-        <div className="fixed inset-0 z-50 bg-[#1B3B2B]/95 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl border text-center space-y-6">
-            <GrupoMartinsLogo size="md" className="mx-auto" />
-            <div>
-              <h2 className="text-xl font-black text-[#1B3B2B]">Autenticação de Acesso — Nuvem</h2>
-              <p className="text-xs text-slate-500 mt-1">Insira seu e-mail corporativo e senha cadastrados.</p>
-            </div>
-            {authErrorMsg && (
-              <div className="p-3 rounded-xl bg-rose-100 text-rose-800 text-xs font-bold">
-                {authErrorMsg}
-              </div>
-            )}
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              setAuthErrorMsg('');
-              const found = accessRoles.find(r => r.email && r.email.toLowerCase() === authEmailInput.trim().toLowerCase());
-              if (!found) {
-                setAuthErrorMsg('E-mail não cadastrado.');
-                return;
-              }
-              if (found.password && found.password !== authPasswordInput.trim()) {
-                setAuthErrorMsg('Senha incorreta.');
-                return;
-              }
-              setActiveRoleId(found.id);
-              setAuthLoggedIn(true);
-              showToast(`Bem-vindo(a), ${found.holder}! Acesso autorizado.`);
-            }} className="space-y-4 text-left text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">E-mail Corporativo</label>
-                <input type="email" value={authEmailInput} onChange={(e) => setAuthEmailInput(e.target.value)} placeholder="ex: maikon@grupomartins.eng.br" className="w-full px-3.5 py-2.5 rounded-xl border" required />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">Senha</label>
-                <input type="password" value={authPasswordInput} onChange={(e) => setAuthPasswordInput(e.target.value)} placeholder="••••••••" className="w-full px-3.5 py-2.5 rounded-xl border" required />
-              </div>
-              <button type="submit" className="w-full py-3 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer">
-                Entrar no ERP (Sincronizado)
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
