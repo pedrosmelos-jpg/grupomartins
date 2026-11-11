@@ -421,8 +421,11 @@ export default function App() {
 
   const [cancelInstallmentTarget, setCancelInstallmentTarget] = useState(null);
 
+  // Estados para CRUD de Clientes (Adicionar, Editar e Excluir)
   const [showClientModal, setShowClientModal] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
+  const [deleteClientTarget, setDeleteClientTarget] = useState(null);
+
   const [toastMessage, setToastMessage] = useState(null);
 
   const showToast = (msg) => {
@@ -452,7 +455,7 @@ export default function App() {
     contractValue: '',
     directCosts: '',
     installmentsCount: '1',
-    installmentDates: ['2026-12-30', '', '', '', '', '', '', '', '', ''],
+    installmentDates: [`${selectedDreYear}-12-30`, '', '', '', '', '', '', '', '', ''],
     installmentAmounts: ['', '', '', '', '', '', '', '', '', ''],
     paymentMethod: 'PIX'
   });
@@ -942,7 +945,9 @@ export default function App() {
     setDeleteContractTarget(null);
   };
 
-  const handleSaveClient = async () => {
+  // Funções para Salvar, Editar e Excluir Clientes
+  const handleSaveClient = async (e) => {
+    e.preventDefault();
     if (!cliForm.name) {
       alert('Por favor, preencha a Razão Social / Nome.');
       return;
@@ -971,6 +976,7 @@ export default function App() {
       });
 
       setShowClientModal(false);
+      setEditingClient(null);
       showToast('Cliente salvo com sucesso na nuvem!');
       
       setCliForm({
@@ -990,6 +996,17 @@ export default function App() {
       console.error('Erro crítico ao salvar:', err);
       alert('Erro ao processar o salvamento.');
     }
+  };
+
+  const confirmDeleteClient = async () => {
+    if (!deleteClientTarget) return;
+    const clientId = deleteClientTarget.id;
+    setClients(prev => prev.filter(c => c.id !== clientId));
+    if (supabase) {
+      await supabase.from('clients').delete().eq('id', clientId);
+    }
+    showToast(`Cliente ${deleteClientTarget.name} excluído do CRM.`);
+    setDeleteClientTarget(null);
   };
 
   const handleSaveNewUserRole = (e) => {
@@ -2041,12 +2058,13 @@ export default function App() {
                     });
                     setShowClientModal(true);
                   }}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#1B3B2B] text-white"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#1B3B2B] text-white cursor-pointer"
                 >
                   <UserPlus className="w-4 h-4" /> Cadastrar Cliente
                 </button>
               </div>
 
+              {/* Tabela de Clientes com Botões de Editar e Excluir */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
@@ -2058,23 +2076,61 @@ export default function App() {
                         <th className="py-3.5 px-3">Responsável / Contato</th>
                         <th className="py-3.5 px-3">Cidade</th>
                         <th className="py-3.5 px-3 text-center">Status</th>
+                        <th className="py-3.5 px-3 text-center">Ações</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {filteredClients.map((cli) => (
-                        <tr key={cli.id} className="hover:bg-slate-50">
-                          <td className="py-3 px-3 font-mono font-bold">{cli.id}</td>
-                          <td className="py-3 px-3 font-bold">{cli.name}</td>
-                          <td className="py-3 px-3">{cli.segment}</td>
-                          <td className="py-3 px-3">{cli.contactName || '—'}</td>
-                          <td className="py-3 px-3">{cli.city}</td>
-                          <td className="py-3 px-3 text-center">
-                            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
-                              {cli.status}
-                            </span>
-                          </td>
+                      {filteredClients.length === 0 ? (
+                        <tr>
+                          <td colSpan="7" className="py-8 text-center text-slate-400">Nenhum cliente cadastrado.</td>
                         </tr>
-                      ))}
+                      ) : (
+                        filteredClients.map((cli) => (
+                          <tr key={cli.id} className="hover:bg-slate-50">
+                            <td className="py-3 px-3 font-mono font-bold">{cli.id}</td>
+                            <td className="py-3 px-3 font-bold">{cli.name}</td>
+                            <td className="py-3 px-3">{cli.segment}</td>
+                            <td className="py-3 px-3">{cli.contactName || '—'}</td>
+                            <td className="py-3 px-3">{cli.city}</td>
+                            <td className="py-3 px-3 text-center">
+                              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                                {cli.status}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-center space-x-2">
+                              <button
+                                onClick={() => {
+                                  setEditingClient(cli);
+                                  setCliForm({
+                                    name: cli.name,
+                                    document: cli.document || '',
+                                    registration: cli.registration || '',
+                                    segment: cli.segment || availableSegments[0],
+                                    city: cli.city || 'Rondonópolis — MT',
+                                    contactName: cli.contactName || '',
+                                    phone: cli.phone || '',
+                                    email: cli.email || '',
+                                    mainProgram: cli.mainProgram || 'Licenciamento Ambiental',
+                                    status: cli.status || availableStatuses[0]
+                                  });
+                                  setShowClientModal(true);
+                                }}
+                                className="p-1.5 rounded-lg text-teal-700 hover:bg-teal-50 cursor-pointer"
+                                title="Editar Cliente"
+                              >
+                                <Edit3 className="w-4 h-4 inline" />
+                              </button>
+                              <button
+                                onClick={() => setDeleteClientTarget(cli)}
+                                className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                title="Excluir Cliente"
+                              >
+                                <Trash2 className="w-4 h-4 inline" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -2097,7 +2153,7 @@ export default function App() {
                 </button>
               </div>
 
-              {/* ÚNICO PERFIL ATIVO: PEDRO MELO (MASTER) */}
+              {/* APENAS O PERFIL DO PEDRO MELO MANTIDO */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {accessRoles.map((role) => (
                   <div key={role.id} className="p-5 rounded-2xl border border-slate-200 bg-white shadow-sm space-y-3 flex flex-col justify-between">
@@ -2816,7 +2872,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL DE CONFIRMAÇÃO DE RECEBIMENTO (DATA E JUROS SEPARADOS) */}
+      {/* MODAL DE CONFIRMAÇÃO DE RECEBIMENTO */}
       {receivingInstallmentData && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-emerald-200">
@@ -2962,18 +3018,18 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CLIENTE */}
+      {/* MODAL CADASTRAR / EDITAR CLIENTE (CRM) */}
       {showClientModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B]">
             <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
-              <h3 className="text-base font-extrabold">Novo Cadastro de Cliente — CRM Ambiental & SST</h3>
-              <button onClick={() => setShowClientModal(false)} className="text-white hover:text-emerald-300">
+              <h3 className="text-base font-extrabold">{editingClient ? 'Editar Cliente / CRM' : 'Novo Cadastro de Cliente — CRM Ambiental & SST'}</h3>
+              <button onClick={() => { setShowClientModal(false); setEditingClient(null); }} className="text-white hover:text-emerald-300">
                 <X className="w-5 h-5" />
               </button>
             </div>
             
-            <div className="p-6 space-y-4 text-xs">
+            <form onSubmit={handleSaveClient} className="p-6 space-y-4 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 uppercase mb-1">RAZÃO SOCIAL / NOME DA FAZENDA OU EMPREENDIMENTO</label>
                 <input
@@ -2982,6 +3038,7 @@ export default function App() {
                   onChange={(e) => setCliForm({ ...cliForm, name: e.target.value })}
                   placeholder="Ex: Agropecuária Rio Vermelho S/A (Fazenda São João)"
                   className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-slate-800"
+                  required
                 />
               </div>
 
@@ -3095,19 +3152,47 @@ export default function App() {
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <button
                   type="button"
-                  onClick={() => setShowClientModal(false)}
+                  onClick={() => { setShowClientModal(false); setEditingClient(null); }}
                   className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
-                  type="button"
-                  onClick={handleSaveClient}
+                  type="submit"
                   className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
                 >
-                  Salvar Cliente no CRM
+                  {editingClient ? 'Salvar Alterações' : 'Salvar Cliente no CRM'}
                 </button>
               </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CONFIRMAR EXCLUSÃO CLIENTE */}
+      {deleteClientTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-extrabold text-rose-700">Excluir Cliente?</h3>
+            <p className="text-xs text-slate-600">
+              Deseja realmente remover o cliente <strong>{deleteClientTarget.name}</strong> do CRM?
+            </p>
+            <div className="flex justify-center gap-2 pt-2">
+              <button 
+                onClick={() => setDeleteClientTarget(null)} 
+                className="px-4 py-2 rounded-xl border font-bold text-xs text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={confirmDeleteClient} 
+                className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer"
+              >
+                Sim, Excluir
+              </button>
             </div>
           </div>
         </div>
