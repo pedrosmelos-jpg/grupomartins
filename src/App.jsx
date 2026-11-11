@@ -257,26 +257,27 @@ const GrupoMartinsLogo = ({ size = 'md', theme = 'cream', className = '' }) => {
 // 2. CONSTANTES E PLANO DE CONTAS ESTRUTURADO PARA DRE
 // ============================================================================
 const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const MONTH_NAMES_MAP = { '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez' };
 
 const INITIAL_PLANO_CONTAS = {
   receitas: [
-    { codigo: '1.1.01', nome: '1.1.01 — Receita de Licenciamento Ambiental (LP / LI / LO)' },
-    { codigo: '1.1.02', nome: '1.1.02 — Receita de Planos Ambientais (PRAD / PGRS) e Auditorias' },
-    { codigo: '1.1.03', nome: '1.1.03 — Receita de CAR, Georreferenciamento e Outorga' },
-    { codigo: '1.1.04', nome: '1.1.04 — Receita de Segurança do Trabalho (PGR / PCMSO / LTCAT)' },
-    { codigo: '1.1.05', nome: '1.1.05 — Receita de Gestão eSocial SST e Treinamentos' },
+    { codigo: '1.1.01', nome: '1.1.01 — Licenciamento Ambiental (LP / LI / LO)' },
+    { codigo: '1.1.02', nome: '1.1.02 — Planos Ambientais (PRAD / PGRS) e Auditorias' },
+    { codigo: '1.1.03', nome: '1.1.03 — CAR, Georreferenciamento e Outorga de Água' },
+    { codigo: '1.1.04', nome: '1.1.04 — Segurança do Trabalho (PGR / PCMSO / LTCAT)' },
+    { codigo: '1.1.05', nome: '1.1.05 — Gestão de eSocial SST e Treinamentos NRs' },
     { codigo: '1.2.01', nome: '1.2.01 — Receitas Financeiras (Juros e Multas por Atraso)' }
   ],
   despesas: [
     { codigo: '2.1.01', nome: '2.1.01 — Impostos sobre Faturamento (ISS / Simples / PIS-COFINS)' },
     { codigo: '2.2.01', nome: '2.2.01 — Taxas de Órgãos (SEMA-MT / IBAMA / CREA / ART)' },
-    { codigo: '2.2.02', nome: '2.2.02 — Análises Laboratoriais e Laudos Técnicos' },
-    { codigo: '2.2.03', nome: '2.2.03 — Topografia, Geoprocessamento e Vistoria de Campo' },
-    { codigo: '2.3.01', nome: '2.3.01 — Deslocamento, Combustível e Diárias' },
+    { codigo: '2.2.02', nome: '2.2.02 — Análises Laboratoriais (Água / Solo / Efluentes) e Laudos' },
+    { codigo: '2.2.03', nome: '2.2.03 — Topografia, Geoprocessamento e Vistorias de Campo' },
+    { codigo: '2.3.01', nome: '2.3.01 — Deslocamento, Combustível e Diárias Técnicas' },
     { codigo: '2.4.01', nome: '2.4.01 — Saque de Pró-Labore — Sócio Maikon Martins' },
-    { codigo: '2.4.02', nome: '2.4.02 — Folha de Pagamento e Encargos da Equipe' },
-    { codigo: '2.5.01', nome: '2.5.01 — Comissões Comerciais e Prospecção' },
-    { codigo: '2.6.01', nome: '2.6.01 — Softwares Técnicos (AutoCAD / QGIS / SST)' },
+    { codigo: '2.4.02', nome: '2.4.02 — Folha de Pagamento Equipe Técnica e Encargos' },
+    { codigo: '2.5.01', nome: '2.5.01 — Comissões Comerciais e Prospecção de Clientes' },
+    { codigo: '2.6.01', nome: '2.6.01 — Softwares Técnicos (AutoCAD / QGIS / Sistema SST)' },
     { codigo: '2.7.01', nome: '2.7.01 — Aluguel, Energia, Internet e Infraestrutura' },
     { codigo: '2.8.01', nome: '2.8.01 — Tarifas Bancárias, Marketing e Despesas Gerais' }
   ]
@@ -380,7 +381,7 @@ export default function App() {
   const [contracts, setContracts] = useState([]);
   const [clients, setClients] = useState([]);
 
-  // Plano de Contas dinâmico (permitindo adicionar, editar e excluir)
+  // Plano de Contas dinâmico
   const [planoContasData, setPlanoContasData] = useState(INITIAL_PLANO_CONTAS);
   const [showPlanoModal, setShowPlanoModal] = useState(false);
   const [planoForm, setPlanoForm] = useState({ tipo: 'receitas', codigo: '', nome: '', originalCodigo: null });
@@ -420,13 +421,12 @@ export default function App() {
     description: ''
   });
 
-  // Filtros avançados para Lançamentos
+  // Filtros avançados
   const [txSearch, setTxSearch] = useState('');
   const [txTypeFilter, setTxTypeFilter] = useState('Todos');
   const [txCategoryFilter, setTxCategoryFilter] = useState('Todas');
   const [txStatusFilter, setTxStatusFilter] = useState('Todos');
 
-  // Filtros avançados para Contratos
   const [ctSearch, setCtSearch] = useState('');
   const [ctStatusFilter, setCtStatusFilter] = useState('Todos');
   const [ctDueDateFilter, setCtDueDateFilter] = useState('Todos');
@@ -437,20 +437,17 @@ export default function App() {
   const [editingTx, setEditingTx] = useState(null);
   const [deleteTxTarget, setDeleteTxTarget] = useState(null);
   
-  // Modais de Contratos e Parcelas / Recebimento com Juros
   const [showContractModal, setShowContractModal] = useState(false);
   const [editingContract, setEditingContract] = useState(null);
   const [deleteContractTarget, setDeleteContractTarget] = useState(null);
   const [viewingContractInstallments, setViewingContractInstallments] = useState(null);
 
-  // Modal de Recebimento de Parcela Específica (com data e juros separados)
   const [receivingInstallmentData, setReceivingInstallmentData] = useState(null);
   const [receiveForm, setReceiveForm] = useState({
     paymentDate: new Date().toISOString().split('T')[0],
     interestAmount: ''
   });
 
-  // Estado para confirmação customizada de cancelamento de baixa
   const [cancelInstallmentTarget, setCancelInstallmentTarget] = useState(null);
 
   const [showClientModal, setShowClientModal] = useState(false);
@@ -550,6 +547,84 @@ export default function App() {
     return Boolean(currentRole.permissions[moduleKey][actionKey]);
   };
 
+  // ============================================================================
+  // CÁLCULO DINÂMICO DA DRE GERENCIAL (MÊS A MÊS + ACUMULADO + AV%)
+  // ============================================================================
+  const dreGerencialData = useMemo(() => {
+    const monthsFull = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    
+    // Função auxiliar para somar transações de um código de plano de contas em um determinado mês
+    const getVal = (codigoConta, mesStr) => {
+      return transactions
+        .filter(t => t.status === 'Pago / Recebido' && (t.planoContas === codigoConta || (t.category || '').includes(codigoConta)))
+        .filter(t => {
+          if (!mesStr) return true; // Se não passar mês, soma o ano todo
+          const mName = t.month || (t.date ? MONTH_NAMES_MAP[t.date.split('-')[1]] : '');
+          return mName === mesStr;
+        })
+        .reduce((sum, cur) => sum + Number(cur.amount || 0), 0);
+    };
+
+    // Monta linhas de Receitas
+    const receitasRows = planoContasData.receitas.map(rev => {
+      const mensalValues = {};
+      let totalAnual = 0;
+      monthsFull.forEach(m => {
+        const val = getVal(rev.codigo, m);
+        mensalValues[m] = val;
+        totalAnual += val;
+      });
+      return { codigo: rev.codigo, nome: rev.nome, mensalValues, totalAnual };
+    });
+
+    const receitaBrutaTotalAnual = receitasRows.reduce((acc, r) => acc + r.totalAnual, 0);
+
+    // Monta linhas de Despesas/Custos
+    const despesasRows = planoContasData.despesas.map(desp => {
+      const mensalValues = {};
+      let totalAnual = 0;
+      monthsFull.forEach(m => {
+        const val = getVal(desp.codigo, m);
+        mensalValues[m] = val;
+        totalAnual += val;
+      });
+      return { codigo: desp.codigo, nome: desp.nome, mensalValues, totalAnual };
+    });
+
+    // Separando deduções/impostos (2.1.X), custos diretos (2.2.X) e despesas operacionais (2.3.X em diante)
+    const impostosRows = despesasRows.filter(d => d.codigo.startsWith('2.1'));
+    const custosDiretosRows = despesasRows.filter(d => d.codigo.startsWith('2.2') || d.codigo.startsWith('2.3'));
+    const despesasOpRows = despesasRows.filter(d => d.codigo >= '2.4');
+
+    // Totais mensais
+    const sumRowsMonth = (rows, m) => rows.reduce((acc, r) => acc + (r.mensalValues[m] || 0), 0);
+    const sumRowsTotal = (rows) => rows.reduce((acc, r) => acc + r.totalAnual, 0);
+
+    const impostoTotalAnual = sumRowsTotal(impostosRows);
+    const receitaLiquidaTotalAnual = receitaBrutaTotalAnual - impostoTotalAnual;
+    const custosDiretosTotalAnual = sumRowsTotal(custosDiretosRows);
+    const lucroBrutoTotalAnual = receitaLiquidaTotalAnual - custosDiretosTotalAnual;
+    const despesasOpTotalAnual = sumRowsTotal(despesasOpRows);
+    const lucroLiquidoTotalAnual = lucroBrutoTotalAnual - despesasOpTotalAnual;
+
+    return {
+      monthsFull,
+      receitasRows,
+      receitaBrutaTotalAnual,
+      impostosRows,
+      impostoTotalAnual,
+      receitaLiquidaTotalAnual,
+      custosDiretosRows,
+      custosDiretosTotalAnual,
+      lucroBrutoTotalAnual,
+      despesasOpRows,
+      despesasOpTotalAnual,
+      lucroLiquidoTotalAnual,
+      sumRowsMonth,
+      sumRowsTotal
+    };
+  }, [transactions, planoContasData]);
+
   const financialData = useMemo(() => {
     const receitaBrutaAnual = transactions.filter((t) => t.type === 'Entrada').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
     const saidasTotaisAnual = transactions.filter((t) => t.type === 'Saída').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
@@ -581,13 +656,11 @@ export default function App() {
     }).sort((a, b) => b.value - a.value);
 
     const totalContratado = contracts.reduce((acc, c) => acc + Number(c.contractValue || 0), 0);
-    
     const totalRecebidoContratos = contracts.reduce((acc, c) => {
       const insts = c.installmentsData || [];
       const pagoInsts = insts.filter(i => i.status === 'Pago').reduce((sum, i) => sum + Number(i.amount || 0), 0);
       return acc + pagoInsts;
     }, 0);
-
     const saldoAFaturar = totalContratado - totalRecebidoContratos;
     
     let totalCustoContratos = contracts.reduce((acc, c) => acc + Number(c.directCosts || 0), 0);
@@ -671,7 +744,6 @@ export default function App() {
     setDeleteTxTarget(null);
   };
 
-  // Salvar Contrato com Parcelas e valores personalizados
   const handleSaveContract = async (e) => {
     e.preventDefault();
     const contractVal = parseFloat(String(ctForm.contractValue).replace(',', '.')) || 0;
@@ -741,7 +813,6 @@ export default function App() {
     }
   };
 
-  // Processar recebimento gerando 2 lançamentos separados (Parcela Principal e Juros)
   const handleConfirmReceiveInstallment = async () => {
     if (!receivingInstallmentData) return;
     const { contractId, installmentNumber } = receivingInstallmentData;
@@ -756,7 +827,6 @@ export default function App() {
     const interest = parseFloat(String(receiveForm.interestAmount).replace(',', '.')) || 0;
     const payDate = receiveForm.paymentDate || new Date().toISOString().split('T')[0];
 
-    // Atualiza status da parcela no contrato
     const updatedInstallments = contract.installmentsData.map(inst => {
       if (inst.number === installmentNumber) {
         return { 
@@ -783,14 +853,12 @@ export default function App() {
       await supabase.from('contracts').upsert([updatedContract]);
     }
 
-    // Configurações de data para o Livro Caixa
     const monthNames = { '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez' };
     const monthNum = payDate.split('-')[1] || '12';
     const monthStr = monthNames[monthNum] || 'Dez';
 
     const newTransactionsList = [];
 
-    // 1. Lançamento da Parcela Principal
     const tId1 = `MT-${String(transactions.length + 15).padStart(3, '0')}`;
     const txPrincipal = {
       id: tId1,
@@ -808,7 +876,6 @@ export default function App() {
     };
     newTransactionsList.push(txPrincipal);
 
-    // 2. Lançamento Separado de Juros (se houver)
     if (interest > 0) {
       const tId2 = `MT-${String(transactions.length + 16).padStart(3, '0')}`;
       const txJuros = {
@@ -833,15 +900,12 @@ export default function App() {
       await supabase.from('transactions').upsert(newTransactionsList);
     }
 
-    // ATUALIZAÇÃO IMEDIATA DO MODAL DE PARCELAS ABERTO
     setViewingContractInstallments(updatedContract);
-
     showToast(`Recebimento registrado com sucesso em 2 lançamentos separados no Caixa!`);
     setReceivingInstallmentData(null);
     setReceiveForm({ paymentDate: new Date().toISOString().split('T')[0], interestAmount: '' });
   };
 
-  // Função para CANCELAR / ESTORNAR o recebimento de uma parcela (com modal customizado)
   const confirmCancelReceiveInstallment = async () => {
     if (!cancelInstallmentTarget) return;
     const { contractId, installmentNumber } = cancelInstallmentTarget;
@@ -1005,6 +1069,51 @@ export default function App() {
         return role;
       })
     );
+  };
+
+  // Função para exportar a DRE em Planilha Excel (.csv/.xlsx formatado)
+  const exportDREToExcel = () => {
+    const { monthsFull, receitasRows, receitaBrutaTotalAnual, impostosRows, impostoTotalAnual, receitaLiquidaTotalAnual, custosDiretosRows, custosDiretosTotalAnual, lucroBrutoTotalAnual, despesasOpRows, despesasOpTotalAnual, lucroLiquidoTotalAnual } = dreGerencialData;
+    
+    let csv = "\uFEFF"; // BOM para acentuação no Excel
+    csv += "ESTRUTURA DRE — GRUPO MARTINS (R$);" + monthsFull.join(";") + ";ACUMULADO 2026;AV %\n";
+    
+    csv += "1. RECEITA OPERACIONAL BRUTA;" + monthsFull.map(m => receitasRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0).toFixed(2)).join(";") + ";" + receitaBrutaTotalAnual.toFixed(2) + ";100,0%\n";
+    receitasRows.forEach(r => {
+      csv += "(+) " + r.nome + ";" + monthsFull.map(m => (r.mensalValues[m]||0).toFixed(2)).join(";") + ";" + r.totalAnual.toFixed(2) + ";" + (receitaBrutaTotalAnual > 0 ? ((r.totalAnual/receitaBrutaTotalAnual)*100).toFixed(1)+"%" : "0,0%") + "\n";
+    });
+
+    csv += "2. (-) DEDUÇÕES E IMPOSTOS SOBRE FATURAMENTO;" + monthsFull.map(m => impostosRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0).toFixed(2)).join(";") + ";" + impostoTotalAnual.toFixed(2) + ";\n";
+    
+    csv += "3. (=) RECEITA OPERACIONAL LÍQUIDA;" + monthsFull.map(m => (receitasRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0) - impostosRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0)).toFixed(2)).join(";") + ";" + receitaLiquidaTotalAnual.toFixed(2) + ";\n";
+
+    csv += "4. (-) CUSTOS DIRETOS DE PROJETOS E CAMPO (CSP);" + monthsFull.map(m => custosDiretosRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0).toFixed(2)).join(";") + ";" + custosDiretosTotalAnual.toFixed(2) + ";\n";
+    custosDiretosRows.forEach(r => {
+      csv += "(-) " + r.nome + ";" + monthsFull.map(m => (r.mensalValues[m]||0).toFixed(2)).join(";") + ";" + r.totalAnual.toFixed(2) + ";\n";
+    });
+
+    csv += "5. (-) DESPESAS OPERACIONAIS, COMERCIAIS E PRÓ-LABORE;" + monthsFull.map(m => despesasOpRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0).toFixed(2)).join(";") + ";" + despesasOpTotalAnual.toFixed(2) + ";\n";
+    despesasOpRows.forEach(r => {
+      csv += "(-) " + r.nome + ";" + monthsFull.map(m => (r.mensalValues[m]||0).toFixed(2)).join(";") + ";" + r.totalAnual.toFixed(2) + ";\n";
+    });
+
+    csv += "6. (=) LUCRO LÍQUIDO DO EXERCÍCIO (APÓS PRÓ-LABORE);" + monthsFull.map(m => {
+      const rec = receitasRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0);
+      const imp = impostosRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0);
+      const cus = custosDiretosRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0);
+      const des = despesasOpRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0);
+      return (rec - imp - cus - des).toFixed(2);
+    }).join(";") + ";" + lucroLiquidoTotalAnual.toFixed(2) + ";\n";
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "DRE_Gerencial_GrupoMartins_2026.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Planilha DRE exportada com sucesso!');
   };
 
   // Filtragem avançada das transações
@@ -1380,6 +1489,178 @@ export default function App() {
             </div>
           )}
 
+          {activeTab === 'dre' && (
+            <div className="space-y-6">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-base font-extrabold text-[#1B3B2B]">DRE Gerencial Consolidada (Exercício 2026)</h3>
+                  <p className="text-xs text-slate-500">Valores atualizados em tempo real de acordo com as baixas realizadas no Livro Caixa.</p>
+                </div>
+                <button
+                  onClick={exportDREToExcel}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] shadow cursor-pointer"
+                >
+                  <Download className="w-4 h-4" /> Exportar Planilha Excel (.xlsx)
+                </button>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-[11px] whitespace-nowrap">
+                    <thead>
+                      <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
+                        <th className="py-3 px-3 min-w-[280px]">ESTRUTURA DRE — GRUPO MARTINS (R$)</th>
+                        {dreGerencialData.monthsFull.map(m => (
+                          <th key={m} className="py-3 px-2 text-right">{m}/26</th>
+                        ))}
+                        <th className="py-3 px-3 text-right bg-[#132A1F]">ACUMULADO 2026</th>
+                        <th className="py-3 px-3 text-center bg-[#132A1F]">AV %</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {/* 1. RECEITA OPERACIONAL BRUTA */}
+                      <tr className="bg-slate-100 font-extrabold text-[#1B3B2B]">
+                        <td className="py-2.5 px-3">1. RECEITA OPERACIONAL BRUTA</td>
+                        {dreGerencialData.monthsFull.map(m => {
+                          const val = dreGerencialData.sumRowsMonth(dreGerencialData.receitasRows, m);
+                          return <td key={m} className="py-2.5 px-2 text-right">{formatCurrency(val)}</td>;
+                        })}
+                        <td className="py-2.5 px-3 text-right">{formatCurrency(dreGerencialData.receitaBrutaTotalAnual)}</td>
+                        <td className="py-2.5 px-3 text-center">100,0%</td>
+                      </tr>
+                      {dreGerencialData.receitasRows.map(r => (
+                        <tr key={r.codigo} className="hover:bg-slate-50 text-slate-700">
+                          <td className="py-2 px-4 pl-6"><i>(+) {r.nome}</i></td>
+                          {dreGerencialData.monthsFull.map(m => (
+                            <td key={m} className="py-2 px-2 text-right">{formatCurrency(r.mensalValues[m] || 0)}</td>
+                          ))}
+                          <td className="py-2 px-3 text-right font-bold">{formatCurrency(r.totalAnual)}</td>
+                          <td className="py-2 px-3 text-center text-slate-500">
+                            {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((r.totalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
+                          </td>
+                        </tr>
+                      ))}
+
+                      {/* 2. DEDUÇÕES E IMPOSTOS */}
+                      <tr className="bg-rose-50 text-rose-900 font-bold">
+                        <td className="py-2.5 px-3">2. (-) DEDUÇÕES E IMPOSTOS SOBRE FATURAMENTO</td>
+                        {dreGerencialData.monthsFull.map(m => {
+                          const val = dreGerencialData.sumRowsMonth(dreGerencialData.impostosRows, m);
+                          return <td key={m} className="py-2.5 px-2 text-right text-rose-700">{formatCurrency(val)}</td>;
+                        })}
+                        <td className="py-2.5 px-3 text-right text-rose-700">{formatCurrency(dreGerencialData.impostoTotalAnual)}</td>
+                        <td className="py-2.5 px-3 text-center text-rose-700">
+                          {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((dreGerencialData.impostoTotalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
+                        </td>
+                      </tr>
+                      {dreGerencialData.impostosRows.map(r => (
+                        <tr key={r.codigo} className="hover:bg-slate-50 text-slate-700">
+                          <td className="py-2 px-4 pl-6"><i>(-) {r.nome}</i></td>
+                          {dreGerencialData.monthsFull.map(m => (
+                            <td key={m} className="py-2 px-2 text-right">{formatCurrency(r.mensalValues[m] || 0)}</td>
+                          ))}
+                          <td className="py-2 px-3 text-right font-bold">{formatCurrency(r.totalAnual)}</td>
+                          <td className="py-2 px-3 text-center text-slate-500">—</td>
+                        </tr>
+                      ))}
+
+                      {/* 3. RECEITA OPERACIONAL LÍQUIDA */}
+                      <tr className="bg-slate-100 font-extrabold text-[#1B3B2B]">
+                        <td className="py-2.5 px-3">3. (=) RECEITA OPERACIONAL LÍQUIDA</td>
+                        {dreGerencialData.monthsFull.map(m => {
+                          const rec = dreGerencialData.sumRowsMonth(dreGerencialData.receitasRows, m);
+                          const imp = dreGerencialData.sumRowsMonth(dreGerencialData.impostosRows, m);
+                          return <td key={m} className="py-2.5 px-2 text-right">{formatCurrency(rec - imp)}</td>;
+                        })}
+                        <td className="py-2.5 px-3 text-right">{formatCurrency(dreGerencialData.receitaLiquidaTotalAnual)}</td>
+                        <td className="py-2.5 px-3 text-center">
+                          {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((dreGerencialData.receitaLiquidaTotalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
+                        </td>
+                      </tr>
+
+                      {/* 4. CUSTOS DIRETOS */}
+                      <tr className="bg-rose-50 text-rose-900 font-bold">
+                        <td className="py-2.5 px-3">4. (-) CUSTOS DIRETOS DE PROJETOS E CAMPO (CSP)</td>
+                        {dreGerencialData.monthsFull.map(m => {
+                          const val = dreGerencialData.sumRowsMonth(dreGerencialData.custosDiretosRows, m);
+                          return <td key={m} className="py-2.5 px-2 text-right text-rose-700">{formatCurrency(val)}</td>;
+                        })}
+                        <td className="py-2.5 px-3 text-right text-rose-700">{formatCurrency(dreGerencialData.custosDiretosTotalAnual)}</td>
+                        <td className="py-2.5 px-3 text-center text-rose-700">
+                          {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((dreGerencialData.custosDiretosTotalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
+                        </td>
+                      </tr>
+                      {dreGerencialData.custosDiretosRows.map(r => (
+                        <tr key={r.codigo} className="hover:bg-slate-50 text-slate-700">
+                          <td className="py-2 px-4 pl-6"><i>(-) {r.nome}</i></td>
+                          {dreGerencialData.monthsFull.map(m => (
+                            <td key={m} className="py-2 px-2 text-right">{formatCurrency(r.mensalValues[m] || 0)}</td>
+                          ))}
+                          <td className="py-2 px-3 text-right font-bold">{formatCurrency(r.totalAnual)}</td>
+                          <td className="py-2 px-3 text-center text-slate-500">—</td>
+                        </tr>
+                      ))}
+
+                      {/* LUCRO BRUTO */}
+                      <tr className="bg-emerald-50 text-emerald-900 font-extrabold">
+                        <td className="py-2.5 px-3">(=) LUCRO BRUTO</td>
+                        {dreGerencialData.monthsFull.map(m => {
+                          const rec = dreGerencialData.sumRowsMonth(dreGerencialData.receitasRows, m);
+                          const imp = dreGerencialData.sumRowsMonth(dreGerencialData.impostosRows, m);
+                          const cus = dreGerencialData.sumRowsMonth(dreGerencialData.custosDiretosRows, m);
+                          return <td key={m} className="py-2.5 px-2 text-right">{formatCurrency(rec - imp - cus)}</td>;
+                        })}
+                        <td className="py-2.5 px-3 text-right">{formatCurrency(dreGerencialData.lucroBrutoTotalAnual)}</td>
+                        <td className="py-2.5 px-3 text-center">
+                          {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((dreGerencialData.lucroBrutoTotalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
+                        </td>
+                      </tr>
+
+                      {/* 5. DESPESAS OPERACIONAIS E PRÓ-LABORE */}
+                      <tr className="bg-rose-50 text-rose-900 font-bold">
+                        <td className="py-2.5 px-3">5. (-) DESPESAS OPERACIONAIS, COMERCIAIS E PRÓ-LABORE</td>
+                        {dreGerencialData.monthsFull.map(m => {
+                          const val = dreGerencialData.sumRowsMonth(dreGerencialData.despesasOpRows, m);
+                          return <td key={m} className="py-2.5 px-2 text-right text-rose-700">{formatCurrency(val)}</td>;
+                        })}
+                        <td className="py-2.5 px-3 text-right text-rose-700">{formatCurrency(dreGerencialData.despesasOpTotalAnual)}</td>
+                        <td className="py-2.5 px-3 text-center text-rose-700">
+                          {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((dreGerencialData.despesasOpTotalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
+                        </td>
+                      </tr>
+                      {dreGerencialData.despesasOpRows.map(r => (
+                        <tr key={r.codigo} className="hover:bg-slate-50 text-slate-700">
+                          <td className="py-2 px-4 pl-6"><i>{r.codigo.startsWith('2.4.01') ? '★ (-) ' : '(-) '} {r.nome}</i></td>
+                          {dreGerencialData.monthsFull.map(m => (
+                            <td key={m} className="py-2 px-2 text-right">{formatCurrency(r.mensalValues[m] || 0)}</td>
+                          ))}
+                          <td className="py-2 px-3 text-right font-bold">{formatCurrency(r.totalAnual)}</td>
+                          <td className="py-2 px-3 text-center text-slate-500">—</td>
+                        </tr>
+                      ))}
+
+                      {/* 6. LUCRO LÍQUIDO DO EXERCÍCIO */}
+                      <tr className="bg-[#1B3B2B] text-white font-black text-sm">
+                        <td className="py-3 px-3">6. (=) LUCRO LÍQUIDO DO EXERCÍCIO (APÓS PRÓ-LABORE)</td>
+                        {dreGerencialData.monthsFull.map(m => {
+                          const rec = dreGerencialData.sumRowsMonth(dreGerencialData.receitasRows, m);
+                          const imp = dreGerencialData.sumRowsMonth(dreGerencialData.impostosRows, m);
+                          const cus = dreGerencialData.sumRowsMonth(dreGerencialData.custosDiretosRows, m);
+                          const des = dreGerencialData.sumRowsMonth(dreGerencialData.despesasOpRows, m);
+                          return <td key={m} className="py-3 px-2 text-right text-emerald-300">{formatCurrency(rec - imp - cus - des)}</td>;
+                        })}
+                        <td className="py-3 px-3 text-right text-emerald-300">{formatCurrency(dreGerencialData.lucroLiquidoTotalAnual)}</td>
+                        <td className="py-3 px-3 text-center text-emerald-300">
+                          {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((dreGerencialData.lucroLiquidoTotalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'lancamentos' && (
             <div className="space-y-5">
               {/* Barra de Filtros e Busca */}
@@ -1475,7 +1756,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Tabela de Lançamentos com Plano de Contas e Categoria Separados */}
+              {/* Tabela de Lançamentos */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
@@ -1599,7 +1880,6 @@ export default function App() {
                   />
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                  {/* Filtro de Vencimento de Contratos */}
                   <select
                     value={ctDueDateFilter}
                     onChange={(e) => setCtDueDateFilter(e.target.value)}
@@ -1934,7 +2214,6 @@ export default function App() {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
-                  {/* Receitas */}
                   <div className="space-y-3">
                     <h4 className="text-xs font-extrabold text-emerald-800 uppercase tracking-wider">Contas de Receita (1.X)</h4>
                     <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
@@ -1973,7 +2252,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Despesas */}
                   <div className="space-y-3">
                     <h4 className="text-xs font-extrabold text-rose-950 uppercase tracking-wider">Contas de Despesas e Custos (2.X)</h4>
                     <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
@@ -2029,17 +2307,15 @@ export default function App() {
               e.preventDefault();
               if (!planoForm.codigo || !planoForm.nome) return;
 
-              const targetListKey = planoForm.tipo; // 'receitas' ou 'despesas'
+              const targetListKey = planoForm.tipo;
               const currentList = [...planoContasData[targetListKey]];
 
               if (planoForm.originalCodigo) {
-                // Editando
                 const idx = currentList.findIndex(item => item.codigo === planoForm.originalCodigo);
                 if (idx !== -1) {
                   currentList[idx] = { codigo: planoForm.codigo, nome: planoForm.nome };
                 }
               } else {
-                // Adicionando novo
                 currentList.push({ codigo: planoForm.codigo, nome: planoForm.nome });
               }
 
@@ -2097,7 +2373,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL LANÇAMENTO (COM PLANO DE CONTAS E CATEGORIA SEPARADOS) */}
+      {/* MODAL LANÇAMENTO */}
       {showTxModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
