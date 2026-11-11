@@ -293,7 +293,7 @@ const INITIAL_PARAMETERS = {
 const DEFAULT_PERMISSIONS = {
   dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
   prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
-  lancamentos: { view: true, create: true, edit: true, delete: false, approve: false },
+  lancamentos: { view: true, create: true, edit: true, delete: false, approve: true },
   dre: { view: true, create: false, edit: false, delete: false, approve: false },
   contratos: { view: true, create: true, edit: true, delete: false, approve: false },
   clientes: { view: true, create: true, edit: true, delete: false, approve: false },
@@ -490,11 +490,12 @@ export default function App() {
     installmentDates: ['2026-12-30', '', '', '']
   });
 
+  // Estado atualizado do Cliente conforme a referência visual
   const [cliForm, setCliForm] = useState({
     name: '',
     document: '',
     registration: '',
-    segment: 'Agronegócio',
+    segment: 'Agronegócio / Propriedade Rural',
     city: 'Rondonópolis — MT',
     contactName: '',
     phone: '',
@@ -578,7 +579,7 @@ export default function App() {
     const clientData = { id: clientId, ...cliForm };
     setClients(prev => editingClient ? prev.map(c => c.id === clientId ? clientData : c) : [...prev, clientData]);
     if (supabase) await supabase.from('clients').upsert(clientData);
-    showToast('Cliente salvo!');
+    showToast('Cliente salvo no CRM com sucesso!');
     setShowClientModal(false);
   };
 
@@ -609,7 +610,6 @@ export default function App() {
     showToast('Novo utilizador cadastrado com sucesso!');
   };
 
-  // Atualização em tempo real das flags de permissão
   const handlePermissionToggle = (roleId, moduleKey, actionKey) => {
     setAccessRoles(prevRoles =>
       prevRoles.map(role => {
@@ -625,7 +625,6 @@ export default function App() {
               }
             }
           };
-          // Atualiza também o modal ativo instantaneamente
           if (editingRolePermissions && editingRolePermissions.id === roleId) {
             setEditingRolePermissions(updatedRole);
           }
@@ -1162,7 +1161,7 @@ export default function App() {
                       name: '',
                       document: '',
                       registration: '',
-                      segment: 'Agronegócio',
+                      segment: 'Agronegócio / Propriedade Rural',
                       city: 'Rondonópolis — MT',
                       contactName: '',
                       phone: '',
@@ -1184,10 +1183,11 @@ export default function App() {
                     <thead>
                       <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
                         <th className="py-3.5 px-3">ID</th>
-                        <th className="py-3.5 px-3">Razão Social</th>
+                        <th className="py-3.5 px-3">Razão Social / Empreendimento</th>
                         <th className="py-3.5 px-3">CNPJ / CPF</th>
                         <th className="py-3.5 px-3">Segmento</th>
                         <th className="py-3.5 px-3">Cidade</th>
+                        <th className="py-3.5 px-3 text-center">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1198,6 +1198,11 @@ export default function App() {
                           <td className="py-3 px-3">{cli.document}</td>
                           <td className="py-3 px-3">{cli.segment}</td>
                           <td className="py-3 px-3">{cli.city}</td>
+                          <td className="py-3 px-3 text-center">
+                            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                              {cli.status}
+                            </span>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1368,29 +1373,156 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CLIENTE */}
+      {/* MODAL CLIENTE (EXATAMENTE COMO NA IMAGEM DE REFERÊNCIA) */}
       {showClientModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="text-base font-bold text-[#1B3B2B]">Cadastrar Cliente (CRM)</h3>
-            <form onSubmit={handleSaveClient} className="space-y-3 text-xs">
+          <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B]">
+            <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
+              <h3 className="text-base font-extrabold">Novo Cadastro de Cliente — CRM Ambiental & SST</h3>
+              <button onClick={() => setShowClientModal(false)} className="text-white hover:text-emerald-300">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveClient} className="p-6 space-y-4 text-xs">
               <div>
-                <label className="block font-bold mb-1">Razão Social / Nome</label>
-                <input type="text" value={cliForm.name} onChange={(e) => setCliForm({ ...cliForm, name: e.target.value })} className="w-full px-3.5 py-2.5 rounded-xl border font-bold" required />
+                <label className="block font-bold text-slate-700 uppercase mb-1">Razão Social / Nome da Fazenda ou Empreendimento</label>
+                <input
+                  type="text"
+                  value={cliForm.name}
+                  onChange={(e) => setCliForm({ ...cliForm, name: e.target.value })}
+                  placeholder="Ex: Agropecuária Rio Vermelho S/A (Fazenda São João)"
+                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-slate-800"
+                  required
+                />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-bold mb-1">CNPJ / CPF</label>
-                  <input type="text" value={cliForm.document} onChange={(e) => setCliForm({ ...cliForm, document: e.target.value })} className="w-full px-3.5 py-2.5 rounded-xl border" required />
+                  <label className="block font-bold text-slate-700 uppercase mb-1">CNPJ / CPF</label>
+                  <input
+                    type="text"
+                    value={cliForm.document}
+                    onChange={(e) => setCliForm({ ...cliForm, document: e.target.value })}
+                    placeholder="00.000.000/0001-00"
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                  />
                 </div>
                 <div>
-                  <label className="block font-bold mb-1">Cidade</label>
-                  <input type="text" value={cliForm.city} onChange={(e) => setCliForm({ ...cliForm, city: e.target.value })} className="w-full px-3.5 py-2.5 rounded-xl border" required />
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Nº CAR / Inscrição Estadual / Matrícula</label>
+                  <input
+                    type="text"
+                    value={cliForm.registration}
+                    onChange={(e) => setCliForm({ ...cliForm, registration: e.target.value })}
+                    placeholder="Ex: CAR MT-5107602 / IE 13.000.000-0"
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                  />
                 </div>
               </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowClientModal(false)} className="px-4 py-2 rounded-xl border font-bold">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold">Salvar no Supabase</button>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Segmento Econômico</label>
+                  <select
+                    value={cliForm.segment}
+                    onChange={(e) => setCliForm({ ...cliForm, segment: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
+                  >
+                    <option value="Agronegócio / Propriedade Rural">Agronegócio / Propriedade Rural</option>
+                    <option value="Indústria / Agroindústria">Indústria / Agroindústria</option>
+                    <option value="Construtora / Loteamento">Construtora / Loteamento</option>
+                    <option value="Transporte / Logística">Transporte / Logística</option>
+                    <option value="Comércio / Serviços">Comércio / Serviços</option>
+                    <option value="Saúde / Hospitalar">Saúde / Hospitalar</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Cidade / UF</label>
+                  <input
+                    type="text"
+                    value={cliForm.city}
+                    onChange={(e) => setCliForm({ ...cliForm, city: e.target.value })}
+                    placeholder="Rondonópolis — MT"
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Responsável / Contato Técnico</label>
+                  <input
+                    type="text"
+                    value={cliForm.contactName}
+                    onChange={(e) => setCliForm({ ...cliForm, contactName: e.target.value })}
+                    placeholder="Nome do Engenheiro, Gerente ou Proprietário"
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Telefone / WhatsApp</label>
+                  <input
+                    type="text"
+                    value={cliForm.phone}
+                    onChange={(e) => setCliForm({ ...cliForm, phone: e.target.value })}
+                    placeholder="(66) 99999-0000"
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">E-mail Corporativo</label>
+                  <input
+                    type="email"
+                    value={cliForm.email}
+                    onChange={(e) => setCliForm({ ...cliForm, email: e.target.value })}
+                    placeholder="contato@empresa.com.br"
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Status do Cliente</label>
+                  <select
+                    value={cliForm.status}
+                    onChange={(e) => setCliForm({ ...cliForm, status: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
+                  >
+                    <option value="Ativo">Ativo</option>
+                    <option value="Em Prospecção">Em Prospecção</option>
+                    <option value="Pendência Documental">Pendência Documental</option>
+                    <option value="Inativo">Inativo</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">Licença / Programa Principal Contratado</label>
+                <input
+                  type="text"
+                  value={cliForm.mainProgram}
+                  onChange={(e) => setCliForm({ ...cliForm, mainProgram: e.target.value })}
+                  placeholder="Ex: Licenciamento Ambiental (LP / LI / LO) ou PGR / PCMSO"
+                  className="w-full px-3.5 py-2.5 rounded-xl border"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => setShowClientModal(false)}
+                  className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
+                >
+                  Salvar Cliente no CRM
+                </button>
               </div>
             </form>
           </div>
