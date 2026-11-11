@@ -676,14 +676,29 @@ export default function App() {
     setDeleteContractTarget(null);
   };
 
-  const handleSaveClient = async (e) => {
+const handleSaveClient = async (e) => {
     e.preventDefault();
     if (!cliForm.name) return;
     const clientId = editingClient ? editingClient.id : `CLI-${String(clients.length + 1).padStart(3, '0')}`;
     const clientData = { id: clientId, ...cliForm };
+
+    // 1. Salva diretamente na tabela 'clients' do Supabase
+    if (supabase) {
+      const { error } = await supabase.from('clients').upsert([clientData]);
+      if (error) {
+        console.error('Erro ao salvar no Supabase:', error);
+        return;
+      }
+    }
+
+    // 2. Atualiza a lista na tela e puxa os dados atualizados do banco
     setClients(prev => editingClient ? prev.map(c => c.id === clientId ? clientData : c) : [...prev, clientData]);
-    if (supabase) await supabase.from('clients').upsert(clientData);
-    showToast('Cliente salvo no CRM com sucesso!');
+    
+    if (supabase) {
+      const { data } = await supabase.from('clients').select('*');
+      if (data) setClients(data);
+    }
+
     setShowClientModal(false);
   };
 
