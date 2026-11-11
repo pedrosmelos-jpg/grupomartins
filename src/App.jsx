@@ -306,7 +306,7 @@ const DEFAULT_PERMISSIONS = {
   acessos: { view: false, create: false, edit: false, delete: false, approve: false }
 };
 
-// Apenas o perfil do Pedro Melo mantido
+// Perfil inicial do Pedro Melo com flag de primeiro acesso (isFirstAccess: true para forçar troca)
 const INITIAL_ACCESS_ROLES = [
   {
     id: 'ROLE-01-PEDRO',
@@ -315,8 +315,9 @@ const INITIAL_ACCESS_ROLES = [
     holder: 'Pedro Melo',
     email: 'pedrosmelos@gmail.com',
     password: 'Martins2027@',
+    isFirstAccess: true, // Força a troca de senha no primeiro acesso
     badgeColor: 'bg-[#1B3B2B] text-emerald-300',
-    description: 'Acesso total e liberação máxima a todos os módulos estratégicos, aprovação de saques de Pró-Labore, DRE Gerencial, contratos e governança do sistema.',
+    description: 'Acesso total e liberação máxima a todos os módulos estratégicos.',
     permissions: {
       dashboard: { view: true, create: true, edit: true, delete: true, approve: true },
       prolabore: { view: true, create: true, edit: true, delete: true, approve: true },
@@ -378,6 +379,12 @@ export default function App() {
   const [authEmailInput, setAuthEmailInput] = useState('');
   const [authPasswordInput, setAuthPasswordInput] = useState('');
   const [authErrorMsg, setAuthErrorMsg] = useState('');
+
+  // Controle de Fluxo de Primeiro Acesso (Troca Obrigatória de Senha)
+  const [requiresPasswordChange, setRequiresPasswordChange] = useState(false);
+  const [pendingUserForPasswordChange, setPendingUserForPasswordChange] = useState(null);
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
 
   const [params, setParams] = useState(INITIAL_PARAMETERS);
 
@@ -2097,7 +2104,7 @@ export default function App() {
                 </button>
               </div>
 
-              {/* ÚNICO PERFIL ATIVO: PEDRO MELO (MASTER) */}
+              {/* APENAS O PERFIL DO PEDRO MELO MANTIDO */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {accessRoles.map((role) => (
                   <div key={role.id} className="p-5 rounded-2xl border border-slate-200 bg-white shadow-sm space-y-3 flex flex-col justify-between">
@@ -2816,7 +2823,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL DE CONFIRMAÇÃO DE RECEBIMENTO (DATA E JUROS SEPARADOS) */}
+      {/* MODAL DE CONFIRMAÇÃO DE RECEBIMENTO */}
       {receivingInstallmentData && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-emerald-200">
@@ -3255,52 +3262,6 @@ export default function App() {
                 Concluir & Fechar
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* TELA DE LOGIN */}
-      {!authLoggedIn && (
-        <div className="fixed inset-0 z-50 bg-[#1B3B2B]/95 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl border text-center space-y-6">
-            <GrupoMartinsLogo size="md" className="mx-auto" />
-            <div>
-              <h2 className="text-xl font-black text-[#1B3B2B]">Autenticação de Acesso — Nuvem</h2>
-              <p className="text-xs text-slate-500 mt-1">Insira seu e-mail corporativo e senha cadastrados.</p>
-            </div>
-            {authErrorMsg && (
-              <div className="p-3 rounded-xl bg-rose-100 text-rose-800 text-xs font-bold">
-                {authErrorMsg}
-              </div>
-            )}
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              setAuthErrorMsg('');
-              const found = accessRoles.find(r => r.email && r.email.toLowerCase() === authEmailInput.trim().toLowerCase());
-              if (!found) {
-                setAuthErrorMsg('E-mail não cadastrado.');
-                return;
-              }
-              if (found.password && found.password !== authPasswordInput.trim()) {
-                setAuthErrorMsg('Senha incorreta.');
-                return;
-              }
-              setActiveRoleId(found.id);
-              setAuthLoggedIn(true);
-              showToast(`Bem-vindo(a), ${found.holder}! Acesso autorizado.`);
-            }} className="space-y-4 text-left text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">E-mail Corporativo</label>
-                <input type="email" value={authEmailInput} onChange={(e) => setAuthEmailInput(e.target.value)} placeholder="ex: maikon@grupomartins.eng.br" className="w-full px-3.5 py-2.5 rounded-xl border" required />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">Senha</label>
-                <input type="password" value={authPasswordInput} onChange={(e) => setAuthPasswordInput(e.target.value)} placeholder="••••••••" className="w-full px-3.5 py-2.5 rounded-xl border" required />
-              </div>
-              <button type="submit" className="w-full py-3 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer">
-                Entrar no ERP (Sincronizado)
-              </button>
-            </form>
           </div>
         </div>
       )}
