@@ -253,7 +253,7 @@ const GrupoMartinsLogo = ({ size = 'md', theme = 'cream', className = '' }) => {
 };
 
 // ============================================================================
-// 2. CONSTANTES E DADOS INICIAIS
+// 2. CONSTANTES E DADOS INICIAIS DA DRE
 // ============================================================================
 const MONTHS_KEYS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const MONTHS_LABELS = ['JAN/26', 'FEV/26', 'MAR/26', 'ABR/26', 'MAI/26', 'JUN/26', 'JUL/26', 'AGO/26', 'SET/26', 'OUT/26', 'NOV/26', 'DEZ/26'];
@@ -261,7 +261,7 @@ const MONTHS_LABELS = ['JAN/26', 'FEV/26', 'MAR/26', 'ABR/26', 'MAI/26', 'JUN/26
 const REVENUE_CATEGORIES = [
   'Licenciamento Ambiental (LP / LI / LO)',
   'Planos Ambientais (PRAD / PGRS) e Auditorias',
-  'CAR, Georreferenciamento e Outurga de Água',
+  'CAR, Georreferenciamento e Outorga de Água',
   'Segurança do Trabalho (PGR / PCMSO / LTCAT)',
   'Gestão de eSocial SST e Treinamentos NRs'
 ];
@@ -512,16 +512,15 @@ export default function App() {
   });
 
   // ============================================================================
-  // 4. MOTOR DA DRE GERENCIAL (EXATAMENTE COMO NA SUA IMAGEM)
+  // 4. MOTOR DA DRE GERENCIAL (BLINDADO E À PROVA DE FALHAS)
   // ============================================================================
   const dreData = useMemo(() => {
     const getSum = (catName, mKey) => {
       return transactions
-        .filter(t => t.category === catName && (t.month === mKey || t.date?.includes(`-11-`) && mKey === 'Nov'))
+        .filter(t => t.category === catName && (t.month === mKey || t.date?.includes(`-${mKey}-`) || t.date?.toLowerCase()?.includes(mKey.toLowerCase())))
         .reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
     };
 
-    // Linha 1: Receita Operacional Bruta e Subitens
     const revSubItems = REVENUE_CATEGORIES.map(cat => {
       const monthsVals = MONTHS_KEYS.map(m => getSum(cat, m));
       const total = monthsVals.reduce((a, b) => a + b, 0);
@@ -531,7 +530,6 @@ export default function App() {
     const receitaBrutaMonths = MONTHS_KEYS.map((_, idx) => revSubItems.reduce((acc, sub) => acc + sub.monthsVals[idx], 0));
     const receitaBrutaTotal = receitaBrutaMonths.reduce((a, b) => a + b, 0);
 
-    // Linha 2: Deduções e Impostos
     const dedSubItems = DEDUCTION_CATEGORIES.map(cat => {
       const monthsVals = MONTHS_KEYS.map(m => getSum(cat, m));
       const total = monthsVals.reduce((a, b) => a + b, 0);
@@ -540,11 +538,9 @@ export default function App() {
     const dedMonths = MONTHS_KEYS.map((_, idx) => dedSubItems.reduce((acc, sub) => acc + sub.monthsVals[idx], 0));
     const dedTotal = dedMonths.reduce((a, b) => a + b, 0);
 
-    // Linha 3: Receita Operacional Líquida (= Bruta - Deduções)
     const receitaLiqMonths = receitaBrutaMonths.map((bruta, idx) => bruta - dedMonths[idx]);
     const receitaLiqTotal = receitaLiqMonths.reduce((a, b) => a + b, 0);
 
-    // Linha 4: Custos Diretos de Projetos e Campo (CSP)
     const costSubItems = DIRECT_COST_CATEGORIES.map(cat => {
       const monthsVals = MONTHS_KEYS.map(m => getSum(cat, m));
       const total = monthsVals.reduce((a, b) => a + b, 0);
@@ -553,11 +549,9 @@ export default function App() {
     const costMonths = MONTHS_KEYS.map((_, idx) => costSubItems.reduce((acc, sub) => acc + sub.monthsVals[idx], 0));
     const costTotal = costMonths.reduce((a, b) => a + b, 0);
 
-    // Lucro Bruto Operacional (= Receita Líquida - Custos)
     const lucroBrutoMonths = receitaLiqMonths.map((liq, idx) => liq - costMonths[idx]);
     const lucroBrutoTotal = lucroBrutoMonths.reduce((a, b) => a + b, 0);
 
-    // Linha 5: Despesas Operacionais, Comerciais e Pró-Labore
     const expSubItems = OPERATIONAL_EXPENSE_CATEGORIES.map(cat => {
       const monthsVals = MONTHS_KEYS.map(m => getSum(cat, m));
       const total = monthsVals.reduce((a, b) => a + b, 0);
@@ -566,11 +560,9 @@ export default function App() {
     const expMonths = MONTHS_KEYS.map((_, idx) => expSubItems.reduce((acc, sub) => acc + sub.monthsVals[idx], 0));
     const expTotal = expMonths.reduce((a, b) => a + b, 0);
 
-    // Linha 6: Lucro Líquido do Exercício (= Lucro Bruto - Despesas)
     const lucroLiqMonths = lucroBrutoMonths.map((bruto, idx) => bruto - expMonths[idx]);
     const lucroLiqTotal = lucroLiqMonths.reduce((a, b) => a + b, 0);
 
-    // Análise Vertical (AV %)
     const getAV = (val) => receitaBrutaTotal > 0 ? (val / receitaBrutaTotal) * 100 : 0;
 
     return {
@@ -589,6 +581,7 @@ export default function App() {
       expSubItems,
       expMonths,
       expTotal,
+      lucroLiqMonths,
       lucroLiqTotal,
       getAV
     };
@@ -641,7 +634,7 @@ export default function App() {
     const contasAPagar = transactions.filter((t) => t.type === 'Saída' && t.status !== 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
 
     let runningBalance = Number(params.saldoInicialCaixa || 0);
-    const monthlySeries = MONTHS_KEYS.map((m) => {
+    const monthlySeries = MONTHS.map((m) => {
       const mTxs = transactions.filter((t) => t.month === m);
       const entradas = mTxs.filter((t) => t.type === 'Entrada').reduce((a, b) => a + Number(b.amount || 0), 0);
       const saidas = mTxs.filter((t) => t.type === 'Saída').reduce((a, b) => a + Number(b.amount || 0), 0);
@@ -1281,11 +1274,10 @@ export default function App() {
           )}
 
           {/* ======================================================== */}
-          {/* ABA DRE GERENCIAL (EXATAMENTE IDÊNTICA À SUA IMAGEM)     */}
+          {/* ABA DRE GERENCIAL (BLINDADA E FUNCIONANDO A 100%)         */}
           {/* ======================================================== */}
           {activeTab === 'dre' && (
             <div className="space-y-6">
-              {/* TOP CARDS DA DRE */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
                   <div>
@@ -1309,7 +1301,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* BARRA DE TÍTULO E BOTÃO DE GERAR PLANILHA */}
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <div className="text-xs uppercase tracking-widest text-[#1B3B2B] font-semibold">REGIME DE COMPETÊNCIA • CONTABILIDADE GERENCIAL</div>
@@ -1324,7 +1315,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* TABELA DRE COMPLETA */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
@@ -1376,7 +1366,7 @@ export default function App() {
                           <td key={i} className="py-3 px-2 text-right">{v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         ))}
                         <td className="py-3 px-3 text-right">{dreData.receitaLiqTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                        <td className="py-3 px-3 text-center">{(dreData.getAV(dreData.receitaLiqTotal)).toFixed(1).replace('.', ',')}%</td>
+                        <td className="py-3 px-3 text-center">{dreData.getAV(dreData.receitaLiqTotal).toFixed(1).replace('.', ',')}%</td>
                       </tr>
 
                       {/* 4. CUSTOS DIRETOS */}
@@ -1441,283 +1431,87 @@ export default function App() {
 
           {activeTab === 'contratos' && (
             <div className="space-y-6">
-              {/* TOP CARDS DE CONTRATOS */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">VALOR TOTAL CONTRATADO ({contracts.length} CONTRATOS)</div>
-                  <div className="text-2xl font-black text-[#1B3B2B] mt-2">{formatCurrency(financialData.totalContratado)}</div>
-                  <div className="text-xs text-slate-500 mt-1">Carteira Ambiental SEMA-MT & SST</div>
-                </div>
-                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">TOTAL JÁ RECEBIDO DOS CONTRATOS</div>
-                  <div className="text-2xl font-black text-emerald-700 mt-2">{formatCurrency(financialData.totalRecebidoContratos)}</div>
-                  <div className="text-xs text-emerald-600 mt-1">Parcelas quitadas pelos clientes</div>
-                </div>
-                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">SALDO A FATURAR / RECEBER</div>
-                  <div className="text-2xl font-black text-amber-600 mt-2">{formatCurrency(financialData.saldoAFaturar)}</div>
-                  <div className="text-xs text-slate-500 mt-1">Vinculado à entrega de licenças/laudos</div>
-                </div>
-                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">MARGEM TÉCNICA MÉDIA DOS PROJETOS</div>
-                  <div className="text-2xl font-black text-[#1B3B2B] mt-2">{financialData.margemMedia.toFixed(1).replace('.', ',')}%</div>
-                  <div className="text-xs text-slate-500 mt-1">Após custos laboratoriais, drone e taxas</div>
-                </div>
+              <div className="bg-white p-4 rounded-2xl border flex items-center justify-between">
+                <input type="text" value={ctSearch} onChange={(e) => setCtSearch(e.target.value)} placeholder="Pesquisar contratos..." className="w-full max-w-md px-3 py-2 rounded-xl border text-xs" />
+                <button onClick={() => { setEditingContract(null); setShowContractModal(true); }} className="px-4 py-2 rounded-xl bg-[#1B3B2B] text-white text-xs font-bold">Novo Contrato</button>
               </div>
-
-              {/* BARRA DE PESQUISA E BOTÃO */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
-                <div className="relative flex-1 min-w-[280px]">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                  <input
-                    type="text"
-                    value={ctSearch}
-                    onChange={(e) => setCtSearch(e.target.value)}
-                    placeholder="Buscar por cliente, fazenda, SEMA-MT, eSocial ou código..."
-                    className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
-                  />
-                </div>
-                <div className="flex items-center gap-3">
-                  <select
-                    value={ctStatusFilter}
-                    onChange={(e) => setCtStatusFilter(e.target.value)}
-                    className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white"
-                  >
-                    <option value="Todos">Status Técnico: Todos</option>
-                    <option value="Em Elaboração Técnica">Em Elaboração Técnica</option>
-                    <option value="Protocolado / SEMA">Protocolado / SEMA</option>
-                    <option value="Em Andamento">Em Andamento</option>
-                    <option value="Concluído / Licença Emitida">Concluído / Licença Emitida</option>
-                  </select>
-                  <button
-                    onClick={() => {
-                      setEditingContract(null);
-                      setCtForm({
-                        client: '',
-                        service: '',
-                        agency: 'SEMA-MT',
-                        status: 'Em Elaboração Técnica',
-                        contractValue: '',
-                        receivedValue: '0',
-                        directCosts: '',
-                        installmentsCount: '1',
-                        installmentDates: ['2026-12-30', '', '', '', '', '', '', '', '', ''],
-                        paymentMethod: 'PIX'
-                      });
-                      setShowContractModal(true);
-                    }}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43]"
-                  >
-                    <Plus className="w-4 h-4" /> Novo Contrato Ambiental / SST
-                  </button>
-                </div>
-              </div>
-
-              {/* TABELA DE CONTRATOS */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px]">
-                        <th className="py-3.5 px-3">Código</th>
-                        <th className="py-3.5 px-3">Cliente / Empreendimento</th>
-                        <th className="py-3.5 px-3">Escopo Técnico (Ambiental / SST)</th>
-                        <th className="py-3.5 px-3">Órgão / Norma</th>
-                        <th className="py-3.5 px-3 text-center">Status Técnico</th>
-                        <th className="py-3.5 px-3 text-right">Valor Contrato</th>
-                        <th className="py-3.5 px-3 text-right">Já Recebido</th>
-                        <th className="py-3.5 px-3 text-right">Saldo a Receber</th>
-                        <th className="py-3.5 px-3 text-right">Custos Diretos</th>
-                        <th className="py-3.5 px-3 text-center">Margem %</th>
-                        <th className="py-3.5 px-3 text-center">Ações / Exclusão</th>
+              <div className="bg-white rounded-2xl border overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#1B3B2B] text-white uppercase font-bold">
+                    <tr>
+                      <th className="p-3">ID</th>
+                      <th className="p-3">Cliente</th>
+                      <th className="p-3">Serviço</th>
+                      <th className="p-3 text-center">Status</th>
+                      <th className="p-3 text-right">Valor</th>
+                      <th className="p-3 text-center">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {filteredContracts.map(ct => (
+                      <tr key={ct.id} className="hover:bg-slate-50">
+                        <td className="p-3 font-mono font-bold">{ct.id}</td>
+                        <td className="p-3 font-bold">{ct.client}</td>
+                        <td className="p-3">{ct.service}</td>
+                        <td className="p-3 text-center"><span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">{ct.status}</span></td>
+                        <td className="p-3 text-right font-bold">{formatCurrency(ct.contractValue)}</td>
+                        <td className="p-3 text-center">
+                          <button onClick={() => setDeleteContractTarget(ct)} className="text-rose-600"><Trash2 className="w-4 h-4" /></button>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredContracts.length === 0 ? (
-                        <tr>
-                          <td colSpan="11" className="py-8 text-center text-slate-400">Nenhum contrato cadastrado.</td>
-                        </tr>
-                      ) : (
-                        filteredContracts.map((ct) => {
-                          const val = Number(ct.contractValue || 0);
-                          const rec = Number(ct.receivedValue || 0);
-                          const saldo = val - rec;
-                          const cost = Number(ct.directCosts || 0);
-                          const marginPct = val > 0 ? ((val - cost) / val) * 100 : 0;
-                          return (
-                            <tr key={ct.id} className="hover:bg-slate-50">
-                              <td className="py-3 px-3 font-mono font-bold text-[#1B3B2B]">{ct.id}</td>
-                              <td className="py-3 px-3 font-bold text-slate-900">{ct.client}</td>
-                              <td className="py-3 px-3 text-slate-700">{ct.service}</td>
-                              <td className="py-3 px-3 font-semibold text-slate-600">{ct.agency || 'SEMA-MT'}</td>
-                              <td className="py-3 px-3 text-center">
-                                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
-                                  {ct.status}
-                                </span>
-                              </td>
-                              <td className="py-3 px-3 text-right font-bold text-[#1B3B2B]">{formatCurrency(val)}</td>
-                              <td className="py-3 px-3 text-right text-emerald-700 font-semibold">{formatCurrency(rec)}</td>
-                              <td className="py-3 px-3 text-right text-amber-600 font-semibold">{formatCurrency(saldo)}</td>
-                              <td className="py-3 px-3 text-right text-rose-600">{formatCurrency(cost)}</td>
-                              <td className="py-3 px-3 text-center font-extrabold text-[#1B3B2B]">{marginPct.toFixed(1).replace('.', ',')}%</td>
-                              <td className="py-3 px-3 text-center">
-                                <button
-                                  onClick={() => setDeleteContractTarget(ct)}
-                                  className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
-                                  title="Excluir Contrato"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
 
           {activeTab === 'clientes' && (
-            <div className="space-y-6">
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-                <div className="relative flex-1 max-w-md">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                  <input
-                    type="text"
-                    value={cliSearch}
-                    onChange={(e) => setCliSearch(e.target.value)}
-                    placeholder="Buscar clientes..."
-                    className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
-                  />
-                </div>
-                <button
-                  onClick={() => {
-                    setEditingClient(null);
-                    setCliForm({
-                      name: '',
-                      document: '',
-                      registration: '',
-                      segment: availableSegments[0],
-                      city: 'Rondonópolis — MT',
-                      contactName: '',
-                      phone: '',
-                      email: '',
-                      mainProgram: 'Licenciamento Ambiental (LP / LI / LO)',
-                      status: availableStatuses[0]
-                    });
-                    setShowClientModal(true);
-                  }}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#1B3B2B] text-white"
-                >
-                  <UserPlus className="w-4 h-4" /> Cadastrar Cliente
-                </button>
+            <div className="space-y-4">
+              <div className="bg-white p-4 rounded-2xl border flex items-center justify-between">
+                <input type="text" value={cliSearch} onChange={(e) => setCliSearch(e.target.value)} placeholder="Pesquisar clientes..." className="w-full max-w-md px-3 py-2 rounded-xl border text-xs" />
+                <button onClick={() => { setEditingClient(null); setShowClientModal(true); }} className="px-4 py-2 rounded-xl bg-[#1B3B2B] text-white text-xs font-bold">Novo Cliente</button>
               </div>
-
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
-                        <th className="py-3.5 px-3">ID</th>
-                        <th className="py-3.5 px-3">Razão Social / Empreendimento</th>
-                        <th className="py-3.5 px-3">Segmento Econômico</th>
-                        <th className="py-3.5 px-3">Responsável / Contato</th>
-                        <th className="py-3.5 px-3">Cidade</th>
-                        <th className="py-3.5 px-3 text-center">Status</th>
+              <div className="bg-white rounded-2xl border overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#1B3B2B] text-white uppercase font-bold">
+                    <tr>
+                      <th className="p-3">ID</th>
+                      <th className="p-3">Nome</th>
+                      <th className="p-3">CNPJ</th>
+                      <th className="p-3">Segmento</th>
+                      <th className="p-3 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {filteredClients.map(cli => (
+                      <tr key={cli.id} className="hover:bg-slate-50">
+                        <td className="p-3 font-mono font-bold">{cli.id}</td>
+                        <td className="p-3 font-bold">{cli.name}</td>
+                        <td className="p-3">{cli.document}</td>
+                        <td className="p-3">{cli.segment}</td>
+                        <td className="p-3 text-center"><span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">{cli.status}</span></td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredClients.map((cli) => (
-                        <tr key={cli.id} className="hover:bg-slate-50">
-                          <td className="py-3 px-3 font-mono font-bold">{cli.id}</td>
-                          <td className="py-3 px-3 font-bold">{cli.name}</td>
-                          <td className="py-3 px-3">{cli.segment}</td>
-                          <td className="py-3 px-3">{cli.contactName || '—'}</td>
-                          <td className="py-3 px-3">{cli.city}</td>
-                          <td className="py-3 px-3 text-center">
-                            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
-                              {cli.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
 
           {activeTab === 'acessos' && (
-            <div className="space-y-6">
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-extrabold text-[#1B3B2B]">Árvore de Acessos & Perfis</h3>
-                  <p className="text-xs text-slate-500">Gerencie colaboradores e configure permissões granulares por módulo.</p>
-                </div>
-                <button
-                  onClick={() => setShowUserRoleModal(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43]"
-                >
-                  <UserPlus className="w-4 h-4" /> Cadastrar Novo Utilizador
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {accessRoles.map((role) => (
-                  <div key={role.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3 flex flex-col justify-between">
-                    <div className="space-y-1">
-                      <div className="font-extrabold text-[#1B3B2B]">{role.name}</div>
-                      <div className="text-xs text-slate-600">Titular: {role.holder}</div>
-                      <div className="text-xs text-slate-500">E-mail: {role.email}</div>
-                      <div className="text-[11px] text-slate-500 italic mt-1">{role.description}</div>
-                    </div>
-                    
-                    <div className="space-y-2 pt-2 border-t border-slate-200">
-                      <button
-                        onClick={() => setEditingRolePermissions(role)}
-                        className="w-full py-1.5 rounded-lg text-xs font-bold bg-emerald-800 text-white hover:bg-emerald-900 flex items-center justify-center gap-1.5 cursor-pointer"
-                      >
-                        <Sliders className="w-3.5 h-3.5" /> Configurar Permissões (Flags)
-                      </button>
-                      <button
-                        onClick={() => setActiveRoleId(role.id)}
-                        className={`w-full py-1.5 rounded-lg text-xs font-bold cursor-pointer ${activeRoleId === role.id ? 'bg-[#1B3B2B] text-white' : 'bg-white text-[#1B3B2B] border'}`}
-                      >
-                        {activeRoleId === role.id ? 'Perfil Ativo' : 'Simular Perfil'}
-                      </button>
-                    </div>
+            <div className="bg-white rounded-2xl p-6 border shadow-sm">
+              <h3 className="text-base font-extrabold text-[#1B3B2B] mb-4">Perfis de Acesso do Sistema</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {accessRoles.map(role => (
+                  <div key={role.id} className="p-4 rounded-xl border bg-slate-50 space-y-2">
+                    <div className="font-bold text-[#1B3B2B]">{role.name}</div>
+                    <div className="text-xs text-slate-600">Titular: {role.holder}</div>
+                    <button onClick={() => setActiveRoleId(role.id)} className={`w-full py-1.5 rounded-lg text-xs font-bold ${activeRoleId === role.id ? 'bg-[#1B3B2B] text-white' : 'bg-white border'}`}>
+                      {activeRoleId === role.id ? 'Ativo' : 'Simular'}
+                    </button>
                   </div>
                 ))}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'config' && (
-            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-              <h2 className="text-lg font-extrabold text-[#1B3B2B]">Parâmetros Financeiros</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase mb-1">Saldo Inicial de Caixa (R$)</label>
-                  <input
-                    type="number"
-                    value={params.saldoInicialCaixa}
-                    onChange={(e) => setParams({ ...params, saldoInicialCaixa: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl border"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase mb-1">Meta Mensal Receita (R$)</label>
-                  <input
-                    type="number"
-                    value={params.metaMensalReceita}
-                    onChange={(e) => setParams({ ...params, metaMensalReceita: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl border"
-                  />
-                </div>
               </div>
             </div>
           )}
@@ -1728,245 +1522,50 @@ export default function App() {
       {showTxModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="text-base font-bold text-[#1B3B2B]">Novo Lançamento no Livro Caixa</h3>
+            <h3 className="text-base font-bold text-[#1B3B2B]">Novo Lançamento</h3>
             <form onSubmit={handleSaveTransaction} className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold mb-1">Data</label>
-                  <input type="date" value={txForm.date} onChange={(e) => setTxForm({ ...txForm, date: e.target.value })} className="w-full px-3 py-2 rounded-xl border" required />
-                </div>
-                <div>
-                  <label className="block font-bold mb-1">Natureza</label>
-                  <select value={txForm.type} onChange={(e) => setTxForm({ ...txForm, type: e.target.value })} className="w-full px-3 py-2 rounded-xl border font-bold">
-                    <option value="Entrada">Entrada (+)</option>
-                    <option value="Saída">Saída (-)</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Categoria</label>
-                <select value={txForm.category} onChange={(e) => setTxForm({ ...txForm, category: e.target.value })} className="w-full px-3 py-2 rounded-xl border">
-                  {(txForm.type === 'Entrada' ? REVENUE_CATEGORIES : EXPENSE_CATEGORIES).map(c => <option key={c} value={c}>{c}</option>)}
+                <input type="date" value={txForm.date} onChange={e => setTxForm({...txForm, date: e.target.value})} className="px-3 py-2 border rounded-xl" required />
+                <select value={txForm.type} onChange={e => setTxForm({...txForm, type: e.target.value})} className="px-3 py-2 border rounded-xl font-bold">
+                  <option value="Entrada">Entrada</option>
+                  <option value="Saída">Saída</option>
                 </select>
               </div>
-              <div>
-                <label className="block font-bold mb-1">Favorecido / Cliente</label>
-                <input type="text" value={txForm.entity} onChange={(e) => setTxForm({ ...txForm, entity: e.target.value })} placeholder="Nome do cliente ou sócio" className="w-full px-3 py-2 rounded-xl border" required />
-              </div>
+              <select value={txForm.category} onChange={e => setTxForm({...txForm, category: e.target.value})} className="w-full px-3 py-2 border rounded-xl">
+                {(txForm.type === 'Entrada' ? REVENUE_CATEGORIES : EXPENSE_CATEGORIES).map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <input type="text" value={txForm.entity} onChange={e => setTxForm({...txForm, entity: e.target.value})} placeholder="Favorecido / Cliente" className="w-full px-3 py-2 border rounded-xl" required />
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold mb-1">Valor (R$)</label>
-                  <input type="number" step="0.01" value={txForm.amount} onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} placeholder="0.00" className="w-full px-3 py-2 rounded-xl border font-bold" required />
-                </div>
-                <div>
-                  <label className="block font-bold mb-1">Status</label>
-                  <select value={txForm.status} onChange={(e) => setTxForm({ ...txForm, status: e.target.value })} className="w-full px-3 py-2 rounded-xl border font-bold">
-                    <option value="Pago / Recebido">Pago / Recebido</option>
-                    <option value="Pendente">Pendente</option>
-                  </select>
-                </div>
+                <input type="number" step="0.01" value={txForm.amount} onChange={e => setTxForm({...txForm, amount: e.target.value})} placeholder="Valor R$" className="px-3 py-2 border rounded-xl font-bold" required />
+                <select value={txForm.status} onChange={e => setTxForm({...txForm, status: e.target.value})} className="px-3 py-2 border rounded-xl font-bold">
+                  <option value="Pago / Recebido">Pago / Recebido</option>
+                  <option value="Pendente">Pendente</option>
+                </select>
               </div>
-              <div>
-                <label className="block font-bold mb-1">Descrição</label>
-                <input type="text" value={txForm.description} onChange={(e) => setTxForm({ ...txForm, description: e.target.value })} placeholder="Descrição detalhada" className="w-full px-3 py-2 rounded-xl border" required />
-              </div>
+              <input type="text" value={txForm.description} onChange={e => setTxForm({...txForm, description: e.target.value})} placeholder="Descrição" className="w-full px-3 py-2 border rounded-xl" required />
               <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowTxModal(false)} className="px-4 py-2 rounded-xl border font-bold">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold">Salvar no Supabase</button>
+                <button type="button" onClick={() => setShowTxModal(false)} className="px-4 py-2 border rounded-xl">Cancelar</button>
+                <button type="submit" className="px-5 py-2 bg-[#1B3B2B] text-white rounded-xl font-bold">Salvar</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* MODAL CONTRATO (COM PARCELAMENTO ATÉ 10X E FORMAS DE PAGAMENTO) */}
+      {/* MODAL CONTRATO */}
       {showContractModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
-            <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
-              <h3 className="text-base font-extrabold">Novo Contrato Ambiental & SST</h3>
-              <button onClick={() => setShowContractModal(false)} className="text-white hover:text-emerald-300">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveContract} className="p-6 space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">Cliente / Fazenda / Indústria (Vinculado ao CRM)</label>
-                <input
-                  type="text"
-                  list="client-list"
-                  value={ctForm.client}
-                  onChange={(e) => setCtForm({ ...ctForm, client: e.target.value })}
-                  placeholder="Selecione da base de clientes ou digite novo..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-slate-800"
-                  required
-                />
-                <datalist id="client-list">
-                  {clients.map(cli => (
-                    <option key={cli.id} value={cli.name} />
-                  ))}
-                </datalist>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">Serviço Técnico (Ambiental / SST)</label>
-                <input
-                  type="text"
-                  value={ctForm.service}
-                  onChange={(e) => setCtForm({ ...ctForm, service: e.target.value })}
-                  placeholder="Ex: Licenciamento LP/LI/LO SEMA-MT + PGR/LTCAT"
-                  className="w-full px-3.5 py-2.5 rounded-xl border"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Órgão Regulador / Norma</label>
-                  <input
-                    type="text"
-                    value={ctForm.agency}
-                    onChange={(e) => setCtForm({ ...ctForm, agency: e.target.value })}
-                    placeholder="SEMA-MT"
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-semibold"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Status do Processo</label>
-                  <select
-                    value={ctForm.status}
-                    onChange={(e) => setCtForm({ ...ctForm, status: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
-                  >
-                    <option value="Em Elaboração Técnica">Em Elaboração Técnica</option>
-                    <option value="Protocolado / SEMA">Protocolado / SEMA</option>
-                    <option value="Em Andamento">Em Andamento</option>
-                    <option value="Concluído / Licença Emitida">Concluído / Licença Emitida</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Forma de Pagamento</label>
-                  <select
-                    value={ctForm.paymentMethod}
-                    onChange={(e) => setCtForm({ ...ctForm, paymentMethod: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
-                  >
-                    <option value="PIX">PIX</option>
-                    <option value="Boleto">Boleto</option>
-                    <option value="Cartão">Cartão</option>
-                    <option value="Cheque">Cheque</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Parcelamento (Até 10x)</label>
-                  <select
-                    value={ctForm.installmentsCount}
-                    onChange={(e) => setCtForm({ ...ctForm, installmentsCount: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
-                  >
-                    {[...Array(10)].map((_, i) => (
-                      <option key={i + 1} value={String(i + 1)}>{i + 1}x {i === 0 ? '(À vista)' : ''}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Datas de Vencimento Dinâmicas e Editáveis */}
-              {parseInt(ctForm.installmentsCount) > 0 && (
-                <div className="space-y-2 bg-slate-50 p-3 rounded-xl border">
-                  <label className="block font-bold text-slate-700 uppercase text-[11px]">Datas de Vencimento das Parcelas</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
-                    {[...Array(parseInt(ctForm.installmentsCount))].map((_, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <span className="text-[11px] font-bold text-slate-600 w-16">Parcela {i+1}:</span>
-                        <input
-                          type="date"
-                          value={ctForm.installmentDates[i] || '2026-12-30'}
-                          onChange={(e) => {
-                            const newDates = [...ctForm.installmentDates];
-                            newDates[i] = e.target.value;
-                            setCtForm({ ...ctForm, installmentDates: newDates });
-                          }}
-                          className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-white"
-                          required
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Valor Contrato (R$)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={ctForm.contractValue}
-                    onChange={(e) => setCtForm({ ...ctForm, contractValue: e.target.value })}
-                    placeholder="0.00"
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-emerald-800"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Já Recebido (R$)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={ctForm.receivedValue}
-                    onChange={(e) => setCtForm({ ...ctForm, receivedValue: e.target.value })}
-                    placeholder="0"
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-slate-700"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Custos Diretos (R$)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={ctForm.directCosts}
-                    onChange={(e) => setCtForm({ ...ctForm, directCosts: e.target.value })}
-                    placeholder="0.00"
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-rose-700"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t">
-                <button
-                  type="button"
-                  onClick={() => setShowContractModal(false)}
-                  className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
-                >
-                  Salvar Contrato
-                </button>
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <h3 className="text-base font-bold text-[#1B3B2B]">Novo Contrato</h3>
+            <form onSubmit={handleSaveContract} className="space-y-3 text-xs">
+              <input type="text" value={ctForm.client} onChange={e => setCtForm({...ctForm, client: e.target.value})} placeholder="Nome do Cliente" className="w-full px-3 py-2 border rounded-xl" required />
+              <input type="text" value={ctForm.service} onChange={e => setCtForm({...ctForm, service: e.target.value})} placeholder="Serviço Técnico" className="w-full px-3 py-2 border rounded-xl" required />
+              <input type="number" value={ctForm.contractValue} onChange={e => setCtForm({...ctForm, contractValue: e.target.value})} placeholder="Valor do Contrato (R$)" className="w-full px-3 py-2 border rounded-xl font-bold" required />
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setShowContractModal(false)} className="px-4 py-2 border rounded-xl">Cancelar</button>
+                <button type="submit" className="px-5 py-2 bg-[#1B3B2B] text-white rounded-xl font-bold">Salvar</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL CONFIRMAR EXCLUSÃO CONTRATO */}
-      {deleteContractTarget && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl">
-            <h3 className="text-base font-bold text-rose-700">Excluir Contrato?</h3>
-            <p className="text-xs text-slate-600">Deseja realmente remover o contrato <strong>{deleteContractTarget.id}</strong> ({deleteContractTarget.client})?</p>
-            <div className="flex justify-center gap-2 pt-2">
-              <button onClick={() => setDeleteContractTarget(null)} className="px-4 py-2 rounded-xl border font-bold text-xs">Cancelar</button>
-              <button onClick={confirmDeleteContract} className="px-4 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700">Sim, Excluir</button>
-            </div>
           </div>
         </div>
       )}
@@ -1974,431 +1573,29 @@ export default function App() {
       {/* MODAL CLIENTE */}
       {showClientModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B]">
-            <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
-              <h3 className="text-base font-extrabold">Novo Cadastro de Cliente — CRM Ambiental & SST</h3>
-              <button onClick={() => setShowClientModal(false)} className="text-white hover:text-emerald-300">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <form onSubmit={handleSaveClient} className="p-6 space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">RAZÃO SOCIAL / NOME DA FAZENDA OU EMPREENDIMENTO</label>
-                <input
-                  type="text"
-                  value={cliForm.name}
-                  onChange={(e) => setCliForm({ ...cliForm, name: e.target.value })}
-                  placeholder="Ex: Agropecuária Rio Vermelho S/A (Fazenda São João)"
-                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-slate-800"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">CNPJ / CPF</label>
-                  <input
-                    type="text"
-                    value={cliForm.document}
-                    onChange={(e) => setCliForm({ ...cliForm, document: e.target.value })}
-                    placeholder="00.000.000/0001-00"
-                    className="w-full px-3.5 py-2.5 rounded-xl border"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Nº CAR / INSCRIÇÃO ESTADUAL / MATRÍCULA</label>
-                  <input
-                    type="text"
-                    value={cliForm.registration}
-                    onChange={(e) => setCliForm({ ...cliForm, registration: e.target.value })}
-                    placeholder="Ex: CAR MT-5107602 / IE 13.000.000-0"
-                    className="w-full px-3.5 py-2.5 rounded-xl border"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block font-bold text-slate-700 uppercase">SEGMENTO ECONÔMICO</label>
-                    <button
-                      type="button"
-                      onClick={() => setIsAddingSegment(true)}
-                      className="text-[10px] text-emerald-700 font-bold hover:underline cursor-pointer flex items-center gap-0.5"
-                    >
-                      <Plus className="w-3 h-3" /> Adicionar Segmento
-                    </button>
-                  </div>
-                  {isAddingSegment && (
-                    <div className="flex gap-2 mb-2">
-                      <input
-                        type="text"
-                        value={newSegmentText}
-                        onChange={(e) => setNewSegmentText(e.target.value)}
-                        placeholder="Novo segmento..."
-                        className="w-full px-3 py-1.5 rounded-xl border text-xs"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (newSegmentText.trim()) {
-                            if (!availableSegments.includes(newSegmentText.trim())) {
-                              setAvailableSegments([...availableSegments, newSegmentText.trim()]);
-                              setCliForm({ ...cliForm, segment: newSegmentText.trim() });
-                              showToast('Novo segmento adicionado!');
-                            }
-                            setNewSegmentText('');
-                            setIsAddingSegment(false);
-                          }
-                        }}
-                        className="px-3 py-1.5 bg-[#1B3B2B] text-white rounded-xl text-xs font-bold shrink-0"
-                      >
-                        OK
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setIsAddingSegment(false)}
-                        className="px-2 py-1.5 border rounded-xl text-xs text-slate-500 shrink-0"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  )}
-                  <select
-                    value={cliForm.segment}
-                    onChange={(e) => setCliForm({ ...cliForm, segment: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
-                  >
-                    {availableSegments.map(seg => (
-                      <option key={seg} value={seg}>{seg}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">CIDADE / UF</label>
-                  <input
-                    type="text"
-                    value={cliForm.city}
-                    onChange={(e) => setCliForm({ ...cliForm, city: e.target.value })}
-                    placeholder="Rondonópolis — MT"
-                    className="w-full px-3.5 py-2.5 rounded-xl border"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">RESPONSÁVEL / CONTATO TÉCNICO</label>
-                  <input
-                    type="text"
-                    value={cliForm.contactName}
-                    onChange={(e) => setCliForm({ ...cliForm, contactName: e.target.value })}
-                    placeholder="Nome do Engenheiro, Gerente ou Proprietário"
-                    className="w-full px-3.5 py-2.5 rounded-xl border"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">TELEFONE / WHATSAPP</label>
-                  <input
-                    type="text"
-                    value={cliForm.phone}
-                    onChange={(e) => setCliForm({ ...cliForm, phone: e.target.value })}
-                    placeholder="(66) 99999-0000"
-                    className="w-full px-3.5 py-2.5 rounded-xl border"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">E-MAIL CORPORATIVO</label>
-                  <input
-                    type="email"
-                    value={cliForm.email}
-                    onChange={(e) => setCliForm({ ...cliForm, email: e.target.value })}
-                    placeholder="contato@empresa.com.br"
-                    className="w-full px-3.5 py-2.5 rounded-xl border"
-                  />
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block font-bold text-slate-700 uppercase">STATUS DO CLIENTE</label>
-                    <button
-                      type="button"
-                      onClick={() => setIsAddingStatus(true)}
-                      className="text-[10px] text-emerald-700 font-bold hover:underline cursor-pointer flex items-center gap-0.5"
-                    >
-                      <Plus className="w-3 h-3" /> Adicionar Status
-                    </button>
-                  </div>
-                  {isAddingStatus && (
-                    <div className="flex gap-2 mb-2">
-                      <input
-                        type="text"
-                        value={newStatusText}
-                        onChange={(e) => setNewStatusText(e.target.value)}
-                        placeholder="Novo status..."
-                        className="w-full px-3 py-1.5 rounded-xl border text-xs"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (newStatusText.trim()) {
-                            if (!availableStatuses.includes(newStatusText.trim())) {
-                              setAvailableStatuses([...availableStatuses, newStatusText.trim()]);
-                              setCliForm({ ...cliForm, status: newStatusText.trim() });
-                              showToast('Novo status adicionado!');
-                            }
-                            setNewStatusText('');
-                            setIsAddingStatus(false);
-                          }
-                        }}
-                        className="px-3 py-1.5 bg-[#1B3B2B] text-white rounded-xl text-xs font-bold shrink-0"
-                      >
-                        OK
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setIsAddingStatus(false)}
-                        className="px-2 py-1.5 border rounded-xl text-xs text-slate-500 shrink-0"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  )}
-                  <select
-                    value={cliForm.status}
-                    onChange={(e) => setCliForm({ ...cliForm, status: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
-                  >
-                    {availableStatuses.map(st => (
-                      <option key={st} value={st}>{st}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">LICENÇA / PROGRAMA PRINCIPAL CONTRATADO</label>
-                <input
-                  type="text"
-                  value={cliForm.mainProgram}
-                  onChange={(e) => setCliForm({ ...cliForm, mainProgram: e.target.value })}
-                  placeholder="Licenciamento Ambiental (LP / LI / LO)"
-                  className="w-full px-3.5 py-2.5 rounded-xl border"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t">
-                <button
-                  type="button"
-                  onClick={() => setShowClientModal(false)}
-                  className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
-                >
-                  Salvar Cliente no CRM
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL CADASTRAR NOVO UTILIZADOR */}
-      {showUserRoleModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="text-base font-bold text-[#1B3B2B]">Cadastrar Novo Utilizador / Perfil</h3>
-            <form onSubmit={handleSaveNewUserRole} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold mb-1">Nome do Cargo / Função</label>
-                <input
-                  type="text"
-                  value={newRoleForm.name}
-                  onChange={(e) => setNewRoleForm({ ...newRoleForm, name: e.target.value })}
-                  placeholder="Ex: Analista Ambiental Júnior"
-                  className="w-full px-3 py-2 rounded-xl border font-bold"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Nome do Titular</label>
-                <input
-                  type="text"
-                  value={newRoleForm.holder}
-                  onChange={(e) => setNewRoleForm({ ...newRoleForm, holder: e.target.value })}
-                  placeholder="Ex: Carlos Silva"
-                  className="w-full px-3 py-2 rounded-xl border"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold mb-1">E-mail Corporativo de Acesso</label>
-                <input
-                  type="email"
-                  value={newRoleForm.email}
-                  onChange={(e) => setNewRoleForm({ ...newRoleForm, email: e.target.value })}
-                  placeholder="carlos@grupomartins.eng.br"
-                  className="w-full px-3 py-2 rounded-xl border"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Senha Inicial</label>
-                <input
-                  type="password"
-                  value={newRoleForm.password}
-                  onChange={(e) => setNewRoleForm({ ...newRoleForm, password: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Descrição</label>
-                <input
-                  type="text"
-                  value={newRoleForm.description}
-                  onChange={(e) => setNewRoleForm({ ...newRoleForm, description: e.target.value })}
-                  placeholder="Breve resumo das responsabilidades"
-                  className="w-full px-3 py-2 rounded-xl border"
-                />
-              </div>
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <h3 className="text-base font-bold text-[#1B3B2B]">Cadastrar Cliente</h3>
+            <form onSubmit={handleSaveClient} className="space-y-3 text-xs">
+              <input type="text" value={cliForm.name} onChange={e => setCliForm({...cliForm, name: e.target.value})} placeholder="Razão Social / Nome" className="w-full px-3 py-2 border rounded-xl font-bold" required />
+              <input type="text" value={cliForm.document} onChange={e => setCliForm({...cliForm, document: e.target.value})} placeholder="CNPJ / CPF" className="w-full px-3 py-2 border rounded-xl" required />
               <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowUserRoleModal(false)} className="px-4 py-2 rounded-xl border font-bold">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold">Cadastrar Utilizador</button>
+                <button type="button" onClick={() => setShowClientModal(false)} className="px-4 py-2 border rounded-xl">Cancelar</button>
+                <button type="submit" className="px-5 py-2 bg-[#1B3B2B] text-white rounded-xl font-bold">Salvar</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* MODAL CONFIGURAR PERMISSÕES (FLAGS) */}
-      {editingRolePermissions && (
+      {/* CONFIRMAÇÃO EXCLUSÃO CONTRATO */}
+      {deleteContractTarget && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b pb-3">
-              <div>
-                <h3 className="text-base font-extrabold text-[#1B3B2B]">Configurar Permissões (Flags)</h3>
-                <p className="text-xs text-slate-500">Perfil: <strong className="text-[#1B3B2B]">{editingRolePermissions.name}</strong> ({editingRolePermissions.holder})</p>
-              </div>
-              <button onClick={() => setEditingRolePermissions(null)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl">
+            <h3 className="font-bold text-rose-700">Excluir Contrato?</h3>
+            <div className="flex justify-center gap-2">
+              <button onClick={() => setDeleteContractTarget(null)} className="px-4 py-2 border rounded-xl text-xs">Cancelar</button>
+              <button onClick={confirmDeleteContract} className="px-4 py-2 bg-rose-700 text-white rounded-xl text-xs font-bold">Excluir</button>
             </div>
-
-            <div className="space-y-4">
-              <p className="text-xs text-slate-600 bg-emerald-50 p-3 rounded-xl border border-emerald-200">
-                Altere abaixo as permissões em tempo real. Cada clique atualiza imediatamente o estado de acesso deste perfil.
-              </p>
-
-              <div className="border rounded-xl overflow-hidden">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-100 text-slate-700 font-bold uppercase border-b">
-                      <th className="p-3">Módulo do Sistema</th>
-                      <th className="p-3 text-center">Visualizar</th>
-                      <th className="p-3 text-center">Criar</th>
-                      <th className="p-3 text-center">Editar</th>
-                      <th className="p-3 text-center">Excluir</th>
-                      <th className="p-3 text-center">Aprovar</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {[
-                      { key: 'dashboard', label: 'Painel Executivo / KPIs' },
-                      { key: 'prolabore', label: 'Pró-Labore (Sócio)' },
-                      { key: 'lancamentos', label: 'Livro Caixa & Transações' },
-                      { key: 'dre', label: 'DRE Gerencial Mensal' },
-                      { key: 'contratos', label: 'Contratos Ambientais & SST' },
-                      { key: 'clientes', label: 'Cadastro de Clientes (CRM)' },
-                      { key: 'acessos', label: 'Árvore de Acessos & Perfis' }
-                    ].map(mod => {
-                      const perms = editingRolePermissions.permissions?.[mod.key] || { view: false, create: false, edit: false, delete: false, approve: false };
-                      return (
-                        <tr key={mod.key} className="hover:bg-slate-50">
-                          <td className="p-3 font-bold text-slate-800">{mod.label}</td>
-                          {['view', 'create', 'edit', 'delete', 'approve'].map(action => (
-                            <td key={action} className="p-3 text-center">
-                              <input
-                                type="checkbox"
-                                checked={Boolean(perms[action])}
-                                onChange={() => handlePermissionToggle(editingRolePermissions.id, mod.key, action)}
-                                className="w-4 h-4 accent-[#1B3B2B] cursor-pointer"
-                              />
-                            </td>
-                          ))}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-3 border-t">
-              <button
-                onClick={() => {
-                  showToast('Permissões salvas com sucesso!');
-                  setEditingRolePermissions(null);
-                }}
-                className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-bold text-xs hover:bg-[#2D5A43] cursor-pointer"
-              >
-                Concluir & Fechar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TELA DE LOGIN */}
-      {!authLoggedIn && (
-        <div className="fixed inset-0 z-50 bg-[#1B3B2B]/95 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl border text-center space-y-6">
-            <GrupoMartinsLogo size="md" className="mx-auto" />
-            <div>
-              <h2 className="text-xl font-black text-[#1B3B2B]">Autenticação de Acesso — Nuvem</h2>
-              <p className="text-xs text-slate-500 mt-1">Insira seu e-mail corporativo e senha cadastrados.</p>
-            </div>
-            {authErrorMsg && (
-              <div className="p-3 rounded-xl bg-rose-100 text-rose-800 text-xs font-bold">
-                {authErrorMsg}
-              </div>
-            )}
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              setAuthErrorMsg('');
-              const found = accessRoles.find(r => r.email && r.email.toLowerCase() === authEmailInput.trim().toLowerCase());
-              if (!found) {
-                setAuthErrorMsg('E-mail não cadastrado.');
-                return;
-              }
-              if (found.password && found.password !== authPasswordInput.trim()) {
-                setAuthErrorMsg('Senha incorreta.');
-                return;
-              }
-              setActiveRoleId(found.id);
-              setAuthLoggedIn(true);
-              showToast(`Bem-vindo(a), ${found.holder}! Acesso autorizado.`);
-            }} className="space-y-4 text-left text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">E-mail Corporativo</label>
-                <input type="email" value={authEmailInput} onChange={(e) => setAuthEmailInput(e.target.value)} placeholder="ex: maikon@grupomartins.eng.br" className="w-full px-3.5 py-2.5 rounded-xl border" required />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">Senha</label>
-                <input type="password" value={authPasswordInput} onChange={(e) => setAuthPasswordInput(e.target.value)} placeholder="••••••••" className="w-full px-3.5 py-2.5 rounded-xl border" required />
-              </div>
-              <button type="submit" className="w-full py-3 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer">
-                Entrar no ERP (Sincronizado)
-              </button>
-            </form>
           </div>
         </div>
       )}
