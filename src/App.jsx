@@ -430,6 +430,7 @@ export default function App() {
 
   const [showTxModal, setShowTxModal] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
+  const [deleteTxTarget, setDeleteTxTarget] = useState(null);
   
   // Modais de Contratos e Parcelas
   const [showContractModal, setShowContractModal] = useState(false);
@@ -468,6 +469,7 @@ export default function App() {
     directCosts: '',
     installmentsCount: '1',
     installmentDates: ['2026-12-30', '', '', '', '', '', '', '', '', ''],
+    installmentAmounts: ['', '', '', '', '', '', '', '', '', ''],
     paymentMethod: 'PIX'
   });
 
@@ -565,7 +567,6 @@ export default function App() {
 
     const totalContratado = contracts.reduce((acc, c) => acc + Number(c.contractValue || 0), 0);
     
-    // Calcula o total recebido com base nas parcelas pagas do contrato
     const totalRecebidoContratos = contracts.reduce((acc, c) => {
       const insts = c.installmentsData || [];
       const pagoInsts = insts.filter(i => i.status === 'Pago').reduce((sum, i) => sum + Number(i.amount || 0), 0);
@@ -644,16 +645,18 @@ export default function App() {
     }
   };
 
-  const handleDeleteTransaction = async (id) => {
-    if (!window.confirm('Deseja realmente excluir este lançamento do Livro Caixa?')) return;
+  const confirmDeleteTransaction = async () => {
+    if (!deleteTxTarget) return;
+    const id = deleteTxTarget.id;
     setTransactions(prev => prev.filter(t => t.id !== id));
     if (supabase) {
       await supabase.from('transactions').delete().eq('id', id);
     }
     showToast('Lançamento excluído com sucesso!');
+    setDeleteTxTarget(null);
   };
 
-  // Salvar Contrato com Parcelas estruturadas
+  // Salvar Contrato com Parcelas e valores personalizados
   const handleSaveContract = async (e) => {
     e.preventDefault();
     const contractVal = parseFloat(String(ctForm.contractValue).replace(',', '.')) || 0;
@@ -664,16 +667,21 @@ export default function App() {
     try {
       const contractId = editingContract ? editingContract.id : `CT-2026-${String(contracts.length + 1).padStart(2, '0')}`;
       
-      // Mantém parcelas existentes se estiver editando, ou cria novas se for um contrato novo
-      let installments = editingContract?.installmentsData || [];
-      if (!editingContract) {
-        const installmentVal = contractVal / nInstallments;
-        installments = [...Array(nInstallments)].map((_, i) => ({
+      let installments = [];
+      const defaultInstVal = contractVal / nInstallments;
+
+      for (let i = 0; i < nInstallments; i++) {
+        const customAmt = parseFloat(String(ctForm.installmentAmounts[i]).replace(',', '.'));
+        const instVal = !isNaN(customAmt) && customAmt > 0 ? customAmt : defaultInstVal;
+        
+        // Se já existia a parcela, mantém o status anterior (ex: se já estava 'Pago')
+        const existingInst = editingContract?.installmentsData?.[i];
+        installments.push({
           number: i + 1,
-          amount: installmentVal,
+          amount: instVal,
           dueDate: ctForm.installmentDates[i] || '2026-12-30',
-          status: 'Pendente'
-        }));
+          status: existingInst ? existingInst.status : 'Pendente'
+        });
       }
 
       const contractData = {
@@ -737,13 +745,11 @@ export default function App() {
       installmentsData: updatedInstallments
     };
 
-    // Atualiza contrato na lista e no Supabase
     setContracts(prev => prev.map(c => c.id === contractId ? updatedContract : c));
     if (supabase) {
       await supabase.from('contracts').upsert([updatedContract]);
     }
 
-    // Cria o lançamento correspondente no Livro Caixa (transactions)
     const targetInst = updatedInstallments.find(i => i.number === installmentNumber);
     const tId = `MT-${String(transactions.length + 15).padStart(3, '0')}`;
     const monthNames = { '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez' };
@@ -1400,7 +1406,7 @@ export default function App() {
                                 <Edit3 className="w-4 h-4 inline" />
                               </button>
                               <button
-                                onClick={() => handleDeleteTransaction(tx.id)}
+                                onClick={() => setDeleteTxTarget(tx)}
                                 className="p-1 rounded text-rose-600 hover:bg-rose-50"
                                 title="Excluir Lançamento"
                               >
@@ -1477,6 +1483,7 @@ export default function App() {
                         directCosts: '',
                         installmentsCount: '1',
                         installmentDates: ['2026-12-30', '', '', '', '', '', '', '', '', ''],
+                        installmentAmounts: ['', '', '', '', '', '', '', '', '', ''],
                         paymentMethod: 'PIX'
                       });
                       setShowContractModal(true);
@@ -1551,6 +1558,7 @@ export default function App() {
                                       directCosts: ct.directCosts,
                                       installmentsCount: ct.installmentsCount,
                                       installmentDates: ct.installmentsData?.map(i => i.dueDate) || ['2026-12-30'],
+                                      installmentAmounts: ct.installmentsData?.map(i => i.amount) || [''],
                                       paymentMethod: ct.paymentMethod
                                     });
                                     setShowContractModal(true);
@@ -1922,7 +1930,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CONTRATO */}
+      {/* MODAL CONTRATO (COM EDIÇÃO DE VALORES DAS PARCELAS) */}
       {showContractModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
@@ -2018,13 +2026,13 @@ export default function App() {
                 </div>
               </div>
 
-              {parseInt(ctForm.installmentsCount) > 0 && !editingContract && (
+              {parseInt(ctForm.installmentsCount) > 0 && (
                 <div className="space-y-2 bg-slate-50 p-3 rounded-xl border">
-                  <label className="block font-bold text-slate-700 uppercase text-[11px]">Datas de Vencimento das Parcelas</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
+                  <label className="block font-bold text-slate-700 uppercase text-[11px]">Datas e Valores Individuais das Parcelas</label>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                     {[...Array(parseInt(ctForm.installmentsCount))].map((_, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <span className="text-[11px] font-bold text-slate-600 w-16">Parcela {i+1}:</span>
+                      <div key={i} className="flex items-center gap-2 bg-white p-2 rounded-lg border">
+                        <span className="text-[11px] font-extrabold text-[#1B3B2B] w-16">Parc. {i+1}:</span>
                         <input
                           type="date"
                           value={ctForm.installmentDates[i] || '2026-12-30'}
@@ -2033,8 +2041,20 @@ export default function App() {
                             newDates[i] = e.target.value;
                             setCtForm({ ...ctForm, installmentDates: newDates });
                           }}
-                          className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-white"
+                          className="w-1/2 px-2.5 py-1 rounded border text-xs"
                           required
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={ctForm.installmentAmounts[i] !== undefined && ctForm.installmentAmounts[i] !== '' ? ctForm.installmentAmounts[i] : (parseFloat(ctForm.contractValue) / parseInt(ctForm.installmentsCount) || 0).toFixed(2)}
+                          onChange={(e) => {
+                            const newAmounts = [...ctForm.installmentAmounts];
+                            newAmounts[i] = e.target.value;
+                            setCtForm({ ...ctForm, installmentAmounts: newAmounts });
+                          }}
+                          placeholder="Valor (R$)"
+                          className="w-1/2 px-2.5 py-1 rounded border text-xs font-bold text-emerald-800"
                         />
                       </div>
                     ))}
@@ -2044,7 +2064,7 @@ export default function App() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Valor Contrato (R$)</label>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Valor Total Contrato (R$)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -2134,7 +2154,6 @@ export default function App() {
                             <button
                               onClick={() => {
                                 handleReceiveInstallment(viewingContractInstallments.id, inst.number);
-                                // Atualiza a visualização do modal atual
                                 const updated = contracts.find(c => c.id === viewingContractInstallments.id);
                                 if (updated) setViewingContractInstallments(updated);
                               }}
@@ -2161,6 +2180,35 @@ export default function App() {
                 className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold text-xs"
               >
                 Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CUSTOMIZADO DE EXCLUSÃO DE LANÇAMENTO */}
+      {deleteTxTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-extrabold text-rose-700">Excluir Lançamento?</h3>
+            <p className="text-xs text-slate-600">
+              Deseja realmente remover o lançamento <strong>{deleteTxTarget.id}</strong> ({deleteTxTarget.entity} — {formatCurrency(deleteTxTarget.amount)})?
+            </p>
+            <div className="flex justify-center gap-2 pt-2">
+              <button 
+                onClick={() => setDeleteTxTarget(null)} 
+                className="px-4 py-2 rounded-xl border font-bold text-xs text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={confirmDeleteTransaction} 
+                className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer"
+              >
+                Sim, Excluir
               </button>
             </div>
           </div>
