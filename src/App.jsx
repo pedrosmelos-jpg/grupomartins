@@ -254,10 +254,13 @@ const GrupoMartinsLogo = ({ size = 'md', theme = 'cream', className = '' }) => {
 };
 
 // ============================================================================
-// 2. CONSTANTES E PLANO DE CONTAS ESTRUTURADO PARA DRE
+// 2. CONSTANTES E PLANO DE CONTAS ESTRUTURADO PARA DRE (2026 a 2040)
 // ============================================================================
 const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const MONTH_NAMES_MAP = { '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez' };
+
+// Array de anos gerado automaticamente de 2026 até 2040
+const ANOS_DRE = Array.from({ length: 15 }, (_, i) => 2026 + i);
 
 const INITIAL_PLANO_CONTAS = {
   receitas: [
@@ -380,6 +383,9 @@ export default function App() {
   const [transactions, setTransactions] = useState([]);
   const [contracts, setContracts] = useState([]);
   const [clients, setClients] = useState([]);
+
+  // Estado do ano selecionado para visualização da DRE (2026 a 2040)
+  const [selectedDreYear, setSelectedDreYear] = useState(2026);
 
   // Plano de Contas dinâmico
   const [planoContasData, setPlanoContasData] = useState(INITIAL_PLANO_CONTAS);
@@ -548,55 +554,59 @@ export default function App() {
   };
 
   // ============================================================================
-  // CÁLCULO DINÂMICO DA DRE GERENCIAL (MÊS A MÊS + ACUMULADO + AV%)
+  // CÁLCULO DINÂMICO DA DRE GERENCIAL PARA O ANO SELECIONADO
   // ============================================================================
   const dreGerencialData = useMemo(() => {
     const monthsFull = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     
-    // Função auxiliar para somar transações de um código de plano de contas em um determinado mês
-    const getVal = (codigoConta, mesStr) => {
+    // Filtra transações do ano selecionado (baseado na data ou no mês)
+    const getVal = (codigoConta, mesStr, anoNum) => {
       return transactions
         .filter(t => t.status === 'Pago / Recebido' && (t.planoContas === codigoConta || (t.category || '').includes(codigoConta)))
         .filter(t => {
-          if (!mesStr) return true; // Se não passar mês, soma o ano todo
-          const mName = t.month || (t.date ? MONTH_NAMES_MAP[t.date.split('-')[1]] : '');
-          return mName === mesStr;
+          // Verifica o ano
+          if (t.date) {
+            const txAno = parseInt(t.date.split('-')[0], 10);
+            if (txAno !== anoNum) return false;
+          }
+          // Verifica o mês se especificado
+          if (mesStr) {
+            const mName = t.month || (t.date ? MONTH_NAMES_MAP[t.date.split('-')[1]] : '');
+            if (mName !== mesStr) return false;
+          }
+          return true;
         })
         .reduce((sum, cur) => sum + Number(cur.amount || 0), 0);
     };
 
-    // Monta linhas de Receitas
     const receitasRows = planoContasData.receitas.map(rev => {
       const mensalValues = {};
-      let totalAnual = 0;
+      let totalAno = 0;
       monthsFull.forEach(m => {
-        const val = getVal(rev.codigo, m);
+        const val = getVal(rev.codigo, m, selectedDreYear);
         mensalValues[m] = val;
-        totalAnual += val;
+        totalAno += val;
       });
-      return { codigo: rev.codigo, nome: rev.nome, mensalValues, totalAnual };
+      return { codigo: rev.codigo, nome: rev.nome, mensalValues, totalAnual: totalAno };
     });
 
     const receitaBrutaTotalAnual = receitasRows.reduce((acc, r) => acc + r.totalAnual, 0);
 
-    // Monta linhas de Despesas/Custos
     const despesasRows = planoContasData.despesas.map(desp => {
       const mensalValues = {};
-      let totalAnual = 0;
+      let totalAno = 0;
       monthsFull.forEach(m => {
-        const val = getVal(desp.codigo, m);
+        const val = getVal(desp.codigo, m, selectedDreYear);
         mensalValues[m] = val;
-        totalAnual += val;
+        totalAno += val;
       });
-      return { codigo: desp.codigo, nome: desp.nome, mensalValues, totalAnual };
+      return { codigo: desp.codigo, nome: desp.nome, mensalValues, totalAnual: totalAno };
     });
 
-    // Separando deduções/impostos (2.1.X), custos diretos (2.2.X) e despesas operacionais (2.3.X em diante)
     const impostosRows = despesasRows.filter(d => d.codigo.startsWith('2.1'));
     const custosDiretosRows = despesasRows.filter(d => d.codigo.startsWith('2.2') || d.codigo.startsWith('2.3'));
     const despesasOpRows = despesasRows.filter(d => d.codigo >= '2.4');
 
-    // Totais mensais
     const sumRowsMonth = (rows, m) => rows.reduce((acc, r) => acc + (r.mensalValues[m] || 0), 0);
     const sumRowsTotal = (rows) => rows.reduce((acc, r) => acc + r.totalAnual, 0);
 
@@ -608,6 +618,7 @@ export default function App() {
     const lucroLiquidoTotalAnual = lucroBrutoTotalAnual - despesasOpTotalAnual;
 
     return {
+      selectedDreYear,
       monthsFull,
       receitasRows,
       receitaBrutaTotalAnual,
@@ -623,7 +634,7 @@ export default function App() {
       sumRowsMonth,
       sumRowsTotal
     };
-  }, [transactions, planoContasData]);
+  }, [transactions, planoContasData, selectedDreYear]);
 
   const financialData = useMemo(() => {
     const receitaBrutaAnual = transactions.filter((t) => t.type === 'Entrada').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
@@ -752,7 +763,7 @@ export default function App() {
     if (!ctForm.client || contractVal <= 0) return;
 
     try {
-      const contractId = editingContract ? editingContract.id : `CT-2026-${String(contracts.length + 1).padStart(2, '0')}`;
+      const contractId = editingContract ? editingContract.id : `CT-${selectedDreYear}-${String(contracts.length + 1).padStart(2, '0')}`;
       
       let installments = [];
       const defaultInstVal = contractVal / nInstallments;
@@ -765,7 +776,7 @@ export default function App() {
         installments.push({
           number: i + 1,
           amount: instVal,
-          dueDate: ctForm.installmentDates[i] || '2026-12-30',
+          dueDate: ctForm.installmentDates[i] || `${selectedDreYear}-12-30`,
           status: existingInst ? existingInst.status : 'Pendente',
           paymentDate: existingInst?.paymentDate || null,
           interestPaid: existingInst?.interestPaid || 0
@@ -1071,12 +1082,12 @@ export default function App() {
     );
   };
 
-  // Função para exportar a DRE em Planilha Excel (.csv/.xlsx formatado)
+  // Função para exportar a DRE do ano selecionado em Excel (.csv)
   const exportDREToExcel = () => {
-    const { monthsFull, receitasRows, receitaBrutaTotalAnual, impostosRows, impostoTotalAnual, receitaLiquidaTotalAnual, custosDiretosRows, custosDiretosTotalAnual, lucroBrutoTotalAnual, despesasOpRows, despesasOpTotalAnual, lucroLiquidoTotalAnual } = dreGerencialData;
+    const { selectedDreYear, monthsFull, receitasRows, receitaBrutaTotalAnual, impostosRows, impostoTotalAnual, receitaLiquidaTotalAnual, custosDiretosRows, custosDiretosTotalAnual, lucroBrutoTotalAnual, despesasOpRows, despesasOpTotalAnual, lucroLiquidoTotalAnual } = dreGerencialData;
     
-    let csv = "\uFEFF"; // BOM para acentuação no Excel
-    csv += "ESTRUTURA DRE — GRUPO MARTINS (R$);" + monthsFull.join(";") + ";ACUMULADO 2026;AV %\n";
+    let csv = "\uFEFF";
+    csv += `ESTRUTURA DRE — GRUPO MARTINS (${selectedDreYear}) (R$);` + monthsFull.join(";") + `;ACUMULADO ${selectedDreYear};AV %\n`;
     
     csv += "1. RECEITA OPERACIONAL BRUTA;" + monthsFull.map(m => receitasRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0).toFixed(2)).join(";") + ";" + receitaBrutaTotalAnual.toFixed(2) + ";100,0%\n";
     receitasRows.forEach(r => {
@@ -1109,11 +1120,11 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", "DRE_Gerencial_GrupoMartins_2026.csv");
+    link.setAttribute("download", `DRE_Gerencial_GrupoMartins_${selectedDreYear}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast('Planilha DRE exportada com sucesso!');
+    showToast(`Planilha DRE (${selectedDreYear}) exportada com sucesso!`);
   };
 
   // Filtragem avançada das transações
@@ -1130,7 +1141,6 @@ export default function App() {
     });
   }, [transactions, txSearch, txTypeFilter, txCategoryFilter, txStatusFilter]);
   
-  // Filtragem de Contratos (Vencidos, Vencendo Hoje, A Vencer)
   const filteredContracts = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
 
@@ -1493,15 +1503,33 @@ export default function App() {
             <div className="space-y-6">
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-base font-extrabold text-[#1B3B2B]">DRE Gerencial Consolidada (Exercício 2026)</h3>
-                  <p className="text-xs text-slate-500">Valores atualizados em tempo real de acordo com as baixas realizadas no Livro Caixa.</p>
+                  <h3 className="text-base font-extrabold text-[#1B3B2B]">DRE Gerencial Consolidada (Exercício {selectedDreYear})</h3>
+                  <p className="text-xs text-slate-500">Selecione o ano desejado para visualizar a projeção e os lançamentos oficiais.</p>
                 </div>
-                <button
-                  onClick={exportDREToExcel}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] shadow cursor-pointer"
-                >
-                  <Download className="w-4 h-4" /> Exportar Planilha Excel (.xlsx)
-                </button>
+                
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Seletor de Anos (2026 a 2040) */}
+                  <div className="flex items-center gap-2 bg-[#F8F3EF] px-3 py-1.5 rounded-xl border border-[#D5CFC7]">
+                    <Calendar className="w-4 h-4 text-[#1B3B2B]" />
+                    <span className="text-xs font-extrabold text-[#1B3B2B]">Exercício:</span>
+                    <select
+                      value={selectedDreYear}
+                      onChange={(e) => setSelectedDreYear(Number(e.target.value))}
+                      className="bg-white px-2.5 py-1 rounded-lg border font-bold text-xs text-[#1B3B2B] cursor-pointer"
+                    >
+                      {ANOS_DRE.map(ano => (
+                        <option key={ano} value={ano}>{ano}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <button
+                    onClick={exportDREToExcel}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] shadow cursor-pointer"
+                  >
+                    <Download className="w-4 h-4" /> Exportar Planilha ({selectedDreYear})
+                  </button>
+                </div>
               </div>
 
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -1511,9 +1539,9 @@ export default function App() {
                       <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
                         <th className="py-3 px-3 min-w-[280px]">ESTRUTURA DRE — GRUPO MARTINS (R$)</th>
                         {dreGerencialData.monthsFull.map(m => (
-                          <th key={m} className="py-3 px-2 text-right">{m}/26</th>
+                          <th key={m} className="py-3 px-2 text-right">{m}/{String(selectedDreYear).slice(2)}</th>
                         ))}
-                        <th className="py-3 px-3 text-right bg-[#132A1F]">ACUMULADO 2026</th>
+                        <th className="py-3 px-3 text-right bg-[#132A1F]">ACUMULADO {selectedDreYear}</th>
                         <th className="py-3 px-3 text-center bg-[#132A1F]">AV %</th>
                       </tr>
                     </thead>
@@ -1913,7 +1941,7 @@ export default function App() {
                         contractValue: '',
                         directCosts: '',
                         installmentsCount: '1',
-                        installmentDates: ['2026-12-30', '', '', '', '', '', '', '', '', ''],
+                        installmentDates: [`${selectedDreYear}-12-30`, '', '', '', '', '', '', '', '', ''],
                         installmentAmounts: ['', '', '', '', '', '', '', '', '', ''],
                         paymentMethod: 'PIX'
                       });
@@ -1988,7 +2016,7 @@ export default function App() {
                                       contractValue: ct.contractValue,
                                       directCosts: ct.directCosts,
                                       installmentsCount: ct.installmentsCount,
-                                      installmentDates: ct.installmentsData?.map(i => i.dueDate) || ['2026-12-30'],
+                                      installmentDates: ct.installmentsData?.map(i => i.dueDate) || [`${selectedDreYear}-12-30`],
                                       installmentAmounts: ct.installmentsData?.map(i => i.amount) || [''],
                                       paymentMethod: ct.paymentMethod
                                     });
@@ -2139,7 +2167,7 @@ export default function App() {
               <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
                 <div>
                   <h2 className="text-base font-extrabold text-[#1B3B2B]">
-                    Parâmetros Financeiros e Metas — Grupo Martins (2026)
+                    Parâmetros Financeiros e Metas — Grupo Martins ({selectedDreYear})
                   </h2>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Ajuste o Saldo Inicial de Caixa, Meta de Faturamento e Pró-Labore Alvo do Sócio-Diretor Maikon Martins.
@@ -2193,7 +2221,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Gerenciamento do Plano de Contas (Adicionar, Editar e Excluir) */}
+              {/* Gerenciamento do Plano de Contas */}
               <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
                 <div className="flex items-center justify-between border-b pb-3">
                   <div>
@@ -2578,7 +2606,7 @@ export default function App() {
                         <span className="text-[11px] font-extrabold text-[#1B3B2B] w-16">Parc. {i+1}:</span>
                         <input
                           type="date"
-                          value={ctForm.installmentDates[i] || '2026-12-30'}
+                          value={ctForm.installmentDates[i] || `${selectedDreYear}-12-30`}
                           onChange={(e) => {
                             const newDates = [...ctForm.installmentDates];
                             newDates[i] = e.target.value;
