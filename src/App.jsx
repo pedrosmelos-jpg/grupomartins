@@ -424,19 +424,29 @@ export default function App() {
   const [txCategoryFilter, setTxCategoryFilter] = useState('Todas');
   const [txStatusFilter, setTxStatusFilter] = useState('Todos');
 
+  // Filtros avançados para Contratos (incluindo Vencimento)
   const [ctSearch, setCtSearch] = useState('');
   const [ctStatusFilter, setCtStatusFilter] = useState('Todos');
+  const [ctDueDateFilter, setCtDueDateFilter] = useState('Todos'); // 'Todos', 'Vencidos', 'Hoje', 'AVencer'
+
   const [cliSearch, setCliSearch] = useState('');
 
   const [showTxModal, setShowTxModal] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
   const [deleteTxTarget, setDeleteTxTarget] = useState(null);
   
-  // Modais de Contratos e Parcelas
+  // Modais de Contratos e Parcelas / Recebimento com Juros
   const [showContractModal, setShowContractModal] = useState(false);
   const [editingContract, setEditingContract] = useState(null);
   const [deleteContractTarget, setDeleteContractTarget] = useState(null);
   const [viewingContractInstallments, setViewingContractInstallments] = useState(null);
+
+  // Modal de Recebimento de Parcela Específica (com data de recebimento e juros)
+  const [receivingInstallmentData, setReceivingInstallmentData] = useState(null);
+  const [receiveForm, setReceiveForm] = useState({
+    paymentDate: new Date().toISOString().split('T')[0],
+    interestAmount: ''
+  });
 
   const [showClientModal, setShowClientModal] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
@@ -674,7 +684,6 @@ export default function App() {
         const customAmt = parseFloat(String(ctForm.installmentAmounts[i]).replace(',', '.'));
         const instVal = !isNaN(customAmt) && customAmt > 0 ? customAmt : defaultInstVal;
         
-        // Se já existia a parcela, mantém o status anterior (ex: se já estava 'Pago')
         const existingInst = editingContract?.installmentsData?.[i];
         installments.push({
           number: i + 1,
@@ -690,7 +699,7 @@ export default function App() {
         service: ctForm.service,
         agency: ctForm.agency,
         status: ctForm.status,
-        contractValue: contractVal,
+        contractValue: contractVal, // O valor do contrato permanece fixo e não reduz com juros
         receivedValue: installments.filter(i => i.status === 'Pago').reduce((acc, cur) => acc + Number(cur.amount), 0),
         directCosts: directVal,
         installmentsCount: String(nInstallments),
@@ -725,14 +734,32 @@ export default function App() {
     }
   };
 
-  // Receber parcela específica de um contrato e gerar lançamento no Livro Caixa
-  const handleReceiveInstallment = async (contractId, installmentNumber) => {
+  // Processar o recebimento com Data de Recebimento e Juros
+  const handleConfirmReceiveInstallment = async () => {
+    if (!receivingInstallmentData) return;
+    const { contractId, installmentNumber } = receivingInstallmentData;
+    
     const contract = contracts.find(c => c.id === contractId);
     if (!contract) return;
 
+    const targetInst = contract.installmentsData.find(i => i.number === installmentNumber);
+    if (!targetInst) return;
+
+    const baseAmount = Number(targetInst.amount || 0);
+    const interest = parseFloat(String(receiveForm.interestAmount).replace(',', '.')) || 0;
+    const totalReceivedWithInterest = baseAmount + interest;
+    const payDate = receiveForm.paymentDate || new Date().toISOString().split('T')[0];
+
+    // Atualiza status da parcela no contrato
     const updatedInstallments = contract.installmentsData.map(inst => {
       if (inst.number === installmentNumber) {
-        return { ...inst, status: 'Pago' };
+        return { 
+          ...inst, 
+          status: 'Pago', 
+          paymentDate: payDate, 
+          interestPaid: interest,
+          totalPaid: totalReceivedWithInterest 
+        };
       }
       return inst;
     });
@@ -750,24 +777,29 @@ export default function App() {
       await supabase.from('contracts').upsert([updatedContract]);
     }
 
-    const targetInst = updatedInstallments.find(i => i.number === installmentNumber);
+    // Cria o lançamento no Livro Caixa usando a DATA DE RECEBIMENTO e o VALOR TOTAL COM JUROS
     const tId = `MT-${String(transactions.length + 15).padStart(3, '0')}`;
     const monthNames = { '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez' };
-    const monthNum = (targetInst.dueDate || '2026-12-30').split('-')[1] || '12';
+    const monthNum = payDate.split('-')[1] || '12';
     const monthStr = monthNames[monthNum] || 'Dez';
+
+    let desc = `Parcela ${installmentNumber}/${contract.installmentsData.length} (${contract.paymentMethod}) — Contrato ${contractId}`;
+    if (interest > 0) {
+      desc += ` (Inclui Juros/Acréscimo: ${formatCurrency(interest)})`;
+    }
 
     const newTx = {
       id: tId,
-      date: targetInst.dueDate || '2026-12-30',
+      date: payDate, // Data de recebimento
       month: monthStr,
       type: 'Entrada',
       category: revenueCategories[0],
       entity: contract.client,
       contractId: contractId,
-      description: `Parcela ${installmentNumber}/${contract.installmentsData.length} (${contract.paymentMethod}) — Contrato ${contractId}`,
+      description: desc,
       paymentMethod: contract.paymentMethod,
       status: 'Pago / Recebido',
-      amount: Number(targetInst.amount)
+      amount: totalReceivedWithInterest // Valor total com juros
     };
 
     setTransactions(prev => [...prev, newTx]);
@@ -775,7 +807,9 @@ export default function App() {
       await supabase.from('transactions').upsert([newTx]);
     }
 
-    showToast(`Parcela ${installmentNumber} recebida e lançada no Livro Caixa!`);
+    showToast(`Parcela recebida! Valor total ${formatCurrency(totalReceivedWithInterest)} lançado no Caixa.`);
+    setReceivingInstallmentData(null);
+    setReceiveForm({ paymentDate: new Date().toISOString().split('T')[0], interestAmount: '' });
   };
 
   const confirmDeleteContract = async () => {
@@ -905,16 +939,35 @@ export default function App() {
     });
   }, [transactions, txSearch, txTypeFilter, txCategoryFilter, txStatusFilter]);
   
+  // Filtragem avançada de Contratos (incluindo Vencimento, Vencendo Hoje e A Vencer)
   const filteredContracts = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+
     return contracts.filter(c => {
       const matchSearch = (c.client || '').toLowerCase().includes(ctSearch.toLowerCase()) ||
         (c.service || '').toLowerCase().includes(ctSearch.toLowerCase()) ||
         (c.id || '').toLowerCase().includes(ctSearch.toLowerCase()) ||
         (c.agency || '').toLowerCase().includes(ctSearch.toLowerCase());
       const matchStatus = ctStatusFilter === 'Todos' || c.status === ctStatusFilter;
-      return matchSearch && matchStatus;
+
+      // Filtro de Vencimento baseado nas parcelas pendentes
+      let matchDueDate = true;
+      if (ctDueDateFilter !== 'Todos') {
+        const insts = c.installmentsData || [];
+        const pendingInsts = insts.filter(i => i.status !== 'Pago');
+
+        if (ctDueDateFilter === 'Vencidos') {
+          matchDueDate = pendingInsts.some(i => i.dueDate && i.dueDate < todayStr);
+        } else if (ctDueDateFilter === 'Hoje') {
+          matchDueDate = pendingInsts.some(i => i.dueDate && i.dueDate === todayStr);
+        } else if (ctDueDateFilter === 'AVencer') {
+          matchDueDate = pendingInsts.some(i => i.dueDate && i.dueDate > todayStr);
+        }
+      }
+
+      return matchSearch && matchStatus && matchDueDate;
     });
-  }, [contracts, ctSearch, ctStatusFilter]);
+  }, [contracts, ctSearch, ctStatusFilter, ctDueDateFilter]);
 
   const filteredClients = useMemo(() => clients.filter(cli => (cli.name || '').toLowerCase().includes(cliSearch.toLowerCase())), [clients, cliSearch]);
 
@@ -1459,7 +1512,19 @@ export default function App() {
                     className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
                   />
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Filtro de Vencimento de Contratos */}
+                  <select
+                    value={ctDueDateFilter}
+                    onChange={(e) => setCtDueDateFilter(e.target.value)}
+                    className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white text-[#1B3B2B]"
+                  >
+                    <option value="Todos">Vencimento: Todos</option>
+                    <option value="Vencidos">🔴 Vencidos</option>
+                    <option value="Hoje">🟡 Vencendo Hoje</option>
+                    <option value="AVencer">🟢 A Vencer</option>
+                  </select>
+
                   <select
                     value={ctStatusFilter}
                     onChange={(e) => setCtStatusFilter(e.target.value)}
@@ -1515,7 +1580,7 @@ export default function App() {
                     <tbody className="divide-y divide-slate-100">
                       {filteredContracts.length === 0 ? (
                         <tr>
-                          <td colSpan="10" className="py-8 text-center text-slate-400">Nenhum contrato cadastrado.</td>
+                          <td colSpan="10" className="py-8 text-center text-slate-400">Nenhum contrato cadastrado com os filtros selecionados.</td>
                         </tr>
                       ) : (
                         filteredContracts.map((ct) => {
@@ -2124,7 +2189,7 @@ export default function App() {
 
             <div className="space-y-3">
               <p className="text-xs text-slate-500 bg-emerald-50 p-3 rounded-xl border border-emerald-200">
-                Clique em <strong>"Receber Parcela"</strong> para confirmar o pagamento. Ao receber, o valor será lançado automaticamente no seu Livro Caixa.
+                Clique em <strong>"Receber Parcela"</strong> para informar a data de recebimento e eventuais juros. O valor total será lançado no Livro Caixa automaticamente.
               </p>
 
               <div className="border rounded-xl overflow-hidden">
@@ -2133,7 +2198,7 @@ export default function App() {
                     <tr className="bg-slate-100 font-bold uppercase text-slate-700 border-b">
                       <th className="p-3">Parcela</th>
                       <th className="p-3">Vencimento</th>
-                      <th className="p-3 text-right">Valor</th>
+                      <th className="p-3 text-right">Valor Parcela</th>
                       <th className="p-3 text-center">Status</th>
                       <th className="p-3 text-center">Ação</th>
                     </tr>
@@ -2146,16 +2211,22 @@ export default function App() {
                         <td className="p-3 text-right font-extrabold text-[#1B3B2B]">{formatCurrency(inst.amount)}</td>
                         <td className="p-3 text-center">
                           <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${inst.status === 'Pago' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                            {inst.status}
+                            {inst.status === 'Pago' ? `Pago em ${inst.paymentDate || '—'}` : 'Pendente'}
                           </span>
                         </td>
                         <td className="p-3 text-center">
                           {inst.status !== 'Pago' ? (
                             <button
                               onClick={() => {
-                                handleReceiveInstallment(viewingContractInstallments.id, inst.number);
-                                const updated = contracts.find(c => c.id === viewingContractInstallments.id);
-                                if (updated) setViewingContractInstallments(updated);
+                                setReceivingInstallmentData({
+                                  contractId: viewingContractInstallments.id,
+                                  installmentNumber: inst.number,
+                                  baseAmount: inst.amount
+                                });
+                                setReceiveForm({
+                                  paymentDate: new Date().toISOString().split('T')[0],
+                                  interestAmount: ''
+                                });
                               }}
                               className="px-3 py-1 bg-emerald-700 text-white font-bold rounded-lg text-[10px] hover:bg-emerald-800"
                             >
@@ -2181,6 +2252,75 @@ export default function App() {
               >
                 Fechar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMAÇÃO DE RECEBIMENTO (DATA E JUROS) */}
+      {receivingInstallmentData && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-emerald-200">
+            <h3 className="text-base font-extrabold text-[#1B3B2B]">Confirmar Recebimento de Parcela</h3>
+            <p className="text-xs text-slate-600">
+              Parcela <strong>{receivingInstallmentData.installmentNumber}</strong> — Valor base: <strong>{formatCurrency(receivingInstallmentData.baseAmount)}</strong>
+            </p>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">Data de Recebimento Efetiva</label>
+                <input
+                  type="date"
+                  value={receiveForm.paymentDate}
+                  onChange={(e) => setReceiveForm({ ...receiveForm, paymentDate: e.target.value })}
+                  className="w-full px-3.5 py-2 rounded-xl border font-bold bg-white"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">Valor de Juros / Multa / Acréscimo (R$)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={receiveForm.interestAmount}
+                  onChange={(e) => setReceiveForm({ ...receiveForm, interestAmount: e.target.value })}
+                  placeholder="0.00"
+                  className="w-full px-3.5 py-2 rounded-xl border font-bold text-amber-700"
+                />
+                <span className="text-[10px] text-slate-500 italic mt-1 block">
+                  * O valor dos juros será somado para o lançamento no Livro Caixa, mas não reduz nem altera o valor total original do contrato.
+                </span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border flex items-center justify-between">
+                <span className="font-bold text-slate-700">Total a Entrar no Caixa:</span>
+                <span className="font-black text-emerald-700 text-sm">
+                  {formatCurrency(Number(receivingInstallmentData.baseAmount) + (parseFloat(String(receiveForm.interestAmount).replace(',', '.')) || 0))}
+                </span>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setReceivingInstallmentData(null)}
+                  className="px-4 py-2 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleConfirmReceiveInstallment();
+                    // Atualiza a visualização do modal de parcelas se estiver aberto
+                    const updated = contracts.find(c => c.id === viewingContractInstallments?.id);
+                    if (updated) setViewingContractInstallments(updated);
+                  }}
+                  className="px-5 py-2 rounded-xl bg-emerald-700 text-white font-bold hover:bg-emerald-800 shadow-md cursor-pointer"
+                >
+                  Confirmar e Lançar no Caixa
+                </button>
+              </div>
             </div>
           </div>
         </div>
