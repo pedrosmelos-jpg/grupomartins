@@ -42,7 +42,8 @@ import {
   KeyRound,
   UserPlus,
   Cloud,
-  CloudRain
+  CloudRain,
+  Sliders
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -289,6 +290,16 @@ const INITIAL_PARAMETERS = {
   cidadeSede: 'Rondonópolis — MT'
 };
 
+const DEFAULT_PERMISSIONS = {
+  dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
+  prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
+  lancamentos: { view: true, create: true, edit: true, delete: false, approve: false },
+  dre: { view: true, create: false, edit: false, delete: false, approve: false },
+  contratos: { view: true, create: true, edit: true, delete: false, approve: false },
+  clientes: { view: true, create: true, edit: true, delete: false, approve: false },
+  acessos: { view: false, create: false, edit: false, delete: false, approve: false }
+};
+
 const INITIAL_ACCESS_ROLES = [
   {
     id: 'ROLE-01',
@@ -346,63 +357,6 @@ const INITIAL_ACCESS_ROLES = [
       clientes: { view: true, create: true, edit: true, delete: false, approve: false },
       acessos: { view: false, create: false, edit: false, delete: false, approve: false }
     }
-  },
-  {
-    id: 'ROLE-03',
-    level: 'Nível 3 — Ambiental',
-    name: 'Coordenação de Engenharia Ambiental (SEMA / IBAMA / CAR)',
-    holder: 'Eng. Ambiental & Equipe Geoprocessamento',
-    email: 'ambiental@grupomartins.eng.br',
-    password: 'martins2026',
-    badgeColor: 'bg-emerald-700 text-white',
-    description: 'Gestão técnica de processos LP/LI/LO, PRAD, PGRS, CAR e Outorgas.',
-    permissions: {
-      dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
-      prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
-      lancamentos: { view: false, create: true, edit: false, delete: false, approve: false },
-      dre: { view: false, create: false, edit: false, delete: false, approve: false },
-      contratos: { view: true, create: true, edit: true, delete: false, approve: false },
-      clientes: { view: true, create: true, edit: true, delete: false, approve: false },
-      acessos: { view: false, create: false, edit: false, delete: false, approve: false }
-    }
-  },
-  {
-    id: 'ROLE-04',
-    level: 'Nível 4 — MS SST',
-    name: 'Coordenação de Segurança do Trabalho (MS SST / eSocial)',
-    holder: 'Eng. Segurança & Técnicos SST',
-    email: 'sst@grupomartins.eng.br',
-    password: 'martins2026',
-    badgeColor: 'bg-amber-700 text-white',
-    description: 'Gestão de programas PGR, PCMSO, LTCAT, eventos no eSocial e treinamentos.',
-    permissions: {
-      dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
-      prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
-      lancamentos: { view: false, create: false, edit: false, delete: false, approve: false },
-      dre: { view: false, create: false, edit: false, delete: false, approve: false },
-      contratos: { view: true, create: true, edit: true, delete: false, approve: false },
-      clientes: { view: true, create: true, edit: true, delete: false, approve: false },
-      acessos: { view: false, create: false, edit: false, delete: false, approve: false }
-    }
-  },
-  {
-    id: 'ROLE-05',
-    level: 'Nível 5 — Comercial',
-    name: 'Comercial, Prospecção & Parceiros Agro/Industrial',
-    holder: 'Consultores Comerciais Externos',
-    email: 'comercial@grupomartins.eng.br',
-    password: 'martins2026',
-    badgeColor: 'bg-slate-700 text-white',
-    description: 'Prospecção de novos clientes no CRM Ambiental & SST e propostas.',
-    permissions: {
-      dashboard: { view: false, create: false, edit: false, delete: false, approve: false },
-      prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
-      lancamentos: { view: false, create: false, edit: false, delete: false, approve: false },
-      dre: { view: false, create: false, edit: false, delete: false, approve: false },
-      contratos: { view: true, create: true, edit: false, delete: false, approve: false },
-      clientes: { view: true, create: true, edit: true, delete: false, approve: false },
-      acessos: { view: false, create: false, edit: false, delete: false, approve: false }
-    }
   }
 ];
 
@@ -432,8 +386,9 @@ export default function App() {
 
   const [params, setParams] = useState(INITIAL_PARAMETERS);
 
-  // Estados do Modal de Novo Utilizador
+  // Estados de Cadastrar / Editar Permissões de Utilizador
   const [showUserRoleModal, setShowUserRoleModal] = useState(false);
+  const [editingRolePermissions, setEditingRolePermissions] = useState(null); // Role atualmente selecionada para flagar permissões
   const [newRoleForm, setNewRoleForm] = useState({
     level: 'Nível Especial — Colaborador',
     name: '',
@@ -487,7 +442,7 @@ export default function App() {
   }, [accessRoles, activeRoleId]);
 
   const hasPermission = (moduleKey, actionKey = 'view') => {
-    if (!currentRole || !currentRole.permissions[moduleKey]) return true;
+    if (!currentRole || !currentRole.permissions || !currentRole.permissions[moduleKey]) return true;
     return Boolean(currentRole.permissions[moduleKey][actionKey]);
   };
 
@@ -639,15 +594,7 @@ export default function App() {
       password: newRoleForm.password || 'martins2026',
       badgeColor: 'bg-[#1B3B2B] text-white',
       description: newRoleForm.description || 'Perfil personalizado de acesso.',
-      permissions: {
-        dashboard: { view: true, create: true, edit: true, delete: true, approve: true },
-        prolabore: { view: true, create: true, edit: true, delete: true, approve: true },
-        lancamentos: { view: true, create: true, edit: true, delete: true, approve: true },
-        dre: { view: true, create: true, edit: true, delete: true, approve: true },
-        contratos: { view: true, create: true, edit: true, delete: true, approve: true },
-        clientes: { view: true, create: true, edit: true, delete: true, approve: true },
-        acessos: { view: true, create: true, edit: true, delete: true, approve: true }
-      }
+      permissions: JSON.parse(JSON.stringify(DEFAULT_PERMISSIONS))
     };
     setAccessRoles([...accessRoles, newRole]);
     setShowUserRoleModal(false);
@@ -660,6 +607,27 @@ export default function App() {
       description: ''
     });
     showToast('Novo utilizador cadastrado com sucesso!');
+  };
+
+  const handlePermissionToggle = (roleId, moduleKey, actionKey) => {
+    setAccessRoles(prevRoles =>
+      prevRoles.map(role => {
+        if (role.id === roleId) {
+          const currentVal = role.permissions?.[moduleKey]?.[actionKey] || false;
+          return {
+            ...role,
+            permissions: {
+              ...role.permissions,
+              [moduleKey]: {
+                ...role.permissions[moduleKey],
+                [actionKey]: !currentVal
+              }
+            }
+          };
+        }
+        return role;
+      })
+    );
   };
 
   const filteredTransactions = useMemo(() => transactions.filter(t => (t.entity || '').toLowerCase().includes(txSearch.toLowerCase()) || (t.description || '').toLowerCase().includes(txSearch.toLowerCase())), [transactions, txSearch]);
@@ -1238,7 +1206,7 @@ export default function App() {
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
                 <div>
                   <h3 className="text-base font-extrabold text-[#1B3B2B]">Árvore de Acessos & Perfis</h3>
-                  <p className="text-xs text-slate-500">Gerencie os colaboradores e credenciais de acesso ao ERP.</p>
+                  <p className="text-xs text-slate-500">Gerencie colaboradores e configure permissões granulares por módulo.</p>
                 </div>
                 <button
                   onClick={() => setShowUserRoleModal(true)}
@@ -1250,14 +1218,28 @@ export default function App() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {accessRoles.map((role) => (
-                  <div key={role.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-                    <div className="font-extrabold text-[#1B3B2B]">{role.name}</div>
-                    <div className="text-xs text-slate-600">Titular: {role.holder}</div>
-                    <div className="text-xs text-slate-500">E-mail: {role.email}</div>
-                    <div className="text-[11px] text-slate-500 italic mt-1">{role.description}</div>
-                    <button onClick={() => setActiveRoleId(role.id)} className={`mt-2 w-full py-1.5 rounded-lg text-xs font-bold ${activeRoleId === role.id ? 'bg-[#1B3B2B] text-white' : 'bg-white text-[#1B3B2B] border'}`}>
-                      {activeRoleId === role.id ? 'Perfil Ativo' : 'Simular Perfil'}
-                    </button>
+                  <div key={role.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3 flex flex-col justify-between">
+                    <div className="space-y-1">
+                      <div className="font-extrabold text-[#1B3B2B]">{role.name}</div>
+                      <div className="text-xs text-slate-600">Titular: {role.holder}</div>
+                      <div className="text-xs text-slate-500">E-mail: {role.email}</div>
+                      <div className="text-[11px] text-slate-500 italic mt-1">{role.description}</div>
+                    </div>
+                    
+                    <div className="space-y-2 pt-2 border-t border-slate-200">
+                      <button
+                        onClick={() => setEditingRolePermissions(role)}
+                        className="w-full py-1.5 rounded-lg text-xs font-bold bg-emerald-800 text-white hover:bg-emerald-900 flex items-center justify-center gap-1.5"
+                      >
+                        <Sliders className="w-3.5 h-3.5" /> Configurar Permissões (Flags)
+                      </button>
+                      <button
+                        onClick={() => setActiveRoleId(role.id)}
+                        className={`w-full py-1.5 rounded-lg text-xs font-bold ${activeRoleId === role.id ? 'bg-[#1B3B2B] text-white' : 'bg-white text-[#1B3B2B] border'}`}
+                      >
+                        {activeRoleId === role.id ? 'Perfil Ativo' : 'Simular Perfil'}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1459,7 +1441,7 @@ export default function App() {
                 />
               </div>
               <div>
-                <label className="block font-bold mb-1">Descrição / Permissões</label>
+                <label className="block font-bold mb-1">Descrição</label>
                 <input
                   type="text"
                   value={newRoleForm.description}
@@ -1473,6 +1455,84 @@ export default function App() {
                 <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold">Cadastrar Utilizador</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CONFIGURAR PERMISSÕES (FLAGS) */}
+      {editingRolePermissions && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-[#1B3B2B]">Configurar Permissões (Flags)</h3>
+                <p className="text-xs text-slate-500">Perfil: <strong className="text-[#1B3B2B]">{editingRolePermissions.name}</strong> ({editingRolePermissions.holder})</p>
+              </div>
+              <button onClick={() => setEditingRolePermissions(null)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-xs text-slate-600 bg-emerald-50 p-3 rounded-xl border border-emerald-200">
+                Selecione abaixo as ações que este perfil tem autorização para realizar em cada módulo do ERP.
+              </p>
+
+              <div className="border rounded-xl overflow-hidden">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-700 font-bold uppercase border-b">
+                      <th className="p-3">Módulo do Sistema</th>
+                      <th className="p-3 text-center">Visualizar</th>
+                      <th className="p-3 text-center">Criar</th>
+                      <th className="p-3 text-center">Editar</th>
+                      <th className="p-3 text-center">Excluir</th>
+                      <th className="p-3 text-center">Aprovar</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {[
+                      { key: 'dashboard', label: 'Painel Executivo / KPIs' },
+                      { key: 'prolabore', label: 'Pró-Labore (Sócio)' },
+                      { key: 'lancamentos', label: 'Livro Caixa & Transações' },
+                      { key: 'dre', label: 'DRE Gerencial Mensal' },
+                      { key: 'contratos', label: 'Contratos Ambientais & SST' },
+                      { key: 'clientes', label: 'Cadastro de Clientes (CRM)' },
+                      { key: 'acessos', label: 'Árvore de Acessos & Perfis' }
+                    ].map(mod => {
+                      const perms = editingRolePermissions.permissions?.[mod.key] || { view: false, create: false, edit: false, delete: false, approve: false };
+                      return (
+                        <tr key={mod.key} className="hover:bg-slate-50">
+                          <td className="p-3 font-bold text-slate-800">{mod.label}</td>
+                          {['view', 'create', 'edit', 'delete', 'approve'].map(action => (
+                            <td key={action} className="p-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(perms[action])}
+                                onChange={() => handlePermissionToggle(editingRolePermissions.id, mod.key, action)}
+                                className="w-4 h-4 accent-[#1B3B2B] cursor-pointer"
+                              />
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t">
+              <button
+                onClick={() => {
+                  showToast('Permissões salvas com sucesso!');
+                  setEditingRolePermissions(null);
+                }}
+                className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-bold text-xs hover:bg-[#2D5A43]"
+              >
+                Concluir & Salvar Permissões
+              </button>
+            </div>
           </div>
         </div>
       )}
