@@ -255,22 +255,29 @@ const GrupoMartinsLogo = ({ size = 'md', theme = 'cream', className = '' }) => {
 // ============================================================================
 // 2. CONSTANTES E DADOS INICIAIS
 // ============================================================================
-const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const MONTHS_KEYS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const MONTHS_LABELS = ['JAN/26', 'FEV/26', 'MAR/26', 'ABR/26', 'MAI/26', 'JUN/26', 'JUL/26', 'AGO/26', 'SET/26', 'OUT/26', 'NOV/26', 'DEZ/26'];
 
 const REVENUE_CATEGORIES = [
   'Licenciamento Ambiental (LP / LI / LO)',
   'Planos Ambientais (PRAD / PGRS) e Auditorias',
-  'CAR, Georreferenciamento e Outorga de Água',
+  'CAR, Georreferenciamento e Outurga de Água',
   'Segurança do Trabalho (PGR / PCMSO / LTCAT)',
   'Gestão de eSocial SST e Treinamentos NRs'
 ];
 
-const EXPENSE_CATEGORIES = [
-  'Impostos sobre Faturamento (ISS / Simples / PIS-COFINS)',
+const DEDUCTION_CATEGORIES = [
+  'Impostos sobre Faturamento (ISS / Simples / PIS-COFINS)'
+];
+
+const DIRECT_COST_CATEGORIES = [
   'Taxas de Órgãos (SEMA-MT / IBAMA / CREA / ART)',
   'Análises Laboratoriais (Água / Solo / Efluentes) e Laudos',
   'Topografia, Geoprocessamento e Vistorias de Campo',
-  'Deslocamento, Combustível e Diárias Técnicas',
+  'Deslocamento, Combustível e Diárias Técnicas'
+];
+
+const OPERATIONAL_EXPENSE_CATEGORIES = [
   'Saque de Pró-Labore — Sócio Maikon Martins',
   'Folha de Pagamento Equipe Técnica e Encargos',
   'Comissões Comerciais e Prospecção de Clientes',
@@ -338,25 +345,6 @@ const INITIAL_ACCESS_ROLES = [
       clientes: { view: true, create: true, edit: true, delete: true, approve: true },
       acessos: { view: true, create: true, edit: true, delete: true, approve: true }
     }
-  },
-  {
-    id: 'ROLE-02',
-    level: 'Nível 2 — Financeiro',
-    name: 'Gestão Financeira & Faturamento',
-    holder: 'Aline Costa (Analista Financeira)',
-    email: 'financeiro@grupomartins.eng.br',
-    password: 'martins2026',
-    badgeColor: 'bg-teal-800 text-white',
-    description: 'Operação diária do Livro Caixa, emissão de boletos/NF, baixa de parcelas de contratos e cadastro de clientes.',
-    permissions: {
-      dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
-      prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
-      lancamentos: { view: true, create: true, edit: true, delete: false, approve: true },
-      dre: { view: true, create: false, edit: false, delete: false, approve: false },
-      contratos: { view: true, create: true, edit: true, delete: false, approve: false },
-      clientes: { view: true, create: true, edit: true, delete: false, approve: false },
-      acessos: { view: false, create: false, edit: false, delete: false, approve: false }
-    }
   }
 ];
 
@@ -377,7 +365,6 @@ export default function App() {
   const [contracts, setContracts] = useState([]);
   const [clients, setClients] = useState([]);
 
-  // Listas personalizáveis de Segmentos e Status
   const [availableSegments, setAvailableSegments] = useState([
     'Agronegócio / Propriedade Rural',
     'Indústria / Agroindústria',
@@ -407,7 +394,6 @@ export default function App() {
 
   const [params, setParams] = useState(INITIAL_PARAMETERS);
 
-  // Estados de Cadastrar / Editar Utilizador & Permissões
   const [showUserRoleModal, setShowUserRoleModal] = useState(false);
   const [editingRolePermissions, setEditingRolePermissions] = useState(null);
   const [newRoleForm, setNewRoleForm] = useState({
@@ -499,7 +485,6 @@ export default function App() {
     amount: ''
   });
 
-  // Estado completo do Contrato com Formas de Pagamento e Parcelas até 10x com datas editáveis
   const [ctForm, setCtForm] = useState({
     client: '',
     service: '',
@@ -526,6 +511,120 @@ export default function App() {
     status: 'Ativo'
   });
 
+  // ============================================================================
+  // 4. MOTOR DA DRE GERENCIAL (EXATAMENTE COMO NA SUA IMAGEM)
+  // ============================================================================
+  const dreData = useMemo(() => {
+    const getSum = (catName, mKey) => {
+      return transactions
+        .filter(t => t.category === catName && (t.month === mKey || t.date?.includes(`-11-`) && mKey === 'Nov'))
+        .reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    };
+
+    // Linha 1: Receita Operacional Bruta e Subitens
+    const revSubItems = REVENUE_CATEGORIES.map(cat => {
+      const monthsVals = MONTHS_KEYS.map(m => getSum(cat, m));
+      const total = monthsVals.reduce((a, b) => a + b, 0);
+      return { category: cat, monthsVals, total };
+    });
+
+    const receitaBrutaMonths = MONTHS_KEYS.map((_, idx) => revSubItems.reduce((acc, sub) => acc + sub.monthsVals[idx], 0));
+    const receitaBrutaTotal = receitaBrutaMonths.reduce((a, b) => a + b, 0);
+
+    // Linha 2: Deduções e Impostos
+    const dedSubItems = DEDUCTION_CATEGORIES.map(cat => {
+      const monthsVals = MONTHS_KEYS.map(m => getSum(cat, m));
+      const total = monthsVals.reduce((a, b) => a + b, 0);
+      return { category: cat, monthsVals, total };
+    });
+    const dedMonths = MONTHS_KEYS.map((_, idx) => dedSubItems.reduce((acc, sub) => acc + sub.monthsVals[idx], 0));
+    const dedTotal = dedMonths.reduce((a, b) => a + b, 0);
+
+    // Linha 3: Receita Operacional Líquida (= Bruta - Deduções)
+    const receitaLiqMonths = receitaBrutaMonths.map((bruta, idx) => bruta - dedMonths[idx]);
+    const receitaLiqTotal = receitaLiqMonths.reduce((a, b) => a + b, 0);
+
+    // Linha 4: Custos Diretos de Projetos e Campo (CSP)
+    const costSubItems = DIRECT_COST_CATEGORIES.map(cat => {
+      const monthsVals = MONTHS_KEYS.map(m => getSum(cat, m));
+      const total = monthsVals.reduce((a, b) => a + b, 0);
+      return { category: cat, monthsVals, total };
+    });
+    const costMonths = MONTHS_KEYS.map((_, idx) => costSubItems.reduce((acc, sub) => acc + sub.monthsVals[idx], 0));
+    const costTotal = costMonths.reduce((a, b) => a + b, 0);
+
+    // Lucro Bruto Operacional (= Receita Líquida - Custos)
+    const lucroBrutoMonths = receitaLiqMonths.map((liq, idx) => liq - costMonths[idx]);
+    const lucroBrutoTotal = lucroBrutoMonths.reduce((a, b) => a + b, 0);
+
+    // Linha 5: Despesas Operacionais, Comerciais e Pró-Labore
+    const expSubItems = OPERATIONAL_EXPENSE_CATEGORIES.map(cat => {
+      const monthsVals = MONTHS_KEYS.map(m => getSum(cat, m));
+      const total = monthsVals.reduce((a, b) => a + b, 0);
+      return { category: cat, monthsVals, total };
+    });
+    const expMonths = MONTHS_KEYS.map((_, idx) => expSubItems.reduce((acc, sub) => acc + sub.monthsVals[idx], 0));
+    const expTotal = expMonths.reduce((a, b) => a + b, 0);
+
+    // Linha 6: Lucro Líquido do Exercício (= Lucro Bruto - Despesas)
+    const lucroLiqMonths = lucroBrutoMonths.map((bruto, idx) => bruto - expMonths[idx]);
+    const lucroLiqTotal = lucroLiqMonths.reduce((a, b) => a + b, 0);
+
+    // Análise Vertical (AV %)
+    const getAV = (val) => receitaBrutaTotal > 0 ? (val / receitaBrutaTotal) * 100 : 0;
+
+    return {
+      revSubItems,
+      receitaBrutaMonths,
+      receitaBrutaTotal,
+      dedSubItems,
+      dedMonths,
+      dedTotal,
+      receitaLiqMonths,
+      receitaLiqTotal,
+      costSubItems,
+      costMonths,
+      costTotal,
+      lucroBrutoTotal,
+      expSubItems,
+      expMonths,
+      expTotal,
+      lucroLiqTotal,
+      getAV
+    };
+  }, [transactions]);
+
+  const handleExportDRECSV = () => {
+    const headers = ['ESTRUTURA DRE — GRUPO MARTINS (R$)', ...MONTHS_LABELS, 'ACUMULADO 2026', 'AV %'];
+    const rows = [];
+
+    rows.push(['1. RECEITA OPERACIONAL BRUTA', ...dreData.receitaBrutaMonths.map(v => v.toFixed(2)), dreData.receitaBrutaTotal.toFixed(2), '100,0%']);
+    dreData.revSubItems.forEach(sub => {
+      rows.push([`  (+) ${sub.category}`, ...sub.monthsVals.map(v => v.toFixed(2)), sub.total.toFixed(2), `${dreData.getAV(sub.total).toFixed(1)}%`]);
+    });
+    rows.push(['2. (-) DEDUÇÕES E IMPOSTOS SOBRE FATURAMENTO', ...dreData.dedMonths.map(v => v.toFixed(2)), dreData.dedTotal.toFixed(2), `${dreData.getAV(dreData.dedTotal).toFixed(1)}%`]);
+    rows.push(['3. (=) RECEITA OPERACIONAL LÍQUIDA', ...dreData.receitaLiqMonths.map(v => v.toFixed(2)), dreData.receitaLiqTotal.toFixed(2), `${dreData.getAV(dreData.receitaLiqTotal).toFixed(1)}%`]);
+    rows.push(['4. (-) CUSTOS DIRETOS DE PROJETOS E CAMPO (CSP)', ...dreData.costMonths.map(v => v.toFixed(2)), dreData.costTotal.toFixed(2), `${dreData.getAV(dreData.costTotal).toFixed(1)}%`]);
+    dreData.costSubItems.forEach(sub => {
+      rows.push([`  (-) ${sub.category}`, ...sub.monthsVals.map(v => v.toFixed(2)), sub.total.toFixed(2), `${dreData.getAV(sub.total).toFixed(1)}%`]);
+    });
+    rows.push(['5. (-) DESPESAS OPERACIONAIS, COMERCIAIS E PRÓ-LABORE', ...dreData.expMonths.map(v => v.toFixed(2)), dreData.expTotal.toFixed(2), `${dreData.getAV(dreData.expTotal).toFixed(1)}%`]);
+    dreData.expSubItems.forEach(sub => {
+      rows.push([`  (-) ${sub.category}`, ...sub.monthsVals.map(v => v.toFixed(2)), sub.total.toFixed(2), `${dreData.getAV(sub.total).toFixed(1)}%`]);
+    });
+    rows.push(['6. (=) LUCRO LÍQUIDO DO EXERCÍCIO (APÓS PRÓ-LABORE)', ...dreData.lucroLiqMonths.map(v => v.toFixed(2)), dreData.lucroLiqTotal.toFixed(2), `${dreData.getAV(dreData.lucroLiqTotal).toFixed(1)}%`]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(';'), ...rows.map(e => e.join(';'))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', 'DRE_Gerencial_Grupo_Martins_2026.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Planilha DRE exportada com sucesso!');
+  };
+
   const financialData = useMemo(() => {
     const receitaBrutaAnual = transactions.filter((t) => t.type === 'Entrada').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
     const saidasTotaisAnual = transactions.filter((t) => t.type === 'Saída').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
@@ -536,14 +635,13 @@ export default function App() {
     const proLaborePago = transactions.filter((t) => t.category === proLaboreCat && t.status === 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
 
     const entradasRealizadas = transactions.filter((t) => t.type === 'Entrada' && t.status === 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
-    const saidasRealizadas = transactions.filter((t) => t.type === 'Saída' && t.status === 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
-    const saldoAtualCaixa = Number(params.saldoInicialCaixa || 0) + entradasRealizadas - saidasRealizadas;
+    const saldoAtualCaixa = Number(params.saldoInicialCaixa || 0) + entradasRealizadas - saidasTotaisAnual;
 
     const contasAReceber = transactions.filter((t) => t.type === 'Entrada' && t.status !== 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
     const contasAPagar = transactions.filter((t) => t.type === 'Saída' && t.status !== 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
 
     let runningBalance = Number(params.saldoInicialCaixa || 0);
-    const monthlySeries = MONTHS.map((m) => {
+    const monthlySeries = MONTHS_KEYS.map((m) => {
       const mTxs = transactions.filter((t) => t.month === m);
       const entradas = mTxs.filter((t) => t.type === 'Entrada').reduce((a, b) => a + Number(b.amount || 0), 0);
       const saidas = mTxs.filter((t) => t.type === 'Saída').reduce((a, b) => a + Number(b.amount || 0), 0);
@@ -557,11 +655,9 @@ export default function App() {
       return { category: cat, shortName: cat.split(' (')[0], value, share: receitaBrutaAnual > 0 ? value / receitaBrutaAnual : 0 };
     }).sort((a, b) => b.value - a.value);
 
-    // Métricas dos Contratos
     const totalContratado = contracts.reduce((acc, c) => acc + Number(c.contractValue || 0), 0);
     const totalRecebidoContratos = contracts.reduce((acc, c) => acc + Number(c.receivedValue || 0), 0);
     const saldoAFaturar = totalContratado - totalRecebidoContratos;
-    
     let totalCustoContratos = contracts.reduce((acc, c) => acc + Number(c.directCosts || 0), 0);
     const margemMedia = totalContratado > 0 ? ((totalContratado - totalCustoContratos) / totalContratado) * 100 : 88.2;
 
@@ -627,7 +723,6 @@ export default function App() {
       await supabase.from('contracts').upsert(contractData);
     }
 
-    // Gerar parcelas no Livro Caixa automaticamente
     if (!editingContract) {
       const installmentVal = contractVal / nInstallments;
       const newTxs = [];
@@ -1185,9 +1280,168 @@ export default function App() {
             </div>
           )}
 
+          {/* ======================================================== */}
+          {/* ABA DRE GERENCIAL (EXATAMENTE IDÊNTICA À SUA IMAGEM)     */}
+          {/* ======================================================== */}
+          {activeTab === 'dre' && (
+            <div className="space-y-6">
+              {/* TOP CARDS DA DRE */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
+                  <div>
+                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">LUCRO BRUTO OPERACIONAL</div>
+                    <div className="text-2xl font-black text-[#1B3B2B] mt-1">{formatCurrency(dreData.lucroBrutoTotal)}</div>
+                  </div>
+                  <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                    <TrendingUp className="w-6 h-6" />
+                  </div>
+                </div>
+                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
+                  <div>
+                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">RESULTADO LÍQUIDO FINAL</div>
+                    <div className="text-2xl font-black text-emerald-700 mt-1">
+                      {formatCurrency(dreData.lucroLiqTotal)} ({dreData.getAV(dreData.lucroLiqTotal).toFixed(1).replace('.', ',')}%)
+                    </div>
+                  </div>
+                  <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                    <DollarSign className="w-6 h-6" />
+                  </div>
+                </div>
+              </div>
+
+              {/* BARRA DE TÍTULO E BOTÃO DE GERAR PLANILHA */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <div className="text-xs uppercase tracking-widest text-[#1B3B2B] font-semibold">REGIME DE COMPETÊNCIA • CONTABILIDADE GERENCIAL</div>
+                  <h2 className="text-lg font-black text-[#1B3B2B] mt-0.5">DRE — Demonstrativo do Resultado do Exercício (Jan a Dez 2026)</h2>
+                  <p className="text-xs text-slate-500">Integração 100% automática com os lançamentos e separação contábil do Pró-Labore do Sócio Maikon Martins.</p>
+                </div>
+                <button
+                  onClick={handleExportDRECSV}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] shadow cursor-pointer"
+                >
+                  <Download className="w-4 h-4" /> Gerar Planilha DRE (CSV)
+                </button>
+              </div>
+
+              {/* TABELA DRE COMPLETA */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[10px]">
+                        <th className="py-3 px-3 min-w-[280px]">ESTRUTURA DRE — GRUPO MARTINS (R$)</th>
+                        {MONTHS_LABELS.map(m => (
+                          <th key={m} className="py-3 px-2 text-right">{m}</th>
+                        ))}
+                        <th className="py-3 px-3 text-right">ACUMULADO 2026</th>
+                        <th className="py-3 px-3 text-center">AV %</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {/* 1. RECEITA OPERACIONAL BRUTA */}
+                      <tr className="bg-slate-100 font-extrabold text-[#1B3B2B]">
+                        <td className="py-3 px-3">1. RECEITA OPERACIONAL BRUTA</td>
+                        {dreData.receitaBrutaMonths.map((v, i) => (
+                          <td key={i} className="py-3 px-2 text-right">{v > 0 ? v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'}</td>
+                        ))}
+                        <td className="py-3 px-3 text-right">{dreData.receitaBrutaTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="py-3 px-3 text-center">100,0%</td>
+                      </tr>
+                      {dreData.revSubItems.map(sub => (
+                        <tr key={sub.category} className="hover:bg-slate-50 text-slate-700">
+                          <td className="py-2 px-4 text-slate-600">(+) {sub.category}</td>
+                          {sub.monthsVals.map((v, i) => (
+                            <td key={i} className="py-2 px-2 text-right text-slate-600">{v > 0 ? v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'}</td>
+                          ))}
+                          <td className="py-2 px-3 text-right font-semibold text-slate-800">{sub.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                          <td className="py-2 px-3 text-center text-slate-500">{dreData.getAV(sub.total).toFixed(1).replace('.', ',')}%</td>
+                        </tr>
+                      ))}
+
+                      {/* 2. DEDUÇÕES E IMPOSTOS */}
+                      <tr className="bg-rose-50/60 font-bold text-rose-900">
+                        <td className="py-3 px-3">2. (-) DEDUÇÕES E IMPOSTOS SOBRE FATURAMENTO</td>
+                        {dreData.dedMonths.map((v, i) => (
+                          <td key={i} className="py-3 px-2 text-right">{v > 0 ? v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'}</td>
+                        ))}
+                        <td className="py-3 px-3 text-right">{dreData.dedTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="py-3 px-3 text-center">{dreData.getAV(dreData.dedTotal).toFixed(1).replace('.', ',')}%</td>
+                      </tr>
+
+                      {/* 3. RECEITA OPERACIONAL LÍQUIDA */}
+                      <tr className="bg-emerald-50/70 font-extrabold text-[#1B3B2B]">
+                        <td className="py-3 px-3">3. (=) RECEITA OPERACIONAL LÍQUIDA</td>
+                        {dreData.receitaLiqMonths.map((v, i) => (
+                          <td key={i} className="py-3 px-2 text-right">{v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        ))}
+                        <td className="py-3 px-3 text-right">{dreData.receitaLiqTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="py-3 px-3 text-center">{(dreData.getAV(dreData.receitaLiqTotal)).toFixed(1).replace('.', ',')}%</td>
+                      </tr>
+
+                      {/* 4. CUSTOS DIRETOS */}
+                      <tr className="bg-rose-50/60 font-bold text-rose-900">
+                        <td className="py-3 px-3">4. (-) CUSTOS DIRETOS DE PROJETOS E CAMPO (CSP)</td>
+                        {dreData.costMonths.map((v, i) => (
+                          <td key={i} className="py-3 px-2 text-right">{v > 0 ? v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'}</td>
+                        ))}
+                        <td className="py-3 px-3 text-right">{dreData.costTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="py-3 px-3 text-center">{dreData.getAV(dreData.costTotal).toFixed(1).replace('.', ',')}%</td>
+                      </tr>
+                      {dreData.costSubItems.map(sub => (
+                        <tr key={sub.category} className="hover:bg-slate-50 text-slate-700">
+                          <td className="py-2 px-4 text-slate-600">(-) {sub.category}</td>
+                          {sub.monthsVals.map((v, i) => (
+                            <td key={i} className="py-2 px-2 text-right text-slate-600">{v > 0 ? v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'}</td>
+                          ))}
+                          <td className="py-2 px-3 text-right font-semibold text-slate-800">{sub.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                          <td className="py-2 px-3 text-center text-slate-500">{dreData.getAV(sub.total).toFixed(1).replace('.', ',')}%</td>
+                        </tr>
+                      ))}
+
+                      {/* 5. DESPESAS OPERACIONAIS */}
+                      <tr className="bg-rose-50/60 font-bold text-rose-900">
+                        <td className="py-3 px-3">5. (-) DESPESAS OPERACIONAIS, COMERCIAIS E PRÓ-LABORE</td>
+                        {dreData.expMonths.map((v, i) => (
+                          <td key={i} className="py-3 px-2 text-right">{v > 0 ? v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'}</td>
+                        ))}
+                        <td className="py-3 px-3 text-right">{dreData.expTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="py-3 px-3 text-center">{dreData.getAV(dreData.expTotal).toFixed(1).replace('.', ',')}%</td>
+                      </tr>
+                      {dreData.expSubItems.map(sub => (
+                        <tr key={sub.category} className="hover:bg-slate-50 text-slate-700">
+                          <td className="py-2 px-4 text-slate-600">
+                            {sub.category.includes('Pró-Labore') ? <strong className="text-[#1B3B2B]">★ (-) {sub.category}</strong> : `(-) ${sub.category}`}
+                          </td>
+                          {sub.monthsVals.map((v, i) => (
+                            <td key={i} className={`py-2 px-2 text-right ${sub.category.includes('Pró-Labore') ? 'font-bold text-[#1B3B2B]' : 'text-slate-600'}`}>
+                              {v > 0 ? v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'}
+                            </td>
+                          ))}
+                          <td className="py-2 px-3 text-right font-semibold text-slate-800">{sub.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                          <td className="py-2 px-3 text-center text-slate-500">{dreData.getAV(sub.total).toFixed(1).replace('.', ',')}%</td>
+                        </tr>
+                      ))}
+
+                      {/* 6. LUCRO LÍQUIDO DO EXERCÍCIO */}
+                      <tr className="bg-[#1B3B2B] text-white font-black text-sm">
+                        <td className="py-3.5 px-3">6. (=) LUCRO LÍQUIDO DO EXERCÍCIO (APÓS PRÓ-LABORE)</td>
+                        {dreData.lucroLiqMonths.map((v, i) => (
+                          <td key={i} className="py-3.5 px-2 text-right">{v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        ))}
+                        <td className="py-3.5 px-3 text-right">{dreData.lucroLiqTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="py-3 px-3 text-center text-emerald-300">{dreData.getAV(dreData.lucroLiqTotal).toFixed(1).replace('.', ',')}%</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'contratos' && (
             <div className="space-y-6">
-              {/* TOP CARDS DE CONTRATOS IDÊNTICOS À SUA IMAGEM */}
+              {/* TOP CARDS DE CONTRATOS */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
                   <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">VALOR TOTAL CONTRATADO ({contracts.length} CONTRATOS)</div>
@@ -1211,7 +1465,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* BARRA DE PESQUISA, FILTRO E BOTÃO */}
+              {/* BARRA DE PESQUISA E BOTÃO */}
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
                 <div className="relative flex-1 min-w-[280px]">
                   <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
@@ -1525,7 +1779,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CONTRATO (COM FORMAS DE PAGAMENTO E PARCELAMENTO ATÉ 10X COM DATAS EDITÁVEIS) */}
+      {/* MODAL CONTRATO (COM PARCELAMENTO ATÉ 10X E FORMAS DE PAGAMENTO) */}
       {showContractModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
