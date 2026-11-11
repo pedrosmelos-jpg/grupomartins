@@ -678,28 +678,39 @@ export default function App() {
 
 const handleSaveClient = async (e) => {
     e.preventDefault();
-    if (!cliForm.name) return;
-    const clientId = editingClient ? editingClient.id : `CLI-${String(clients.length + 1).padStart(3, '0')}`;
-    const clientData = { id: clientId, ...cliForm };
+    if (!cliForm.name) {
+      alert('Por favor, preencha o nome/razão social.');
+      return;
+    }
 
-    // 1. Salva diretamente na tabela 'clients' do Supabase
-    if (supabase) {
-      const { error } = await supabase.from('clients').upsert([clientData]);
-      if (error) {
-        console.error('Erro ao salvar no Supabase:', error);
-        return;
+    try {
+      const clientId = editingClient ? editingClient.id : `CLI-${String(clients.length + 1).padStart(3, '0')}`;
+      const clientData = { id: clientId, ...cliForm };
+
+      console.log('Salvando cliente:', clientData);
+
+      if (supabase) {
+        const { error } = await supabase.from('clients').upsert([clientData]);
+        if (error) {
+          console.error('Erro detalhado do Supabase:', error);
+          alert('Erro ao salvar no Supabase: ' + error.message);
+          return;
+        }
       }
-    }
 
-    // 2. Atualiza a lista na tela e puxa os dados atualizados do banco
-    setClients(prev => editingClient ? prev.map(c => c.id === clientId ? clientData : c) : [...prev, clientData]);
-    
-    if (supabase) {
-      const { data } = await supabase.from('clients').select('*');
-      if (data) setClients(data);
-    }
+      setClients(prev => editingClient ? prev.map(c => c.id === clientId ? clientData : c) : [...prev, clientData]);
+      
+      if (supabase) {
+        const { data, error: fetchError } = await supabase.from('clients').select('*');
+        if (!fetchError && data) setClients(data);
+      }
 
-    setShowClientModal(false);
+      setShowClientModal(false);
+      alert('Cliente salvo com sucesso!');
+    } catch (err) {
+      console.error('Erro crítico ao salvar:', err);
+      alert('Erro ao processar o salvamento.');
+    }
   };
 
   const handleSaveNewUserRole = (e) => {
