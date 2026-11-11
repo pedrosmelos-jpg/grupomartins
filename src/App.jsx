@@ -306,6 +306,7 @@ const DEFAULT_PERMISSIONS = {
   acessos: { view: false, create: false, edit: false, delete: false, approve: false }
 };
 
+// Apenas o perfil do Pedro Melo mantido
 const INITIAL_ACCESS_ROLES = [
   {
     id: 'ROLE-01-PEDRO',
@@ -353,7 +354,9 @@ export default function App() {
   const [showPlanoModal, setShowPlanoModal] = useState(false);
   const [planoForm, setPlanoForm] = useState({ tipo: 'receitas', codigo: '', nome: '', originalCodigo: null });
 
-  // Segmentos e Status do Cliente Dinâmicos (com opção de adicionar, editar e excluir)
+  // Estado para Edição de Perfil na Árvore de Acessos
+  const [editingRoleTarget, setEditingRoleTarget] = useState(null);
+
   const [availableSegments, setAvailableSegments] = useState([
     'Agronegócio / Propriedade Rural',
     'Indústria / Agroindústria',
@@ -368,18 +371,6 @@ export default function App() {
     'Pendência Documental',
     'Inativo'
   ]);
-
-  // Modais de Gerenciamento de Segmentos e Status
-  const [showSegmentModal, setShowSegmentModal] = useState(false);
-  const [segmentInput, setSegmentInput] = useState('');
-  const [editingSegmentIndex, setEditingSegmentIndex] = useState(null);
-
-  const [showStatusModal, setShowStatusModal] = useState(false);
-  const [statusInput, setStatusInput] = useState('');
-  const [editingStatusIndex, setEditingStatusIndex] = useState(null);
-
-  // Estado para Edição de Perfil na Árvore de Acessos
-  const [editingRoleTarget, setEditingRoleTarget] = useState(null);
 
   const [accessRoles, setAccessRoles] = useState(INITIAL_ACCESS_ROLES);
   const [activeRoleId, setActiveRoleId] = useState('ROLE-01-PEDRO');
@@ -430,7 +421,7 @@ export default function App() {
 
   const [cancelInstallmentTarget, setCancelInstallmentTarget] = useState(null);
 
-  // Estados para CRUD de Clientes
+  // Estados para CRUD de Clientes (Adicionar, Editar e Excluir)
   const [showClientModal, setShowClientModal] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [deleteClientTarget, setDeleteClientTarget] = useState(null);
@@ -473,13 +464,13 @@ export default function App() {
     name: '',
     document: '',
     registration: '',
-    segment: availableSegments[0] || '',
+    segment: 'Agronegócio / Propriedade Rural',
     city: 'Rondonópolis — MT',
     contactName: '',
     phone: '',
     email: '',
     mainProgram: 'Licenciamento Ambiental (LP / LI / LO)',
-    status: availableStatuses[0] || 'Ativo'
+    status: 'Ativo'
   });
 
   // Sincronização Supabase
@@ -954,6 +945,7 @@ export default function App() {
     setDeleteContractTarget(null);
   };
 
+  // Funções para Salvar, Editar e Excluir Clientes
   const handleSaveClient = async (e) => {
     e.preventDefault();
     if (!cliForm.name) {
@@ -2056,13 +2048,13 @@ export default function App() {
                       name: '',
                       document: '',
                       registration: '',
-                      segment: availableSegments[0] || '',
+                      segment: availableSegments[0],
                       city: 'Rondonópolis — MT',
                       contactName: '',
                       phone: '',
                       email: '',
                       mainProgram: 'Licenciamento Ambiental (LP / LI / LO)',
-                      status: availableStatuses[0] || 'Ativo'
+                      status: availableStatuses[0]
                     });
                     setShowClientModal(true);
                   }}
@@ -2260,113 +2252,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Gerenciamento de Segmentos e Status do Cliente (Novo) */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Segmentos */}
-                <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between border-b pb-3">
-                    <div>
-                      <h3 className="text-xs font-extrabold text-[#1B3B2B] uppercase">Segmentos Econômicos de Clientes</h3>
-                      <p className="text-[11px] text-slate-500">Adicione, edite ou remova segmentos do CRM.</p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setEditingSegmentIndex(null);
-                        setSegmentInput('');
-                        setShowSegmentModal(true);
-                      }}
-                      className="px-3 py-1.5 bg-[#1B3B2B] text-white rounded-xl text-xs font-bold hover:bg-[#2D5A43] cursor-pointer flex items-center gap-1"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Novo Segmento
-                    </button>
-                  </div>
-                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                    {availableSegments.map((seg, idx) => (
-                      <div key={seg} className="flex items-center justify-between p-2.5 rounded-xl border bg-slate-50 text-xs">
-                        <span className="font-semibold text-slate-700">{seg}</span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => {
-                              setEditingSegmentIndex(idx);
-                              setSegmentInput(seg);
-                              setShowSegmentModal(true);
-                            }}
-                            className="p-1 text-teal-800 hover:bg-teal-50 rounded cursor-pointer"
-                            title="Editar Segmento"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (window.confirm(`Deseja excluir o segmento "${seg}"?`)) {
-                                setAvailableSegments(availableSegments.filter((_, i) => i !== idx));
-                                showToast('Segmento excluído!');
-                              }
-                            }}
-                            className="p-1 text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
-                            title="Excluir Segmento"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Status do Cliente */}
-                <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between border-b pb-3">
-                    <div>
-                      <h3 className="text-xs font-extrabold text-[#1B3B2B] uppercase">Status de Clientes (CRM)</h3>
-                      <p className="text-[11px] text-slate-500">Adicione, edite ou remova status do cadastro.</p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setEditingStatusIndex(null);
-                        setStatusInput('');
-                        setShowStatusModal(true);
-                      }}
-                      className="px-3 py-1.5 bg-[#1B3B2B] text-white rounded-xl text-xs font-bold hover:bg-[#2D5A43] cursor-pointer flex items-center gap-1"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Novo Status
-                    </button>
-                  </div>
-                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                    {availableStatuses.map((st, idx) => (
-                      <div key={st} className="flex items-center justify-between p-2.5 rounded-xl border bg-slate-50 text-xs">
-                        <span className="font-semibold text-slate-700">{st}</span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => {
-                              setEditingStatusIndex(idx);
-                              setStatusInput(st);
-                              setShowStatusModal(true);
-                            }}
-                            className="p-1 text-teal-800 hover:bg-teal-50 rounded cursor-pointer"
-                            title="Editar Status"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (window.confirm(`Deseja excluir o status "${st}"?`)) {
-                                setAvailableStatuses(availableStatuses.filter((_, i) => i !== idx));
-                                showToast('Status excluído!');
-                              }
-                            }}
-                            className="p-1 text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
-                            title="Excluir Status"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
               {/* Gerenciamento do Plano de Contas */}
               <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
                 <div className="flex items-center justify-between border-b pb-3">
@@ -2469,88 +2354,6 @@ export default function App() {
           )}
         </main>
       </div>
-
-      {/* MODAL GERENCIAR SEGMENTO */}
-      {showSegmentModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="text-base font-extrabold text-[#1B3B2B]">
-              {editingSegmentIndex !== null ? 'Editar Segmento' : 'Novo Segmento Econômico'}
-            </h3>
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              if (!segmentInput.trim()) return;
-              const updated = [...availableSegments];
-              if (editingSegmentIndex !== null) {
-                updated[editingSegmentIndex] = segmentInput.trim();
-              } else {
-                updated.push(segmentInput.trim());
-              }
-              setAvailableSegments(updated);
-              showToast('Segmento salvo com sucesso!');
-              setShowSegmentModal(false);
-              setSegmentInput('');
-            }} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold mb-1">Nome do Segmento</label>
-                <input
-                  type="text"
-                  value={segmentInput}
-                  onChange={(e) => setSegmentInput(e.target.value)}
-                  placeholder="Ex: Energias Renováveis"
-                  className="w-full px-3 py-2 rounded-xl border font-bold"
-                  required
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowSegmentModal(false)} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL GERENCIAR STATUS DE CLIENTE */}
-      {showStatusModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="text-base font-extrabold text-[#1B3B2B]">
-              {editingStatusIndex !== null ? 'Editar Status' : 'Novo Status de Cliente'}
-            </h3>
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              if (!statusInput.trim()) return;
-              const updated = [...availableStatuses];
-              if (editingStatusIndex !== null) {
-                updated[editingStatusIndex] = statusInput.trim();
-              } else {
-                updated.push(statusInput.trim());
-              }
-              setAvailableStatuses(updated);
-              showToast('Status salvo com sucesso!');
-              setShowStatusModal(false);
-              setStatusInput('');
-            }} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold mb-1">Nome do Status</label>
-                <input
-                  type="text"
-                  value={statusInput}
-                  onChange={(e) => setStatusInput(e.target.value)}
-                  placeholder="Ex: Em Negociação"
-                  className="w-full px-3 py-2 rounded-xl border font-bold"
-                  required
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowStatusModal(false)} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* MODAL EDITAR PERFIL NA ÁRVORE DE ACESSOS */}
       {editingRoleTarget && (
@@ -3211,6 +3014,378 @@ export default function App() {
               <button onClick={() => setDeleteContractTarget(null)} className="px-4 py-2 rounded-xl border font-bold text-xs">Cancelar</button>
               <button onClick={confirmDeleteContract} className="px-4 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700">Sim, Excluir</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CADASTRAR / EDITAR CLIENTE (CRM) */}
+      {showClientModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B]">
+            <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
+              <h3 className="text-base font-extrabold">{editingClient ? 'Editar Cliente / CRM' : 'Novo Cadastro de Cliente — CRM Ambiental & SST'}</h3>
+              <button onClick={() => { setShowClientModal(false); setEditingClient(null); }} className="text-white hover:text-emerald-300">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveClient} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">RAZÃO SOCIAL / NOME DA FAZENDA OU EMPREENDIMENTO</label>
+                <input
+                  type="text"
+                  value={cliForm.name}
+                  onChange={(e) => setCliForm({ ...cliForm, name: e.target.value })}
+                  placeholder="Ex: Agropecuária Rio Vermelho S/A (Fazenda São João)"
+                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-slate-800"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">CNPJ / CPF</label>
+                  <input
+                    type="text"
+                    value={cliForm.document}
+                    onChange={(e) => setCliForm({ ...cliForm, document: e.target.value })}
+                    placeholder="00.000.000/0001-00"
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Nº CAR / INSCRIÇÃO ESTADUAL / MATRÍCULA</label>
+                  <input
+                    type="text"
+                    value={cliForm.registration}
+                    onChange={(e) => setCliForm({ ...cliForm, registration: e.target.value })}
+                    placeholder="Ex: CAR MT-5107602 / IE 13.000.000-0"
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">SEGMENTO ECONÔMICO</label>
+                  <select
+                    value={cliForm.segment}
+                    onChange={(e) => setCliForm({ ...cliForm, segment: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
+                  >
+                    {availableSegments.map(seg => (
+                      <option key={seg} value={seg}>{seg}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">CIDADE / UF</label>
+                  <input
+                    type="text"
+                    value={cliForm.city}
+                    onChange={(e) => setCliForm({ ...cliForm, city: e.target.value })}
+                    placeholder="Rondonópolis — MT"
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">RESPONSÁVEL / CONTATO TÉCNICO</label>
+                  <input
+                    type="text"
+                    value={cliForm.contactName}
+                    onChange={(e) => setCliForm({ ...cliForm, contactName: e.target.value })}
+                    placeholder="Nome do Engenheiro, Gerente ou Proprietário"
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">TELEFONE / WHATSAPP</label>
+                  <input
+                    type="text"
+                    value={cliForm.phone}
+                    onChange={(e) => setCliForm({ ...cliForm, phone: e.target.value })}
+                    placeholder="(66) 99999-0000"
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">E-MAIL CORPORATIVO</label>
+                  <input
+                    type="email"
+                    value={cliForm.email}
+                    onChange={(e) => setCliForm({ ...cliForm, email: e.target.value })}
+                    placeholder="contato@empresa.com.br"
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">STATUS DO CLIENTE</label>
+                  <select
+                    value={cliForm.status}
+                    onChange={(e) => setCliForm({ ...cliForm, status: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
+                  >
+                    {availableStatuses.map(st => (
+                      <option key={st} value={st}>{st}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">LICENÇA / PROGRAMA PRINCIPAL CONTRATADO</label>
+                <input
+                  type="text"
+                  value={cliForm.mainProgram}
+                  onChange={(e) => setCliForm({ ...cliForm, mainProgram: e.target.value })}
+                  placeholder="Licenciamento Ambiental (LP / LI / LO)"
+                  className="w-full px-3.5 py-2.5 rounded-xl border"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => { setShowClientModal(false); setEditingClient(null); }}
+                  className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
+                >
+                  {editingClient ? 'Salvar Alterações' : 'Salvar Cliente no CRM'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CONFIRMAR EXCLUSÃO CLIENTE */}
+      {deleteClientTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-extrabold text-rose-700">Excluir Cliente?</h3>
+            <p className="text-xs text-slate-600">
+              Deseja realmente remover o cliente <strong>{deleteClientTarget.name}</strong> do CRM?
+            </p>
+            <div className="flex justify-center gap-2 pt-2">
+              <button 
+                onClick={() => setDeleteClientTarget(null)} 
+                className="px-4 py-2 rounded-xl border font-bold text-xs text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={confirmDeleteClient} 
+                className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer"
+              >
+                Sim, Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CADASTRAR NOVO UTILIZADOR */}
+      {showUserRoleModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <h3 className="text-base font-bold text-[#1B3B2B]">Cadastrar Novo Utilizador / Perfil</h3>
+            <form onSubmit={handleSaveNewUserRole} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold mb-1">Nome do Cargo / Função</label>
+                <input
+                  type="text"
+                  value={newRoleForm.name}
+                  onChange={(e) => setNewRoleForm({ ...newRoleForm, name: e.target.value })}
+                  placeholder="Ex: Analista Ambiental Júnior"
+                  className="w-full px-3 py-2 rounded-xl border font-bold"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">Nome do Titular</label>
+                <input
+                  type="text"
+                  value={newRoleForm.holder}
+                  onChange={(e) => setNewRoleForm({ ...newRoleForm, holder: e.target.value })}
+                  placeholder="Ex: Carlos Silva"
+                  className="w-full px-3 py-2 rounded-xl border"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">E-mail Corporativo de Acesso</label>
+                <input
+                  type="email"
+                  value={newRoleForm.email}
+                  onChange={(e) => setNewRoleForm({ ...newRoleForm, email: e.target.value })}
+                  placeholder="carlos@grupomartins.eng.br"
+                  className="w-full px-3 py-2 rounded-xl border"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">Senha Inicial</label>
+                <input
+                  type="password"
+                  value={newRoleForm.password}
+                  onChange={(e) => setNewRoleForm({ ...newRoleForm, password: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">Descrição</label>
+                <input
+                  type="text"
+                  value={newRoleForm.description}
+                  onChange={(e) => setNewRoleForm({ ...newRoleForm, description: e.target.value })}
+                  placeholder="Breve resumo das responsabilidades"
+                  className="w-full px-3 py-2 rounded-xl border"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setShowUserRoleModal(false)} className="px-4 py-2 rounded-xl border font-bold">Cancelar</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold">Cadastrar Utilizador</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CONFIGURAR PERMISSÕES (FLAGS) */}
+      {editingRolePermissions && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-[#1B3B2B]">Configurar Permissões (Flags)</h3>
+                <p className="text-xs text-slate-500">Perfil: <strong className="text-[#1B3B2B]">{editingRolePermissions.name}</strong> ({editingRolePermissions.holder})</p>
+              </div>
+              <button onClick={() => setEditingRolePermissions(null)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-xs text-slate-600 bg-emerald-50 p-3 rounded-xl border border-emerald-200">
+                Altere abaixo as permissões em tempo real. Cada clique atualiza imediatamente o estado de acesso deste perfil.
+              </p>
+
+              <div className="border rounded-xl overflow-hidden">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-700 font-bold uppercase border-b">
+                      <th className="p-3">Módulo do Sistema</th>
+                      <th className="p-3 text-center">Visualizar</th>
+                      <th className="p-3 text-center">Criar</th>
+                      <th className="p-3 text-center">Editar</th>
+                      <th className="p-3 text-center">Excluir</th>
+                      <th className="p-3 text-center">Aprovar</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {[
+                      { key: 'dashboard', label: 'Painel Executivo / KPIs' },
+                      { key: 'prolabore', label: 'Pró-Labore (Sócio)' },
+                      { key: 'lancamentos', label: 'Livro Caixa & Transações' },
+                      { key: 'dre', label: 'DRE Gerencial Mensal' },
+                      { key: 'contratos', label: 'Contratos Ambientais & SST' },
+                      { key: 'clientes', label: 'Cadastro de Clientes (CRM)' },
+                      { key: 'acessos', label: 'Árvore de Acessos & Perfis' }
+                    ].map(mod => {
+                      const perms = editingRolePermissions.permissions?.[mod.key] || { view: false, create: false, edit: false, delete: false, approve: false };
+                      return (
+                        <tr key={mod.key} className="hover:bg-slate-50">
+                          <td className="p-3 font-bold text-slate-800">{mod.label}</td>
+                          {['view', 'create', 'edit', 'delete', 'approve'].map(action => (
+                            <td key={action} className="p-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(perms[action])}
+                                onChange={() => handlePermissionToggle(editingRolePermissions.id, mod.key, action)}
+                                className="w-4 h-4 accent-[#1B3B2B] cursor-pointer"
+                              />
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t">
+              <button
+                onClick={() => {
+                  showToast('Permissões salvas com sucesso!');
+                  setEditingRolePermissions(null);
+                }}
+                className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-bold text-xs hover:bg-[#2D5A43] cursor-pointer"
+              >
+                Concluir & Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TELA DE LOGIN */}
+      {!authLoggedIn && (
+        <div className="fixed inset-0 z-50 bg-[#1B3B2B]/95 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl border text-center space-y-6">
+            <GrupoMartinsLogo size="md" className="mx-auto" />
+            <div>
+              <h2 className="text-xl font-black text-[#1B3B2B]">Autenticação de Acesso — Nuvem</h2>
+              <p className="text-xs text-slate-500 mt-1">Insira seu e-mail corporativo e senha cadastrados.</p>
+            </div>
+            {authErrorMsg && (
+              <div className="p-3 rounded-xl bg-rose-100 text-rose-800 text-xs font-bold">
+                {authErrorMsg}
+              </div>
+            )}
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              setAuthErrorMsg('');
+              const found = accessRoles.find(r => r.email && r.email.toLowerCase() === authEmailInput.trim().toLowerCase());
+              if (!found) {
+                setAuthErrorMsg('E-mail não cadastrado.');
+                return;
+              }
+              if (found.password && found.password !== authPasswordInput.trim()) {
+                setAuthErrorMsg('Senha incorreta.');
+                return;
+              }
+              setActiveRoleId(found.id);
+              setAuthLoggedIn(true);
+              showToast(`Bem-vindo(a), ${found.holder}! Acesso autorizado.`);
+            }} className="space-y-4 text-left text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">E-mail Corporativo</label>
+                <input type="email" value={authEmailInput} onChange={(e) => setAuthEmailInput(e.target.value)} placeholder="ex: maikon@grupomartins.eng.br" className="w-full px-3.5 py-2.5 rounded-xl border" required />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">Senha</label>
+                <input type="password" value={authPasswordInput} onChange={(e) => setAuthPasswordInput(e.target.value)} placeholder="••••••••" className="w-full px-3.5 py-2.5 rounded-xl border" required />
+              </div>
+              <button type="submit" className="w-full py-3 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer">
+                Entrar no ERP (Sincronizado)
+              </button>
+            </form>
           </div>
         </div>
       )}
