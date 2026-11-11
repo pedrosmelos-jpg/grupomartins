@@ -43,7 +43,8 @@ import {
   UserPlus,
   Cloud,
   CloudRain,
-  Sliders
+  Sliders,
+  Check
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -397,11 +398,6 @@ export default function App() {
   const [newRevenueCatText, setNewRevenueCatText] = useState('');
   const [newExpenseCatText, setNewExpenseCatText] = useState('');
 
-  const [isAddingSegment, setIsAddingSegment] = useState(false);
-  const [newSegmentText, setNewSegmentText] = useState('');
-  const [isAddingStatus, setIsAddingStatus] = useState(false);
-  const [newStatusText, setNewStatusText] = useState('');
-
   const [accessRoles, setAccessRoles] = useState(INITIAL_ACCESS_ROLES);
   const [activeRoleId, setActiveRoleId] = useState('ROLE-01');
   const [authLoggedIn, setAuthLoggedIn] = useState(false);
@@ -434,9 +430,13 @@ export default function App() {
 
   const [showTxModal, setShowTxModal] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
+  
+  // Modais de Contratos e Parcelas
   const [showContractModal, setShowContractModal] = useState(false);
   const [editingContract, setEditingContract] = useState(null);
   const [deleteContractTarget, setDeleteContractTarget] = useState(null);
+  const [viewingContractInstallments, setViewingContractInstallments] = useState(null);
+
   const [showClientModal, setShowClientModal] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
@@ -465,7 +465,6 @@ export default function App() {
     agency: 'SEMA-MT',
     status: 'Em Elaboração Técnica',
     contractValue: '',
-    receivedValue: '0',
     directCosts: '',
     installmentsCount: '1',
     installmentDates: ['2026-12-30', '', '', '', '', '', '', '', '', ''],
@@ -565,7 +564,14 @@ export default function App() {
     }).sort((a, b) => b.value - a.value);
 
     const totalContratado = contracts.reduce((acc, c) => acc + Number(c.contractValue || 0), 0);
-    const totalRecebidoContratos = contracts.reduce((acc, c) => acc + Number(c.receivedValue || 0), 0);
+    
+    // Calcula o total recebido com base nas parcelas pagas do contrato
+    const totalRecebidoContratos = contracts.reduce((acc, c) => {
+      const insts = c.installmentsData || [];
+      const pagoInsts = insts.filter(i => i.status === 'Pago').reduce((sum, i) => sum + Number(i.amount || 0), 0);
+      return acc + pagoInsts;
+    }, 0);
+
     const saldoAFaturar = totalContratado - totalRecebidoContratos;
     
     let totalCustoContratos = contracts.reduce((acc, c) => acc + Number(c.directCosts || 0), 0);
@@ -631,22 +637,45 @@ export default function App() {
 
       showToast('Lançamento salvo na nuvem com sucesso!');
       setShowTxModal(false);
+      setEditingTx(null);
     } catch (err) {
       console.error('Erro crítico:', err);
       alert('Erro inesperado ao salvar lançamento.');
     }
   };
 
-const handleSaveContract = async (e) => {
+  const handleDeleteTransaction = async (id) => {
+    if (!window.confirm('Deseja realmente excluir este lançamento do Livro Caixa?')) return;
+    setTransactions(prev => prev.filter(t => t.id !== id));
+    if (supabase) {
+      await supabase.from('transactions').delete().eq('id', id);
+    }
+    showToast('Lançamento excluído com sucesso!');
+  };
+
+  // Salvar Contrato com Parcelas estruturadas
+  const handleSaveContract = async (e) => {
     e.preventDefault();
     const contractVal = parseFloat(String(ctForm.contractValue).replace(',', '.')) || 0;
-    const receivedVal = parseFloat(String(ctForm.receivedValue).replace(',', '.')) || 0;
     const directVal = parseFloat(String(ctForm.directCosts).replace(',', '.')) || 0;
     const nInstallments = parseInt(ctForm.installmentsCount) || 1;
     if (!ctForm.client || contractVal <= 0) return;
 
     try {
       const contractId = editingContract ? editingContract.id : `CT-2026-${String(contracts.length + 1).padStart(2, '0')}`;
+      
+      // Mantém parcelas existentes se estiver editando, ou cria novas se for um contrato novo
+      let installments = editingContract?.installmentsData || [];
+      if (!editingContract) {
+        const installmentVal = contractVal / nInstallments;
+        installments = [...Array(nInstallments)].map((_, i) => ({
+          number: i + 1,
+          amount: installmentVal,
+          dueDate: ctForm.installmentDates[i] || '2026-12-30',
+          status: 'Pendente'
+        }));
+      }
+
       const contractData = {
         id: contractId,
         client: ctForm.client,
@@ -654,10 +683,11 @@ const handleSaveContract = async (e) => {
         agency: ctForm.agency,
         status: ctForm.status,
         contractValue: contractVal,
-        receivedValue: receivedVal,
+        receivedValue: installments.filter(i => i.status === 'Pago').reduce((acc, cur) => acc + Number(cur.amount), 0),
         directCosts: directVal,
         installmentsCount: String(nInstallments),
-        paymentMethod: ctForm.paymentMethod
+        paymentMethod: ctForm.paymentMethod,
+        installmentsData: installments
       };
 
       if (supabase) {
@@ -678,35 +708,68 @@ const handleSaveContract = async (e) => {
         }
       });
 
-      // Gera lançamento apenas se houver valor já recebido registrado
-      if (!editingContract && receivedVal > 0) {
-        const tId = `MT-${String(transactions.length + 15).padStart(3, '0')}`;
-        const newTx = {
-          id: tId,
-          date: ctForm.installmentDates[0] || '2026-12-30',
-          month: 'Nov', // Ajuste conforme o mês da data
-          type: 'Entrada',
-          category: revenueCategories[0],
-          entity: ctForm.client,
-          contractId: contractId,
-          description: `Recebimento Inicial / Sinal — Contrato ${contractId}`,
-          paymentMethod: ctForm.paymentMethod,
-          status: 'Pago / Recebido',
-          amount: receivedVal
-        };
-
-        setTransactions(prev => [...prev, newTx]);
-        if (supabase) {
-          await supabase.from('transactions').upsert([newTx]);
-        }
-      }
-
-      showToast('Contrato salvo permanentemente e valor recebido lançado no caixa!');
+      showToast('Contrato salvo permanentemente na nuvem!');
       setShowContractModal(false);
+      setEditingContract(null);
     } catch (err) {
       console.error('Erro ao salvar contrato:', err);
       alert('Erro inesperado ao salvar contrato.');
     }
+  };
+
+  // Receber parcela específica de um contrato e gerar lançamento no Livro Caixa
+  const handleReceiveInstallment = async (contractId, installmentNumber) => {
+    const contract = contracts.find(c => c.id === contractId);
+    if (!contract) return;
+
+    const updatedInstallments = contract.installmentsData.map(inst => {
+      if (inst.number === installmentNumber) {
+        return { ...inst, status: 'Pago' };
+      }
+      return inst;
+    });
+
+    const receivedSum = updatedInstallments.filter(i => i.status === 'Pago').reduce((acc, cur) => acc + Number(cur.amount), 0);
+
+    const updatedContract = {
+      ...contract,
+      receivedValue: receivedSum,
+      installmentsData: updatedInstallments
+    };
+
+    // Atualiza contrato na lista e no Supabase
+    setContracts(prev => prev.map(c => c.id === contractId ? updatedContract : c));
+    if (supabase) {
+      await supabase.from('contracts').upsert([updatedContract]);
+    }
+
+    // Cria o lançamento correspondente no Livro Caixa (transactions)
+    const targetInst = updatedInstallments.find(i => i.number === installmentNumber);
+    const tId = `MT-${String(transactions.length + 15).padStart(3, '0')}`;
+    const monthNames = { '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez' };
+    const monthNum = (targetInst.dueDate || '2026-12-30').split('-')[1] || '12';
+    const monthStr = monthNames[monthNum] || 'Dez';
+
+    const newTx = {
+      id: tId,
+      date: targetInst.dueDate || '2026-12-30',
+      month: monthStr,
+      type: 'Entrada',
+      category: revenueCategories[0],
+      entity: contract.client,
+      contractId: contractId,
+      description: `Parcela ${installmentNumber}/${contract.installmentsData.length} (${contract.paymentMethod}) — Contrato ${contractId}`,
+      paymentMethod: contract.paymentMethod,
+      status: 'Pago / Recebido',
+      amount: Number(targetInst.amount)
+    };
+
+    setTransactions(prev => [...prev, newTx]);
+    if (supabase) {
+      await supabase.from('transactions').upsert([newTx]);
+    }
+
+    showToast(`Parcela ${installmentNumber} recebida e lançada no Livro Caixa!`);
   };
 
   const confirmDeleteContract = async () => {
@@ -822,7 +885,7 @@ const handleSaveContract = async (e) => {
     );
   };
 
-  // Filtragem avançada das transações com base na busca e nos filtros de coluna
+  // Filtragem avançada das transações
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
       const matchSearch = (t.entity || '').toLowerCase().includes(txSearch.toLowerCase()) || 
@@ -977,31 +1040,6 @@ const handleSaveContract = async (e) => {
                 Sair
               </button>
             </div>
-
-            {hasPermission('prolabore', 'create') && (
-              <button
-                onClick={() => {
-                  setEditingTx(null);
-                  setTxForm({
-                    date: '2026-11-28',
-                    month: 'Nov',
-                    type: 'Saída',
-                    category: 'Saque de Pró-Labore — Sócio Maikon Martins',
-                    entity: 'Maikon Martins (Sócio-Diretor)',
-                    contractId: '—',
-                    description: 'Saque de Pró-Labore Extraordinário',
-                    paymentMethod: 'PIX',
-                    status: 'Pago / Recebido',
-                    amount: '8000'
-                  });
-                  setShowTxModal(true);
-                }}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-[#F8F3EF] text-[#1B3B2B] border border-[#D5CFC7] hover:bg-[#EFE7DF]"
-              >
-                <UserCheck className="w-4 h-4 text-[#2D5A43]" />
-                Saque Pró-Labore
-              </button>
-            )}
 
             {hasPermission('lancamentos', 'create') && (
               <button
@@ -1295,7 +1333,7 @@ const handleSaveContract = async (e) => {
                 </div>
               </div>
 
-              {/* Tabela de Lançamentos */}
+              {/* Tabela de Lançamentos com Edição e Exclusão */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
@@ -1309,12 +1347,13 @@ const handleSaveContract = async (e) => {
                         <th className="py-3.5 px-3">Descrição</th>
                         <th className="py-3.5 px-3 text-center">Status</th>
                         <th className="py-3.5 px-3 text-right">Valor</th>
+                        <th className="py-3.5 px-3 text-center">Ações</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {filteredTransactions.length === 0 ? (
                         <tr>
-                          <td colSpan="8" className="py-8 text-center text-slate-400">Nenhum lançamento encontrado com os filtros atuais.</td>
+                          <td colSpan="9" className="py-8 text-center text-slate-400">Nenhum lançamento encontrado com os filtros atuais.</td>
                         </tr>
                       ) : (
                         filteredTransactions.map((tx) => (
@@ -1337,6 +1376,37 @@ const handleSaveContract = async (e) => {
                             <td className={`py-2.5 px-3 text-right font-extrabold ${tx.type === 'Entrada' ? 'text-emerald-700' : 'text-rose-700'}`}>
                               {formatCurrency(tx.amount)}
                             </td>
+                            <td className="py-2.5 px-3 text-center space-x-2">
+                              <button
+                                onClick={() => {
+                                  setEditingTx(tx);
+                                  setTxForm({
+                                    date: tx.date,
+                                    month: tx.month,
+                                    type: tx.type,
+                                    category: tx.category,
+                                    entity: tx.entity,
+                                    contractId: tx.contractId || '—',
+                                    description: tx.description,
+                                    paymentMethod: tx.paymentMethod || 'PIX',
+                                    status: tx.status,
+                                    amount: tx.amount
+                                  });
+                                  setShowTxModal(true);
+                                }}
+                                className="p-1 rounded text-teal-700 hover:bg-teal-50"
+                                title="Editar Lançamento"
+                              >
+                                <Edit3 className="w-4 h-4 inline" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteTransaction(tx.id)}
+                                className="p-1 rounded text-rose-600 hover:bg-rose-50"
+                                title="Excluir Lançamento"
+                              >
+                                <Trash2 className="w-4 h-4 inline" />
+                              </button>
+                            </td>
                           </tr>
                         ))
                       )}
@@ -1358,12 +1428,12 @@ const handleSaveContract = async (e) => {
                 <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
                   <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">TOTAL JÁ RECEBIDO DOS CONTRATOS</div>
                   <div className="text-2xl font-black text-emerald-700 mt-2">{formatCurrency(financialData.totalRecebidoContratos)}</div>
-                  <div className="text-xs text-emerald-600 mt-1">Parcelas quitadas pelos clientes</div>
+                  <div className="text-xs text-emerald-600 mt-1">Parcelas quitadas via baixa</div>
                 </div>
                 <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
                   <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">SALDO A FATURAR / RECEBER</div>
                   <div className="text-2xl font-black text-amber-600 mt-2">{formatCurrency(financialData.saldoAFaturar)}</div>
-                  <div className="text-xs text-slate-500 mt-1">Vinculado à entrega de licenças/laudos</div>
+                  <div className="text-xs text-slate-500 mt-1">Parcelas pendentes de recebimento</div>
                 </div>
                 <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
                   <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">MARGEM TÉCNICA MÉDIA DOS PROJETOS</div>
@@ -1404,7 +1474,6 @@ const handleSaveContract = async (e) => {
                         agency: 'SEMA-MT',
                         status: 'Em Elaboração Técnica',
                         contractValue: '',
-                        receivedValue: '0',
                         directCosts: '',
                         installmentsCount: '1',
                         installmentDates: ['2026-12-30', '', '', '', '', '', '', '', '', ''],
@@ -1426,29 +1495,27 @@ const handleSaveContract = async (e) => {
                       <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px]">
                         <th className="py-3.5 px-3">Código</th>
                         <th className="py-3.5 px-3">Cliente / Empreendimento</th>
-                        <th className="py-3.5 px-3">Escopo Técnico (Ambiental / SST)</th>
-                        <th className="py-3.5 px-3">Órgão / Norma</th>
-                        <th className="py-3.5 px-3 text-center">Status Técnico</th>
+                        <th className="py-3.5 px-3">Escopo Técnico</th>
+                        <th className="py-3.5 px-3">Órgão</th>
+                        <th className="py-3.5 px-3 text-center">Status</th>
                         <th className="py-3.5 px-3 text-right">Valor Contrato</th>
                         <th className="py-3.5 px-3 text-right">Já Recebido</th>
                         <th className="py-3.5 px-3 text-right">Saldo a Receber</th>
-                        <th className="py-3.5 px-3 text-right">Custos Diretos</th>
-                        <th className="py-3.5 px-3 text-center">Margem %</th>
-                        <th className="py-3.5 px-3 text-center">Ações / Exclusão</th>
+                        <th className="py-3.5 px-3 text-center">Gerenciar Parcelas</th>
+                        <th className="py-3.5 px-3 text-center">Ações</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {filteredContracts.length === 0 ? (
                         <tr>
-                          <td colSpan="11" className="py-8 text-center text-slate-400">Nenhum contrato cadastrado.</td>
+                          <td colSpan="10" className="py-8 text-center text-slate-400">Nenhum contrato cadastrado.</td>
                         </tr>
                       ) : (
                         filteredContracts.map((ct) => {
                           const val = Number(ct.contractValue || 0);
-                          const rec = Number(ct.receivedValue || 0);
+                          const insts = ct.installmentsData || [];
+                          const rec = insts.filter(i => i.status === 'Pago').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
                           const saldo = val - rec;
-                          const cost = Number(ct.directCosts || 0);
-                          const marginPct = val > 0 ? ((val - cost) / val) * 100 : 0;
                           return (
                             <tr key={ct.id} className="hover:bg-slate-50">
                               <td className="py-3 px-3 font-mono font-bold text-[#1B3B2B]">{ct.id}</td>
@@ -1463,15 +1530,42 @@ const handleSaveContract = async (e) => {
                               <td className="py-3 px-3 text-right font-bold text-[#1B3B2B]">{formatCurrency(val)}</td>
                               <td className="py-3 px-3 text-right text-emerald-700 font-semibold">{formatCurrency(rec)}</td>
                               <td className="py-3 px-3 text-right text-amber-600 font-semibold">{formatCurrency(saldo)}</td>
-                              <td className="py-3 px-3 text-right text-rose-600">{formatCurrency(cost)}</td>
-                              <td className="py-3 px-3 text-center font-extrabold text-[#1B3B2B]">{marginPct.toFixed(1).replace('.', ',')}%</td>
                               <td className="py-3 px-3 text-center">
                                 <button
+                                  onClick={() => setViewingContractInstallments(ct)}
+                                  className="px-3 py-1 rounded-lg bg-teal-800 text-white font-bold text-[10px] hover:bg-teal-900"
+                                >
+                                  Ver Parcelas ({insts.filter(i => i.status === 'Pago').length}/{insts.length})
+                                </button>
+                              </td>
+                              <td className="py-3 px-3 text-center space-x-2">
+                                <button
+                                  onClick={() => {
+                                    setEditingContract(ct);
+                                    setCtForm({
+                                      client: ct.client,
+                                      service: ct.service,
+                                      agency: ct.agency,
+                                      status: ct.status,
+                                      contractValue: ct.contractValue,
+                                      directCosts: ct.directCosts,
+                                      installmentsCount: ct.installmentsCount,
+                                      installmentDates: ct.installmentsData?.map(i => i.dueDate) || ['2026-12-30'],
+                                      paymentMethod: ct.paymentMethod
+                                    });
+                                    setShowContractModal(true);
+                                  }}
+                                  className="p-1.5 rounded-lg text-teal-700 hover:bg-teal-50"
+                                  title="Editar Contrato"
+                                >
+                                  <Edit3 className="w-4 h-4 inline" />
+                                </button>
+                                <button
                                   onClick={() => setDeleteContractTarget(ct)}
-                                  className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                  className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50"
                                   title="Excluir Contrato"
                                 >
-                                  <Trash2 className="w-4 h-4" />
+                                  <Trash2 className="w-4 h-4 inline" />
                                 </button>
                               </td>
                             </tr>
@@ -1758,11 +1852,13 @@ const handleSaveContract = async (e) => {
         </main>
       </div>
 
-      {/* MODAL LANÇAMENTO (COM PLANO DE CONTAS INTEGRADO) */}
+      {/* MODAL LANÇAMENTO (COM EDIÇÃO) */}
       {showTxModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="text-base font-bold text-[#1B3B2B]">Novo Lançamento no Livro Caixa</h3>
+            <h3 className="text-base font-bold text-[#1B3B2B]">
+              {editingTx ? 'Editar Lançamento' : 'Novo Lançamento no Livro Caixa'}
+            </h3>
             <div className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1818,7 +1914,7 @@ const handleSaveContract = async (e) => {
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowTxModal(false)} className="px-4 py-2 rounded-xl border font-bold">Cancelar</button>
+                <button type="button" onClick={() => { setShowTxModal(false); setEditingTx(null); }} className="px-4 py-2 rounded-xl border font-bold">Cancelar</button>
                 <button type="button" onClick={handleSaveTransaction} className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar na Nuvem</button>
               </div>
             </div>
@@ -1831,8 +1927,8 @@ const handleSaveContract = async (e) => {
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
             <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
-              <h3 className="text-base font-extrabold">Novo Contrato Ambiental & SST</h3>
-              <button onClick={() => setShowContractModal(false)} className="text-white hover:text-emerald-300">
+              <h3 className="text-base font-extrabold">{editingContract ? 'Editar Contrato Ambiental & SST' : 'Novo Contrato Ambiental & SST'}</h3>
+              <button onClick={() => { setShowContractModal(false); setEditingContract(null); }} className="text-white hover:text-emerald-300">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1922,7 +2018,7 @@ const handleSaveContract = async (e) => {
                 </div>
               </div>
 
-              {parseInt(ctForm.installmentsCount) > 0 && (
+              {parseInt(ctForm.installmentsCount) > 0 && !editingContract && (
                 <div className="space-y-2 bg-slate-50 p-3 rounded-xl border">
                   <label className="block font-bold text-slate-700 uppercase text-[11px]">Datas de Vencimento das Parcelas</label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
@@ -1946,7 +2042,7 @@ const handleSaveContract = async (e) => {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase mb-1">Valor Contrato (R$)</label>
                   <input
@@ -1957,17 +2053,6 @@ const handleSaveContract = async (e) => {
                     placeholder="0.00"
                     className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-emerald-800"
                     required
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Já Recebido (R$)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={ctForm.receivedValue}
-                    onChange={(e) => setCtForm({ ...ctForm, receivedValue: e.target.value })}
-                    placeholder="0"
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-slate-700"
                   />
                 </div>
                 <div>
@@ -1986,7 +2071,7 @@ const handleSaveContract = async (e) => {
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <button
                   type="button"
-                  onClick={() => setShowContractModal(false)}
+                  onClick={() => { setShowContractModal(false); setEditingContract(null); }}
                   className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancelar
@@ -1999,6 +2084,85 @@ const handleSaveContract = async (e) => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL GERENCIAR / RECEBER PARCELAS DO CONTRATO */}
+      {viewingContractInstallments && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-[#1B3B2B]">Controle de Parcelas — {viewingContractInstallments.id}</h3>
+                <p className="text-xs text-slate-600">Cliente: <strong>{viewingContractInstallments.client}</strong></p>
+              </div>
+              <button onClick={() => setViewingContractInstallments(null)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-xs text-slate-500 bg-emerald-50 p-3 rounded-xl border border-emerald-200">
+                Clique em <strong>"Receber Parcela"</strong> para confirmar o pagamento. Ao receber, o valor será lançado automaticamente no seu Livro Caixa.
+              </p>
+
+              <div className="border rounded-xl overflow-hidden">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-100 font-bold uppercase text-slate-700 border-b">
+                      <th className="p-3">Parcela</th>
+                      <th className="p-3">Vencimento</th>
+                      <th className="p-3 text-right">Valor</th>
+                      <th className="p-3 text-center">Status</th>
+                      <th className="p-3 text-center">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {viewingContractInstallments.installmentsData?.map((inst) => (
+                      <tr key={inst.number} className="hover:bg-slate-50">
+                        <td className="p-3 font-bold">Parcela {inst.number}</td>
+                        <td className="p-3">{inst.dueDate}</td>
+                        <td className="p-3 text-right font-extrabold text-[#1B3B2B]">{formatCurrency(inst.amount)}</td>
+                        <td className="p-3 text-center">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${inst.status === 'Pago' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                            {inst.status}
+                          </span>
+                        </td>
+                        <td className="p-3 text-center">
+                          {inst.status !== 'Pago' ? (
+                            <button
+                              onClick={() => {
+                                handleReceiveInstallment(viewingContractInstallments.id, inst.number);
+                                // Atualiza a visualização do modal atual
+                                const updated = contracts.find(c => c.id === viewingContractInstallments.id);
+                                if (updated) setViewingContractInstallments(updated);
+                              }}
+                              className="px-3 py-1 bg-emerald-700 text-white font-bold rounded-lg text-[10px] hover:bg-emerald-800"
+                            >
+                              Receber Parcela
+                            </button>
+                          ) : (
+                            <span className="text-emerald-700 font-bold flex items-center justify-center gap-1">
+                              <Check className="w-3.5 h-3.5" /> Liquidado
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-3 border-t">
+              <button
+                onClick={() => setViewingContractInstallments(null)}
+                className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold text-xs"
+              >
+                Fechar
+              </button>
+            </div>
           </div>
         </div>
       )}
