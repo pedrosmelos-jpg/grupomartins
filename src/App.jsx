@@ -393,7 +393,6 @@ export default function App() {
     'Inativo'
   ]);
 
-  // Estados locais para controlar a abertura dos inputs inline de adição
   const [isAddingSegment, setIsAddingSegment] = useState(false);
   const [newSegmentText, setNewSegmentText] = useState('');
   const [isAddingStatus, setIsAddingStatus] = useState(false);
@@ -470,12 +469,14 @@ export default function App() {
 
   const [txSearch, setTxSearch] = useState('');
   const [ctSearch, setCtSearch] = useState('');
+  const [ctStatusFilter, setCtStatusFilter] = useState('Todos');
   const [cliSearch, setCliSearch] = useState('');
 
   const [showTxModal, setShowTxModal] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
   const [showContractModal, setShowContractModal] = useState(false);
   const [editingContract, setEditingContract] = useState(null);
+  const [deleteContractTarget, setDeleteContractTarget] = useState(null);
   const [showClientModal, setShowClientModal] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
@@ -498,18 +499,15 @@ export default function App() {
     amount: ''
   });
 
+  // Estado atualizado do Contrato conforme a referência exata da imagem
   const [ctForm, setCtForm] = useState({
     client: '',
     service: '',
     agency: 'SEMA-MT',
-    startDate: '2026-11-10',
-    deadline: '2026-12-30',
     status: 'Em Elaboração Técnica',
     contractValue: '',
-    receivedValue: '',
-    directCosts: '',
-    installmentsCount: '1',
-    installmentDates: ['2026-12-30', '', '', '']
+    receivedValue: '0',
+    directCosts: ''
   });
 
   const [cliForm, setCliForm] = useState({
@@ -556,8 +554,32 @@ export default function App() {
       return { category: cat, shortName: cat.split(' (')[0], value, share: receitaBrutaAnual > 0 ? value / receitaBrutaAnual : 0 };
     }).sort((a, b) => b.value - a.value);
 
-    return { receitaBrutaAnual, saidasTotaisAnual, lucroLiquidoAnual, proLaboreTotalAnual, proLaborePago, saldoAtualCaixa, contasAReceber, contasAPagar, monthlySeries, revenueByCategory };
-  }, [transactions, params]);
+    // Métricas dos Contratos
+    const totalContratado = contracts.reduce((acc, c) => acc + Number(c.contractValue || 0), 0);
+    const totalRecebidoContratos = contracts.reduce((acc, c) => acc + Number(c.receivedValue || 0), 0);
+    const saldoAFaturar = totalContratado - totalRecebidoContratos;
+    
+    // Margem técnica média
+    let totalCustoContratos = contracts.reduce((acc, c) => acc + Number(c.directCosts || 0), 0);
+    const margemMedia = totalContratado > 0 ? ((totalContratado - totalCustoContratos) / totalContratado) * 100 : 88.2;
+
+    return {
+      receitaBrutaAnual,
+      saidasTotaisAnual,
+      lucroLiquidoAnual,
+      proLaboreTotalAnual,
+      proLaborePago,
+      saldoAtualCaixa,
+      contasAReceber,
+      contasAPagar,
+      monthlySeries,
+      revenueByCategory,
+      totalContratado,
+      totalRecebidoContratos,
+      saldoAFaturar,
+      margemMedia
+    };
+  }, [transactions, contracts, params]);
 
   const handleToggleStatus = async (id) => {
     const item = transactions.find(t => t.id === id);
@@ -584,13 +606,34 @@ export default function App() {
   const handleSaveContract = async (e) => {
     e.preventDefault();
     const contractVal = parseFloat(String(ctForm.contractValue).replace(',', '.')) || 0;
+    const receivedVal = parseFloat(String(ctForm.receivedValue).replace(',', '.')) || 0;
+    const directVal = parseFloat(String(ctForm.directCosts).replace(',', '.')) || 0;
     if (!ctForm.client || contractVal <= 0) return;
+
     const contractId = editingContract ? editingContract.id : `CT-2026-${String(contracts.length + 1).padStart(2, '0')}`;
-    const contractData = { id: contractId, ...ctForm, contractValue: contractVal };
+    const contractData = {
+      id: contractId,
+      ...ctForm,
+      contractValue: contractVal,
+      receivedValue: receivedVal,
+      directCosts: directVal
+    };
+
     setContracts(prev => editingContract ? prev.map(c => c.id === contractId ? contractData : c) : [...prev, contractData]);
     if (supabase) await supabase.from('contracts').upsert(contractData);
-    showToast('Contrato salvo!');
+    showToast('Contrato salvo com sucesso!');
     setShowContractModal(false);
+  };
+
+  const confirmDeleteContract = async () => {
+    if (!deleteContractTarget) return;
+    const contractId = deleteContractTarget.id;
+    setContracts(prev => prev.filter(c => c.id !== contractId));
+    if (supabase) {
+      await supabase.from('contracts').delete().eq('id', contractId);
+    }
+    showToast(`Contrato ${contractId} excluído.`);
+    setDeleteContractTarget(null);
   };
 
   const handleSaveClient = async (e) => {
@@ -657,7 +700,18 @@ export default function App() {
   };
 
   const filteredTransactions = useMemo(() => transactions.filter(t => (t.entity || '').toLowerCase().includes(txSearch.toLowerCase()) || (t.description || '').toLowerCase().includes(txSearch.toLowerCase())), [transactions, txSearch]);
-  const filteredContracts = useMemo(() => contracts.filter(c => (c.client || '').toLowerCase().includes(ctSearch.toLowerCase())), [contracts, ctSearch]);
+  
+  const filteredContracts = useMemo(() => {
+    return contracts.filter(c => {
+      const matchSearch = (c.client || '').toLowerCase().includes(ctSearch.toLowerCase()) ||
+        (c.service || '').toLowerCase().includes(ctSearch.toLowerCase()) ||
+        (c.id || '').toLowerCase().includes(ctSearch.toLowerCase()) ||
+        (c.agency || '').toLowerCase().includes(ctSearch.toLowerCase());
+      const matchStatus = ctStatusFilter === 'Todos' || c.status === ctStatusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [contracts, ctSearch, ctStatusFilter]);
+
   const filteredClients = useMemo(() => clients.filter(cli => (cli.name || '').toLowerCase().includes(cliSearch.toLowerCase())), [clients, cliSearch]);
 
   const PIE_COLORS = ['#1B3B2B', '#2D5A43', '#3B7A57', '#557A46', '#7A9A8B'];
@@ -1095,66 +1149,135 @@ export default function App() {
 
           {activeTab === 'contratos' && (
             <div className="space-y-6">
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-                <div className="relative flex-1 max-w-md">
+              {/* TOP CARDS DE CONTRATOS IDÊNTICOS À IMAGEM */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">VALOR TOTAL CONTRATADO ({contracts.length} CONTRATOS)</div>
+                  <div className="text-2xl font-black text-[#1B3B2B] mt-2">{formatCurrency(financialData.totalContratado)}</div>
+                  <div className="text-xs text-slate-500 mt-1">Carteira Ambiental SEMA-MT & SST</div>
+                </div>
+                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">TOTAL JÁ RECEBIDO DOS CONTRATOS</div>
+                  <div className="text-2xl font-black text-emerald-700 mt-2">{formatCurrency(financialData.totalRecebidoContratos)}</div>
+                  <div className="text-xs text-emerald-600 mt-1">Parcelas quitadas pelos clientes</div>
+                </div>
+                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">SALDO A FATURAR / RECEBER</div>
+                  <div className="text-2xl font-black text-amber-600 mt-2">{formatCurrency(financialData.saldoAFaturar)}</div>
+                  <div className="text-xs text-slate-500 mt-1">Vinculado à entrega de licenças/laudos</div>
+                </div>
+                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">MARGEM TÉCNICA MÉDIA DOS PROJETOS</div>
+                  <div className="text-2xl font-black text-[#1B3B2B] mt-2">{financialData.margemMedia.toFixed(1).replace('.', ',')}%</div>
+                  <div className="text-xs text-slate-500 mt-1">Após custos laboratoriais, drone e taxas</div>
+                </div>
+              </div>
+
+              {/* BARRA DE PESQUISA, FILTRO E BOTÃO */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
+                <div className="relative flex-1 min-w-[280px]">
                   <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                   <input
                     type="text"
                     value={ctSearch}
                     onChange={(e) => setCtSearch(e.target.value)}
-                    placeholder="Buscar contratos..."
+                    placeholder="Buscar por cliente, fazenda, SEMA-MT, eSocial ou código..."
                     className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
                   />
                 </div>
-                <button
-                  onClick={() => {
-                    setEditingContract(null);
-                    setCtForm({
-                      client: '',
-                      service: '',
-                      agency: 'SEMA-MT',
-                      startDate: '2026-11-10',
-                      deadline: '2026-12-30',
-                      status: 'Em Elaboração Técnica',
-                      contractValue: '',
-                      receivedValue: '0',
-                      directCosts: '',
-                      installmentsCount: '1'
-                    });
-                    setShowContractModal(true);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43]"
-                >
-                  <Plus className="w-4 h-4" /> Novo Contrato
-                </button>
+                <div className="flex items-center gap-3">
+                  <select
+                    value={ctStatusFilter}
+                    onChange={(e) => setCtStatusFilter(e.target.value)}
+                    className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white"
+                  >
+                    <option value="Todos">Status Técnico: Todos</option>
+                    <option value="Em Elaboração Técnica">Em Elaboração Técnica</option>
+                    <option value="Protocolado / SEMA">Protocolado / SEMA</option>
+                    <option value="Em Andamento">Em Andamento</option>
+                    <option value="Concluído / Licença Emitida">Concluído / Licença Emitida</option>
+                  </select>
+                  <button
+                    onClick={() => {
+                      setEditingContract(null);
+                      setCtForm({
+                        client: '',
+                        service: '',
+                        agency: 'SEMA-MT',
+                        status: 'Em Elaboração Técnica',
+                        contractValue: '',
+                        receivedValue: '0',
+                        directCosts: ''
+                      });
+                      setShowContractModal(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43]"
+                  >
+                    <Plus className="w-4 h-4" /> Novo Contrato Ambiental / SST
+                  </button>
+                </div>
               </div>
 
+              {/* TABELA DE CONTRATOS IDÊNTICA À IMAGEM */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
-                      <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
-                        <th className="py-3.5 px-3">ID</th>
-                        <th className="py-3.5 px-3">Cliente</th>
-                        <th className="py-3.5 px-3">Serviço Técnico</th>
-                        <th className="py-3.5 px-3 text-center">Status</th>
-                        <th className="py-3.5 px-3 text-right">Valor</th>
+                      <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px]">
+                        <th className="py-3.5 px-3">Código</th>
+                        <th className="py-3.5 px-3">Cliente / Empreendimento</th>
+                        <th className="py-3.5 px-3">Escopo Técnico (Ambiental / SST)</th>
+                        <th className="py-3.5 px-3">Órgão / Norma</th>
+                        <th className="py-3.5 px-3 text-center">Status Técnico</th>
+                        <th className="py-3.5 px-3 text-right">Valor Contrato</th>
+                        <th className="py-3.5 px-3 text-right">Já Recebido</th>
+                        <th className="py-3.5 px-3 text-right">Saldo a Receber</th>
+                        <th className="py-3.5 px-3 text-right">Custos Diretos</th>
+                        <th className="py-3.5 px-3 text-center">Margem %</th>
+                        <th className="py-3.5 px-3 text-center">Ações / Exclusão</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {filteredContracts.map((ct) => (
-                        <tr key={ct.id} className="hover:bg-slate-50">
-                          <td className="py-3 px-3 font-mono font-bold">{ct.id}</td>
-                          <td className="py-3 px-3 font-bold">{ct.client}</td>
-                          <td className="py-3 px-3">{ct.service}</td>
-                          <td className="py-3 px-3 text-center">
-                            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">
-                              {ct.status}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3 text-right font-bold">{formatCurrency(ct.contractValue)}</td>
+                      {filteredContracts.length === 0 ? (
+                        <tr>
+                          <td colSpan="11" className="py-8 text-center text-slate-400">Nenhum contrato cadastrado.</td>
                         </tr>
-                      ))}
+                      ) : (
+                        filteredContracts.map((ct) => {
+                          const val = Number(ct.contractValue || 0);
+                          const rec = Number(ct.receivedValue || 0);
+                          const saldo = val - rec;
+                          const cost = Number(ct.directCosts || 0);
+                          const marginPct = val > 0 ? ((val - cost) / val) * 100 : 0;
+                          return (
+                            <tr key={ct.id} className="hover:bg-slate-50">
+                              <td className="py-3 px-3 font-mono font-bold text-[#1B3B2B]">{ct.id}</td>
+                              <td className="py-3 px-3 font-bold text-slate-900">{ct.client}</td>
+                              <td className="py-3 px-3 text-slate-700">{ct.service}</td>
+                              <td className="py-3 px-3 font-semibold text-slate-600">{ct.agency || 'SEMA-MT'}</td>
+                              <td className="py-3 px-3 text-center">
+                                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                                  {ct.status}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-right font-bold text-[#1B3B2B]">{formatCurrency(val)}</td>
+                              <td className="py-3 px-3 text-right text-emerald-700 font-semibold">{formatCurrency(rec)}</td>
+                              <td className="py-3 px-3 text-right text-amber-600 font-semibold">{formatCurrency(saldo)}</td>
+                              <td className="py-3 px-3 text-right text-rose-600">{formatCurrency(cost)}</td>
+                              <td className="py-3 px-3 text-center font-extrabold text-[#1B3B2B]">{marginPct.toFixed(1).replace('.', ',')}%</td>
+                              <td className="py-3 px-3 text-center">
+                                <button
+                                  onClick={() => setDeleteContractTarget(ct)}
+                                  className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                  title="Excluir Contrato"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1361,35 +1484,141 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CONTRATO */}
+      {/* MODAL CONTRATO (EXATAMENTE COMO NA SUA SEGUNDA IMAGEM DE REFERÊNCIA) */}
       {showContractModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="text-base font-bold text-[#1B3B2B]">Novo Contrato Ambiental & SST</h3>
-            <form onSubmit={handleSaveContract} className="space-y-3 text-xs">
+          <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B]">
+            <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
+              <h3 className="text-base font-extrabold">Novo Contrato Ambiental & SST</h3>
+              <button onClick={() => setShowContractModal(false)} className="text-white hover:text-emerald-300">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveContract} className="p-6 space-y-4 text-xs">
               <div>
-                <label className="block font-bold mb-1">Cliente</label>
-                <input type="text" value={ctForm.client} onChange={(e) => setCtForm({ ...ctForm, client: e.target.value })} placeholder="Nome do cliente" className="w-full px-3 py-2 rounded-xl border" required />
+                <label className="block font-bold text-slate-700 uppercase mb-1">Cliente / Fazenda / Indústria (Vinculado ao CRM)</label>
+                <input
+                  type="text"
+                  list="client-list"
+                  value={ctForm.client}
+                  onChange={(e) => setCtForm({ ...ctForm, client: e.target.value })}
+                  placeholder="Selecione da base de clientes ou digite novo..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-slate-800"
+                  required
+                />
+                <datalist id="client-list">
+                  {clients.map(cli => (
+                    <option key={cli.id} value={cli.name} />
+                  ))}
+                </datalist>
               </div>
+
               <div>
-                <label className="block font-bold mb-1">Serviço Técnico</label>
-                <input type="text" value={ctForm.service} onChange={(e) => setCtForm({ ...ctForm, service: e.target.value })} placeholder="Ex: Licenciamento SEMA-MT" className="w-full px-3 py-2 rounded-xl border" required />
+                <label className="block font-bold text-slate-700 uppercase mb-1">Serviço Técnico (Ambiental / SST)</label>
+                <input
+                  type="text"
+                  value={ctForm.service}
+                  onChange={(e) => setCtForm({ ...ctForm, service: e.target.value })}
+                  placeholder="Ex: Licenciamento LP/LI/LO SEMA-MT + PGR/LTCAT"
+                  className="w-full px-3.5 py-2.5 rounded-xl border"
+                  required
+                />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-bold mb-1">Valor Contrato (R$)</label>
-                  <input type="number" value={ctForm.contractValue} onChange={(e) => setCtForm({ ...ctForm, contractValue: e.target.value })} className="w-full px-3 py-2 rounded-xl border font-bold" required />
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Órgão Regulador / Norma</label>
+                  <input
+                    type="text"
+                    value={ctForm.agency}
+                    onChange={(e) => setCtForm({ ...ctForm, agency: e.target.value })}
+                    placeholder="SEMA-MT"
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-semibold"
+                  />
                 </div>
                 <div>
-                  <label className="block font-bold mb-1">Vencimento</label>
-                  <input type="date" value={ctForm.deadline} onChange={(e) => setCtForm({ ...ctForm, deadline: e.target.value })} className="w-full px-3 py-2 rounded-xl border" required />
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Status do Processo</label>
+                  <select
+                    value={ctForm.status}
+                    onChange={(e) => setCtForm({ ...ctForm, status: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
+                  >
+                    <option value="Em Elaboração Técnica">Em Elaboração Técnica</option>
+                    <option value="Protocolado / SEMA">Protocolado / SEMA</option>
+                    <option value="Em Andamento">Em Andamento</option>
+                    <option value="Concluído / Licença Emitida">Concluído / Licença Emitida</option>
+                  </select>
                 </div>
               </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowContractModal(false)} className="px-4 py-2 rounded-xl border font-bold">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold">Salvar no Supabase</button>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Valor Contrato (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={ctForm.contractValue}
+                    onChange={(e) => setCtForm({ ...ctForm, contractValue: e.target.value })}
+                    placeholder="0.00"
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-emerald-800"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Já Recebido (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={ctForm.receivedValue}
+                    onChange={(e) => setCtForm({ ...ctForm, receivedValue: e.target.value })}
+                    placeholder="0"
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-slate-700"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Custos Diretos (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={ctForm.directCosts}
+                    onChange={(e) => setCtForm({ ...ctForm, directCosts: e.target.value })}
+                    placeholder="0.00"
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-rose-700"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => setShowContractModal(false)}
+                  className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
+                >
+                  Salvar Contrato
+                </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CONFIRMAR EXCLUSÃO CONTRATO */}
+      {deleteContractTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl">
+            <h3 className="text-base font-bold text-rose-700">Excluir Contrato?</h3>
+            <p className="text-xs text-slate-600">Deseja realmente remover o contrato <strong>{deleteContractTarget.id}</strong> ({deleteContractTarget.client})?</p>
+            <div className="flex justify-center gap-2 pt-2">
+              <button onClick={() => setDeleteContractTarget(null)} className="px-4 py-2 rounded-xl border font-bold text-xs">Cancelar</button>
+              <button onClick={confirmDeleteContract} className="px-4 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700">Sim, Excluir</button>
+            </div>
           </div>
         </div>
       )}
@@ -1604,7 +1833,7 @@ export default function App() {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">LICENÇA / PROGRAMA PRINCIPAL CONTRATADO</label>
+                <label className="block font-bold text-slate-700 uppercase mb-1"> LICENÇA / PROGRAMA PRINCIPAL CONTRATADO</label>
                 <input
                   type="text"
                   value={cliForm.mainProgram}
