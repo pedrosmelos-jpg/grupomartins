@@ -258,7 +258,7 @@ const GrupoMartinsLogo = ({ size = 'md', theme = 'cream', className = '' }) => {
 // ============================================================================
 const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-const PLANO_CONTAS_OPCOES = {
+const INITIAL_PLANO_CONTAS = {
   receitas: [
     { codigo: '1.1.01', nome: '1.1.01 — Receita de Licenciamento Ambiental (LP / LI / LO)' },
     { codigo: '1.1.02', nome: '1.1.02 — Receita de Planos Ambientais (PRAD / PGRS) e Auditorias' },
@@ -380,6 +380,11 @@ export default function App() {
   const [contracts, setContracts] = useState([]);
   const [clients, setClients] = useState([]);
 
+  // Plano de Contas dinâmico (permitindo adicionar, editar e excluir)
+  const [planoContasData, setPlanoContasData] = useState(INITIAL_PLANO_CONTAS);
+  const [showPlanoModal, setShowPlanoModal] = useState(false);
+  const [planoForm, setPlanoForm] = useState({ tipo: 'receitas', codigo: '', nome: '', originalCodigo: null });
+
   const [availableSegments, setAvailableSegments] = useState([
     'Agronegócio / Propriedade Rural',
     'Indústria / Agroindústria',
@@ -445,6 +450,9 @@ export default function App() {
     interestAmount: ''
   });
 
+  // Estado para confirmação customizada de cancelamento de baixa
+  const [cancelInstallmentTarget, setCancelInstallmentTarget] = useState(null);
+
   const [showClientModal, setShowClientModal] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
@@ -458,8 +466,8 @@ export default function App() {
     date: '2026-11-10',
     month: 'Nov',
     type: 'Entrada',
-    planoContas: PLANO_CONTAS_OPCOES.receitas[0].codigo,
-    category: PLANO_CONTAS_OPCOES.receitas[0].nome,
+    planoContas: planoContasData.receitas[0].codigo,
+    category: planoContasData.receitas[0].nome,
     entity: '',
     contractId: '—',
     description: '',
@@ -547,7 +555,6 @@ export default function App() {
     const saidasTotaisAnual = transactions.filter((t) => t.type === 'Saída').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
     const lucroLiquidoAnual = receitaBrutaAnual - saidasTotaisAnual;
     
-    const proLaboreCat = '2.4.01 — Saque de Pró-Labore — Sócio Maikon Martins';
     const proLaboreTotalAnual = transactions.filter((t) => (t.category || t.planoContas || '').includes('Pró-Labore')).reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
     const proLaborePago = transactions.filter((t) => (t.category || t.planoContas || '').includes('Pró-Labore') && t.status === 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
 
@@ -568,7 +575,7 @@ export default function App() {
       return { month: m, entradas, saidas, resultadoLiquido, saldoAcumulado: runningBalance };
     });
 
-    const revenueByCategory = PLANO_CONTAS_OPCOES.receitas.map((rev) => {
+    const revenueByCategory = planoContasData.receitas.map((rev) => {
       const value = transactions.filter(t => (t.planoContas === rev.codigo || t.category === rev.nome)).reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
       return { category: rev.nome, shortName: rev.nome.split(' — ')[1] || rev.nome, value, share: receitaBrutaAnual > 0 ? value / receitaBrutaAnual : 0 };
     }).sort((a, b) => b.value - a.value);
@@ -602,7 +609,7 @@ export default function App() {
       saldoAFaturar,
       margemMedia
     };
-  }, [transactions, contracts, params]);
+  }, [transactions, contracts, params, planoContasData]);
 
   const handleToggleStatus = async (id) => {
     const item = transactions.find(t => t.id === id);
@@ -834,9 +841,10 @@ export default function App() {
     setReceiveForm({ paymentDate: new Date().toISOString().split('T')[0], interestAmount: '' });
   };
 
-  // Função para CANCELAR / ESTORNAR o recebimento de uma parcela
-  const handleCancelReceiveInstallment = async (contractId, installmentNumber) => {
-    if (!window.confirm(`Deseja realmente cancelar o recebimento da Parcela ${installmentNumber}? Os lançamentos correspondentes no Livro Caixa serão removidos.`)) return;
+  // Função para CANCELAR / ESTORNAR o recebimento de uma parcela (com modal customizado)
+  const confirmCancelReceiveInstallment = async () => {
+    if (!cancelInstallmentTarget) return;
+    const { contractId, installmentNumber } = cancelInstallmentTarget;
 
     const contract = contracts.find(c => c.id === contractId);
     if (!contract) return;
@@ -882,8 +890,8 @@ export default function App() {
     }
 
     setViewingContractInstallments(updatedContract);
-
     showToast(`Recebimento da Parcela ${installmentNumber} cancelado e estornado do Caixa!`);
+    setCancelInstallmentTarget(null);
   };
 
   const confirmDeleteContract = async () => {
@@ -1181,8 +1189,8 @@ export default function App() {
                     date: '2026-11-10',
                     month: 'Nov',
                     type: 'Entrada',
-                    planoContas: PLANO_CONTAS_OPCOES.receitas[0].codigo,
-                    category: PLANO_CONTAS_OPCOES.receitas[0].nome,
+                    planoContas: planoContasData.receitas[0].codigo,
+                    category: planoContasData.receitas[0].nome,
                     entity: '',
                     contractId: '—',
                     description: '',
@@ -1394,8 +1402,8 @@ export default function App() {
                         date: '2026-11-10',
                         month: 'Nov',
                         type: 'Entrada',
-                        planoContas: PLANO_CONTAS_OPCOES.receitas[0].codigo,
-                        category: PLANO_CONTAS_OPCOES.receitas[0].nome,
+                        planoContas: planoContasData.receitas[0].codigo,
+                        category: planoContasData.receitas[0].nome,
                         entity: '',
                         contractId: '—',
                         description: '',
@@ -1434,10 +1442,10 @@ export default function App() {
                   >
                     <option value="Todas">Plano de Contas: Todas</option>
                     <optgroup label="Receitas (1.X)">
-                      {PLANO_CONTAS_OPCOES.receitas.map(r => <option key={r.codigo} value={r.codigo}>{r.nome}</option>)}
+                      {planoContasData.receitas.map(r => <option key={r.codigo} value={r.codigo}>{r.nome}</option>)}
                     </optgroup>
                     <optgroup label="Despesas (2.X)">
-                      {PLANO_CONTAS_OPCOES.despesas.map(d => <option key={d.codigo} value={d.codigo}>{d.nome}</option>)}
+                      {planoContasData.despesas.map(d => <option key={d.codigo} value={d.codigo}>{d.nome}</option>)}
                     </optgroup>
                   </select>
 
@@ -1905,46 +1913,103 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between border-b pb-3">
-                    <h3 className="text-xs font-extrabold text-[#1B3B2B] tracking-wider uppercase">
-                      PLANO DE CONTAS — RECEITAS (1.X)
+              {/* Gerenciamento do Plano de Contas (Adicionar, Editar e Excluir) */}
+              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b pb-3">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-[#1B3B2B] uppercase">
+                      Gerenciamento do Plano de Contas (DRE)
                     </h3>
+                    <p className="text-xs text-slate-500">Adicione, edite ou remova contas do plano contábil do ERP.</p>
                   </div>
-
-                  <div className="space-y-2.5">
-                    {PLANO_CONTAS_OPCOES.receitas.map((rev) => (
-                      <div key={rev.codigo} className="flex items-center justify-between p-3 rounded-xl border border-emerald-200 bg-emerald-50/40">
-                        <span className="text-xs font-semibold text-slate-800">
-                          {rev.nome}
-                        </span>
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 shrink-0">
-                          Entrada
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                  <button
+                    onClick={() => {
+                      setPlanoForm({ tipo: 'receitas', codigo: '', nome: '', originalCodigo: null });
+                      setShowPlanoModal(true);
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> Novo Plano de Contas
+                  </button>
                 </div>
 
-                <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between border-b pb-3">
-                    <h3 className="text-xs font-extrabold text-rose-900 tracking-wider uppercase">
-                      PLANO DE CONTAS — DESPESAS / CUSTOS (2.X)
-                    </h3>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+                  {/* Receitas */}
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-extrabold text-emerald-800 uppercase tracking-wider">Contas de Receita (1.X)</h4>
+                    <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                      {planoContasData.receitas.map((rev) => (
+                        <div key={rev.codigo} className="flex items-center justify-between p-3 rounded-xl border border-emerald-200 bg-emerald-50/40 text-xs">
+                          <span className="font-semibold text-slate-800 truncate mr-2">{rev.nome}</span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => {
+                                setPlanoForm({ tipo: 'receitas', codigo: rev.codigo, nome: rev.nome, originalCodigo: rev.codigo });
+                                setShowPlanoModal(true);
+                              }}
+                              className="p-1 rounded text-teal-800 hover:bg-emerald-100 cursor-pointer"
+                              title="Editar"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Deseja excluir a conta ${rev.codigo}?`)) {
+                                  setPlanoContasData({
+                                    ...planoContasData,
+                                    receitas: planoContasData.receitas.filter(r => r.codigo !== rev.codigo)
+                                  });
+                                  showToast('Conta removida do plano de contas!');
+                                }
+                              }}
+                              className="p-1 rounded text-rose-600 hover:bg-rose-100 cursor-pointer"
+                              title="Excluir"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
-                  <div className="space-y-2.5 max-h-[480px] overflow-y-auto pr-1">
-                    {PLANO_CONTAS_OPCOES.despesas.map((desp) => (
-                      <div key={desp.codigo} className="flex items-center justify-between p-3 rounded-xl border border-rose-200 bg-rose-50/30">
-                        <span className="text-xs font-semibold text-slate-800">
-                          {desp.nome}
-                        </span>
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 shrink-0">
-                          Saída
-                        </span>
-                      </div>
-                    ))}
+                  {/* Despesas */}
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-extrabold text-rose-950 uppercase tracking-wider">Contas de Despesas e Custos (2.X)</h4>
+                    <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                      {planoContasData.despesas.map((desp) => (
+                        <div key={desp.codigo} className="flex items-center justify-between p-3 rounded-xl border border-rose-200 bg-rose-50/30 text-xs">
+                          <span className="font-semibold text-slate-800 truncate mr-2">{desp.nome}</span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => {
+                                setPlanoForm({ tipo: 'despesas', codigo: desp.codigo, nome: desp.nome, originalCodigo: desp.codigo });
+                                setShowPlanoModal(true);
+                              }}
+                              className="p-1 rounded text-rose-800 hover:bg-rose-100 cursor-pointer"
+                              title="Editar"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Deseja excluir a conta ${desp.codigo}?`)) {
+                                  setPlanoContasData({
+                                    ...planoContasData,
+                                    despesas: planoContasData.despesas.filter(d => d.codigo !== desp.codigo)
+                                  });
+                                  showToast('Conta removida do plano de contas!');
+                                }
+                              }}
+                              className="p-1 rounded text-rose-600 hover:bg-rose-100 cursor-pointer"
+                              title="Excluir"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1952,6 +2017,85 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {/* MODAL ADICIONAR / EDITAR PLANO DE CONTAS */}
+      {showPlanoModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <h3 className="text-base font-extrabold text-[#1B3B2B]">
+              {planoForm.originalCodigo ? 'Editar Conta do Plano' : 'Novo Plano de Contas'}
+            </h3>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (!planoForm.codigo || !planoForm.nome) return;
+
+              const targetListKey = planoForm.tipo; // 'receitas' ou 'despesas'
+              const currentList = [...planoContasData[targetListKey]];
+
+              if (planoForm.originalCodigo) {
+                // Editando
+                const idx = currentList.findIndex(item => item.codigo === planoForm.originalCodigo);
+                if (idx !== -1) {
+                  currentList[idx] = { codigo: planoForm.codigo, nome: planoForm.nome };
+                }
+              } else {
+                // Adicionando novo
+                currentList.push({ codigo: planoForm.codigo, nome: planoForm.nome });
+              }
+
+              setPlanoContasData({
+                ...planoContasData,
+                [targetListKey]: currentList
+              });
+
+              showToast('Plano de contas atualizado com sucesso!');
+              setShowPlanoModal(false);
+            }} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold mb-1">Tipo de Conta</label>
+                <select
+                  value={planoForm.tipo}
+                  onChange={(e) => setPlanoForm({ ...planoForm, tipo: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border font-bold bg-white"
+                  disabled={Boolean(planoForm.originalCodigo)}
+                >
+                  <option value="receitas">Receita (1.X)</option>
+                  <option value="despesas">Despesa / Custo (2.X)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1">Código Contábil (Ex: 1.1.06 ou 2.9.01)</label>
+                <input
+                  type="text"
+                  value={planoForm.codigo}
+                  onChange={(e) => setPlanoForm({ ...planoForm, codigo: e.target.value })}
+                  placeholder="Ex: 1.1.06"
+                  className="w-full px-3 py-2 rounded-xl border font-mono font-bold"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1">Nome Completo da Conta</label>
+                <input
+                  type="text"
+                  value={planoForm.nome}
+                  onChange={(e) => setPlanoForm({ ...planoForm, nome: e.target.value })}
+                  placeholder="Ex: 1.1.06 — Nova Receita de Consultoria"
+                  className="w-full px-3 py-2 rounded-xl border font-semibold"
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setShowPlanoModal(false)} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar Conta</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* MODAL LANÇAMENTO (COM PLANO DE CONTAS E CATEGORIA SEPARADOS) */}
       {showTxModal && (
@@ -1972,7 +2116,7 @@ export default function App() {
                     value={txForm.type} 
                     onChange={(e) => {
                       const newType = e.target.value;
-                      const defaultOpt = newType === 'Entrada' ? PLANO_CONTAS_OPCOES.receitas[0] : PLANO_CONTAS_OPCOES.despesas[0];
+                      const defaultOpt = newType === 'Entrada' ? planoContasData.receitas[0] : planoContasData.despesas[0];
                       setTxForm({ 
                         ...txForm, 
                         type: newType, 
@@ -1994,7 +2138,7 @@ export default function App() {
                   value={txForm.planoContas} 
                   onChange={(e) => {
                     const selectedCode = e.target.value;
-                    const list = txForm.type === 'Entrada' ? PLANO_CONTAS_OPCOES.receitas : PLANO_CONTAS_OPCOES.despesas;
+                    const list = txForm.type === 'Entrada' ? planoContasData.receitas : planoContasData.despesas;
                     const found = list.find(item => item.codigo === selectedCode);
                     setTxForm({ 
                       ...txForm, 
@@ -2004,7 +2148,7 @@ export default function App() {
                   }} 
                   className="w-full px-3 py-2 rounded-xl border font-bold text-teal-900 bg-emerald-50"
                 >
-                  {(txForm.type === 'Entrada' ? PLANO_CONTAS_OPCOES.receitas : PLANO_CONTAS_OPCOES.despesas).map(item => (
+                  {(txForm.type === 'Entrada' ? planoContasData.receitas : planoContasData.despesas).map(item => (
                     <option key={item.codigo} value={item.codigo}>{item.nome}</option>
                   ))}
                 </select>
@@ -2296,8 +2440,13 @@ export default function App() {
                                 <Check className="w-3.5 h-3.5" /> Liquidado
                               </span>
                               <button
-                                onClick={() => handleCancelReceiveInstallment(viewingContractInstallments.id, inst.number)}
-                                className="px-2 py-1 bg-rose-100 text-rose-700 font-bold rounded-lg text-[10px] hover:bg-rose-200 cursor-pointer"
+                                onClick={() => {
+                                  setCancelInstallmentTarget({
+                                    contractId: viewingContractInstallments.id,
+                                    installmentNumber: inst.number
+                                  });
+                                }}
+                                className="px-2.5 py-1 bg-rose-100 text-rose-700 font-bold rounded-lg text-[10px] hover:bg-rose-200 cursor-pointer"
                                 title="Cancelar / Estornar Recebimento"
                               >
                                 Cancelar Baixa
@@ -2393,6 +2542,35 @@ export default function App() {
                   Confirmar e Gerar Lançamentos
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CUSTOMIZADO DE CONFIRMAÇÃO DE CANCELAMENTO DE BAIXA */}
+      {cancelInstallmentTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-extrabold text-rose-700">Cancelar Baixa de Parcela?</h3>
+            <p className="text-xs text-slate-600">
+              Deseja realmente cancelar o recebimento da <strong>Parcela {cancelInstallmentTarget.installmentNumber}</strong>? Os lançamentos correspondentes no Livro Caixa serão removidos.
+            </p>
+            <div className="flex justify-center gap-2 pt-2">
+              <button 
+                onClick={() => setCancelInstallmentTarget(null)} 
+                className="px-4 py-2 rounded-xl border font-bold text-xs text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Voltar
+              </button>
+              <button 
+                onClick={confirmCancelReceiveInstallment} 
+                className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer"
+              >
+                Sim, Cancelar Baixa
+              </button>
             </div>
           </div>
         </div>
