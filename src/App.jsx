@@ -314,6 +314,7 @@ const INITIAL_ACCESS_ROLES = [
     holder: 'Pedro Melo',
     email: 'pedrosmelos@gmail.com',
     password: 'Martins2027@',
+    badgeColor: 'bg-[#1B3B2B] text-emerald-300',
     description: 'Acesso total e liberação máxima a todos os módulos estratégicos, aprovação de saques de Pró-Labore, DRE Gerencial, contratos e governança do sistema.',
     permissions: {
       dashboard: { view: true, create: true, edit: true, delete: true, approve: true },
@@ -370,15 +371,12 @@ export default function App() {
     'Inativo'
   ]);
 
-  // Estados para Gerenciamento de Segmentos e Status
   const [showManageSegmentsModal, setShowManageSegmentsModal] = useState(false);
   const [showManageStatusesModal, setShowManageStatusesModal] = useState(false);
   const [newSegmentInput, setNewSegmentInput] = useState('');
   const [newStatusInput, setNewStatusInput] = useState('');
 
-  // Perfis de Acesso sincronizados via Supabase
   const [accessRoles, setAccessRoles] = useState(INITIAL_ACCESS_ROLES);
-
   const [activeRoleId, setActiveRoleId] = useState('ROLE-01-PEDRO');
   const [authLoggedIn, setAuthLoggedIn] = useState(false);
   const [authEmailInput, setAuthEmailInput] = useState('');
@@ -390,12 +388,12 @@ export default function App() {
   const [showUserRoleModal, setShowUserRoleModal] = useState(false);
   const [editingRolePermissions, setEditingRolePermissions] = useState(null);
   const [newRoleForm, setNewRoleForm] = useState({
-    level: 'Nível 1 — Master',
-    name: 'Master',
+    level: 'Nível Especial — Colaborador',
+    name: '',
     holder: '',
     email: '',
     password: 'martins2026',
-    description: 'Acesso total e liberação máxima a todos os módulos estratégicos, aprovação de saques de Pró-Labore, DRE Gerencial, contratos e governança do sistema.'
+    description: ''
   });
 
   // Filtros
@@ -427,7 +425,6 @@ export default function App() {
 
   const [cancelInstallmentTarget, setCancelInstallmentTarget] = useState(null);
 
-  // Estados para CRUD de Clientes (Adicionar, Editar e Excluir)
   const [showClientModal, setShowClientModal] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [deleteClientTarget, setDeleteClientTarget] = useState(null);
@@ -479,7 +476,7 @@ export default function App() {
     status: 'Ativo'
   });
 
-  // Sincronização Supabase (incluindo perfis de acesso)
+  // Sincronização Supabase (incluindo user_roles na nuvem)
   useEffect(() => {
     const fetchAllData = async () => {
       if (!supabase) return;
@@ -488,7 +485,7 @@ export default function App() {
           supabase.from('transactions').select('*'),
           supabase.from('contracts').select('*'),
           supabase.from('clients').select('*'),
-          supabase.from('access_roles').select('*')
+          supabase.from('user_roles').select('*')
         ]);
 
         if (!txRes.error && txRes.data) {
@@ -499,17 +496,6 @@ export default function App() {
         if (!cliRes.error && cliRes.data) setClients(cliRes.data);
         if (!rolesRes.error && rolesRes.data && rolesRes.data.length > 0) {
           setAccessRoles(rolesRes.data);
-        } else if (rolesRes.data && rolesRes.data.length === 0) {
-          await supabase.from('access_roles').upsert(INITIAL_ACCESS_ROLES.map(r => ({
-            id: r.id,
-            level: r.level,
-            name: r.name,
-            holder: r.holder,
-            email: r.email,
-            password: r.password,
-            description: r.description,
-            permissions: r.permissions
-          })));
         }
       } catch (err) {
         console.error('Supabase sync error:', err);
@@ -524,7 +510,7 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchAllData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contracts' }, fetchAllData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, fetchAllData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'access_roles' }, fetchAllData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_roles' }, fetchAllData)
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') setIsCloudSynced(true);
       });
@@ -543,9 +529,7 @@ export default function App() {
     return Boolean(currentRole.permissions[moduleKey][actionKey]);
   };
 
-  // ============================================================================
   // CÁLCULO DINÂMICO DA DRE GERENCIAL (2026 a 2040)
-  // ============================================================================
   const dreGerencialData = useMemo(() => {
     const monthsFull = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     
@@ -967,7 +951,6 @@ export default function App() {
     setDeleteContractTarget(null);
   };
 
-  // Funções para Salvar, Editar e Excluir Clientes
   const handleSaveClient = async (e) => {
     e.preventDefault();
     if (!cliForm.name) {
@@ -1031,51 +1014,48 @@ export default function App() {
     setDeleteClientTarget(null);
   };
 
+  // FUNÇÃO ATUALIZADA PARA SALVAR O NOVO UTILIZADOR DIRETAMENTE NO SUPABASE
   const handleSaveNewUserRole = async (e) => {
     e.preventDefault();
     if (!newRoleForm.name || !newRoleForm.holder || !newRoleForm.email) return;
+    
     const newRole = {
       id: `ROLE-${Date.now()}`,
       level: newRoleForm.level,
       name: newRoleForm.name,
       holder: newRoleForm.holder,
-      email: newRoleForm.email.toLowerCase().trim(),
+      email: newRoleForm.email,
       password: newRoleForm.password || 'martins2026',
+      badgeColor: 'bg-[#1B3B2B] text-white',
       description: newRoleForm.description || 'Perfil personalizado de acesso.',
       permissions: JSON.parse(JSON.stringify(DEFAULT_PERMISSIONS))
     };
 
-    const updatedRoles = [...accessRoles, newRole];
-    setAccessRoles(updatedRoles);
-
-    if (supabase) {
-      const { error } = await supabase.from('access_roles').upsert([{
-        id: newRole.id,
-        level: newRole.level,
-        name: newRole.name,
-        holder: newRole.holder,
-        email: newRole.email,
-        password: newRole.password,
-        description: newRole.description,
-        permissions: newRole.permissions
-      }]);
-      if (error) {
-        console.error('Erro Supabase Perfil:', error);
-        alert('Erro ao salvar perfil na nuvem: ' + error.message);
-        return;
+    try {
+      if (supabase) {
+        const { error } = await supabase.from('user_roles').upsert([newRole]);
+        if (error) {
+          console.error('Erro Supabase Utilizador:', error);
+          alert('Erro ao salvar utilizador na nuvem: ' + error.message);
+          return;
+        }
       }
-    }
 
-    setShowUserRoleModal(false);
-    setNewRoleForm({
-      level: 'Nível 1 — Master',
-      name: 'Master',
-      holder: '',
-      email: '',
-      password: 'martins2026',
-      description: 'Acesso total e liberação máxima a todos os módulos estratégicos, aprovação de saques de Pró-Labore, DRE Gerencial, contratos e governança do sistema.'
-    });
-    showToast('Novo utilizador cadastrado e sincronizado com a nuvem!');
+      setAccessRoles(prev => [...prev, newRole]);
+      setShowUserRoleModal(false);
+      setNewRoleForm({
+        level: 'Nível Especial — Colaborador',
+        name: '',
+        holder: '',
+        email: '',
+        password: 'martins2026',
+        description: ''
+      });
+      showToast('Novo utilizador cadastrado e salvo na nuvem com sucesso!');
+    } catch (err) {
+      console.error('Erro crítico ao salvar utilizador:', err);
+      alert('Erro inesperado ao salvar utilizador.');
+    }
   };
 
   const handlePermissionToggle = (roleId, moduleKey, actionKey) => {
@@ -1107,40 +1087,12 @@ export default function App() {
     e.preventDefault();
     if (!editingRoleTarget) return;
 
-    const updatedRoles = accessRoles.map(r => r.id === editingRoleTarget.id ? editingRoleTarget : r);
-    setAccessRoles(updatedRoles);
-
+    setAccessRoles(prev => prev.map(r => r.id === editingRoleTarget.id ? editingRoleTarget : r));
     if (supabase) {
-      await supabase.from('access_roles').upsert([{
-        id: editingRoleTarget.id,
-        level: editingRoleTarget.level,
-        name: editingRoleTarget.name,
-        holder: editingRoleTarget.holder,
-        email: editingRoleTarget.email,
-        password: editingRoleTarget.password,
-        description: editingRoleTarget.description,
-        permissions: editingRoleTarget.permissions
-      }]);
+      await supabase.from('user_roles').upsert([editingRoleTarget]);
     }
-
-    showToast('Perfil atualizado com sucesso!');
+    showToast('Perfil atualizado com sucesso na nuvem!');
     setEditingRoleTarget(null);
-  };
-
-  const handleDeleteRole = async (roleId) => {
-    if (accessRoles.length <= 1) {
-      alert('Você não pode excluir o último perfil restante do sistema.');
-      return;
-    }
-    if (window.confirm('Deseja realmente excluir este perfil de acesso?')) {
-      const updatedRoles = accessRoles.filter(r => r.id !== roleId);
-      setAccessRoles(updatedRoles);
-      if (supabase) {
-        await supabase.from('access_roles').delete().eq('id', roleId);
-      }
-      showToast('Perfil excluído com sucesso!');
-      setEditingRoleTarget(null);
-    }
   };
 
   const exportDREToExcel = () => {
@@ -1261,7 +1213,7 @@ export default function App() {
 
           <div className="mx-4 mt-4 p-3.5 rounded-xl bg-[#244B38] border border-[#3B7A57]/50 flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-[#F8F3EF] text-[#1B3B2B] font-extrabold flex items-center justify-center text-sm shrink-0 shadow">
-              {currentRole ? currentRole.holder.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'PM'}
+              PM
             </div>
             <div className="overflow-hidden">
               <div className="text-[10px] text-emerald-300 font-semibold uppercase tracking-wider truncate flex items-center gap-1">
@@ -1269,7 +1221,7 @@ export default function App() {
                 {isCloudSynced ? 'Nuvem Sincronizada' : 'Conectando...'}
               </div>
               <div className="text-sm font-bold text-white truncate">
-                {currentRole ? currentRole.holder : 'Pedro Melo'}
+                Pedro Melo
               </div>
               <div className="text-[11px] text-emerald-100/80 truncate">
                 Pró-Labore Pago: {formatCurrency(financialData.proLaborePago)}
@@ -1349,7 +1301,7 @@ export default function App() {
             <div className="flex items-center gap-2 bg-[#F8F3EF] px-3 py-1.5 rounded-xl border border-[#D5CFC7]">
               <KeyRound className="w-3.5 h-3.5 text-[#1B3B2B] shrink-0" />
               <span className="text-xs font-extrabold text-[#1B3B2B]">
-                {currentRole ? `${currentRole.level} — ${currentRole.name} (${currentRole.holder})` : 'Master'}
+                {currentRole.name} ({currentRole.holder})
               </span>
               <button
                 onClick={() => setAuthLoggedIn(false)}
@@ -1604,7 +1556,6 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
-                      {/* 1. RECEITA OPERACIONAL BRUTA */}
                       <tr className="bg-slate-100 font-extrabold text-[#1B3B2B]">
                         <td className="py-2.5 px-3">1. RECEITA OPERACIONAL BRUTA</td>
                         {dreGerencialData.monthsFull.map(m => {
@@ -1627,7 +1578,6 @@ export default function App() {
                         </tr>
                       ))}
 
-                      {/* 2. DEDUÇÕES E IMPOSTOS */}
                       <tr className="bg-rose-50 text-rose-900 font-bold">
                         <td className="py-2.5 px-3">2. (-) DEDUÇÕES E IMPOSTOS SOBRE FATURAMENTO</td>
                         {dreGerencialData.monthsFull.map(m => {
@@ -1650,7 +1600,6 @@ export default function App() {
                         </tr>
                       ))}
 
-                      {/* 3. RECEITA OPERACIONAL LÍQUIDA */}
                       <tr className="bg-slate-100 font-extrabold text-[#1B3B2B]">
                         <td className="py-2.5 px-3">3. (=) RECEITA OPERACIONAL LÍQUIDA</td>
                         {dreGerencialData.monthsFull.map(m => {
@@ -1664,7 +1613,6 @@ export default function App() {
                         </td>
                       </tr>
 
-                      {/* 4. CUSTOS DIRETOS */}
                       <tr className="bg-rose-50 text-rose-900 font-bold">
                         <td className="py-2.5 px-3">4. (-) CUSTOS DIRETOS DE PROJETOS E CAMPO (CSP)</td>
                         {dreGerencialData.monthsFull.map(m => {
@@ -1687,7 +1635,6 @@ export default function App() {
                         </tr>
                       ))}
 
-                      {/* LUCRO BRUTO */}
                       <tr className="bg-emerald-50 text-emerald-900 font-extrabold">
                         <td className="py-2.5 px-3">(=) LUCRO BRUTO</td>
                         {dreGerencialData.monthsFull.map(m => {
@@ -1702,7 +1649,6 @@ export default function App() {
                         </td>
                       </tr>
 
-                      {/* 5. DESPESAS OPERACIONAIS E PRÓ-LABORE */}
                       <tr className="bg-rose-50 text-rose-900 font-bold">
                         <td className="py-2.5 px-3">5. (-) DESPESAS OPERACIONAIS, COMERCIAIS E PRÓ-LABORE</td>
                         {dreGerencialData.monthsFull.map(m => {
@@ -1725,7 +1671,6 @@ export default function App() {
                         </tr>
                       ))}
 
-                      {/* 6. LUCRO LÍQUIDO DO EXERCÍCIO */}
                       <tr className="bg-[#1B3B2B] text-white font-black text-sm">
                         <td className="py-3 px-3">6. (=) LUCRO LÍQUIDO DO EXERCÍCIO (APÓS PRÓ-LABORE)</td>
                         {dreGerencialData.monthsFull.map(m => {
@@ -2137,7 +2082,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Tabela de Clientes com Botões de Editar e Excluir */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
@@ -2216,7 +2160,7 @@ export default function App() {
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
                 <div>
                   <h3 className="text-base font-extrabold text-[#1B3B2B]">Árvore de Acessos & Perfis</h3>
-                  <p className="text-xs text-slate-500">Gerencie colaboradores e configure permissões granulares por módulo.</p>
+                  <p className="text-xs text-slate-500">Gerencie colaboradores e configure permissões granulares por módulo na nuvem.</p>
                 </div>
                 <button
                   onClick={() => setShowUserRoleModal(true)}
@@ -2226,7 +2170,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* LISTA DE PERFIS */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {accessRoles.map((role) => (
                   <div key={role.id} className="p-5 rounded-2xl border border-slate-200 bg-white shadow-sm space-y-3 flex flex-col justify-between">
@@ -2235,22 +2178,13 @@ export default function App() {
                         <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#1B3B2B] text-emerald-300 uppercase">
                           {role.level}
                         </span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => setEditingRoleTarget(role)}
-                            className="p-1.5 rounded-lg text-teal-800 hover:bg-teal-50 cursor-pointer"
-                            title="Editar Perfil / Senha"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteRole(role.id)}
-                            className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
-                            title="Excluir Perfil"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => setEditingRoleTarget(role)}
+                          className="p-1.5 rounded-lg text-teal-800 hover:bg-teal-50 cursor-pointer"
+                          title="Editar Perfil"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
                       </div>
                       <h4 className="font-extrabold text-[#1B3B2B] text-sm">{role.name}</h4>
                       <div className="text-xs font-bold text-slate-700">👤 {role.holder}</div>
@@ -2265,21 +2199,15 @@ export default function App() {
                       >
                         <Sliders className="w-3.5 h-3.5" /> Configurar Permissões (Flags)
                       </button>
-                      {activeRoleId === role.id ? (
-                        <span className="w-full py-1.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800 flex items-center justify-center gap-1">
-                          <Check className="w-3.5 h-3.5" /> Perfil Ativo ({role.holder})
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            setActiveRoleId(role.id);
-                            showToast(`Alternado para o perfil de ${role.holder}!`);
-                          }}
-                          className="w-full py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center justify-center gap-1 cursor-pointer"
-                        >
-                          Ativar este Perfil
-                        </button>
-                      )}
+                      <button
+                        onClick={() => {
+                          setActiveRoleId(role.id);
+                          showToast(`Perfil alterado para ${role.holder}`);
+                        }}
+                        className={`w-full py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1 cursor-pointer ${activeRoleId === role.id ? 'bg-emerald-100 text-emerald-800 font-extrabold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                      >
+                        <Check className="w-3.5 h-3.5" /> {activeRoleId === role.id ? 'Perfil Ativo' : 'Ativar Este Perfil'}
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -2449,16 +2377,11 @@ export default function App() {
         </main>
       </div>
 
-      {/* MODAL EDITAR PERFIL NA ÁRVORE DE ACESSOS (COM SENHA E EXCLUSÃO) */}
+      {/* MODAL EDITAR PERFIL NA ÁRVORE DE ACESSOS */}
       {editingRoleTarget && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b pb-2">
-              <h3 className="text-base font-extrabold text-[#1B3B2B]">Editar Perfil / Colaborador & Senha</h3>
-              <button onClick={() => setEditingRoleTarget(null)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+            <h3 className="text-base font-extrabold text-[#1B3B2B]">Editar Perfil / Colaborador</h3>
             <form onSubmit={handleSaveRoleEdit} className="space-y-3 text-xs">
               <div>
                 <label className="block font-bold mb-1">Cargo / Nível</label>
@@ -2501,37 +2424,17 @@ export default function App() {
                 />
               </div>
               <div>
-                <label className="block font-bold mb-1">Nova Senha de Acesso</label>
-                <input
-                  type="text"
-                  value={editingRoleTarget.password || ''}
-                  onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, password: e.target.value })}
-                  placeholder="Digite a nova senha se desejar alterar"
-                  className="w-full px-3 py-2 rounded-xl border font-bold text-emerald-800"
-                  required
-                />
-              </div>
-              <div>
                 <label className="block font-bold mb-1">Descrição / Alçadas</label>
                 <textarea
                   value={editingRoleTarget.description}
                   onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, description: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border h-16 resize-none"
+                  className="w-full px-3 py-2 rounded-xl border h-20 resize-none"
                   required
                 />
               </div>
-              <div className="flex items-center justify-between pt-3 border-t">
-                <button
-                  type="button"
-                  onClick={() => handleDeleteRole(editingRoleTarget.id)}
-                  className="px-4 py-2 rounded-xl bg-rose-100 text-rose-700 font-bold hover:bg-rose-200 cursor-pointer flex items-center gap-1"
-                >
-                  <Trash2 className="w-4 h-4" /> Excluir Cadastro
-                </button>
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => setEditingRoleTarget(null)} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
-                  <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar Alterações</button>
-                </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setEditingRoleTarget(null)} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar Alterações</button>
               </div>
             </form>
           </div>
@@ -3065,7 +2968,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CUSTOMIZADO DE CONFIRMAÇÃO DE CANCELAMENTO DE BAIXA */}
+      {/* MODAL CANCELAR BAIXA */}
       {cancelInstallmentTarget && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
@@ -3094,7 +2997,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CUSTOMIZADO DE EXCLUSÃO DE LANÇAMENTO */}
+      {/* MODAL EXCLUSÃO DE LANÇAMENTO */}
       {deleteTxTarget && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
@@ -3123,7 +3026,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CONFIRMAR EXCLUSÃO CONTRATO */}
+      {/* MODAL EXCLUSÃO CONTRATO */}
       {deleteContractTarget && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl">
@@ -3137,7 +3040,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CADASTRAR / EDITAR CLIENTE (CRM) COM GERENCIAMENTO DE STATUS E SEGMENTO */}
+      {/* MODAL CLIENTE */}
       {showClientModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B]">
@@ -3442,7 +3345,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CONFIRMAR EXCLUSÃO CLIENTE */}
+      {/* MODAL EXCLUSÃO CLIENTE */}
       {deleteClientTarget && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
@@ -3483,7 +3386,7 @@ export default function App() {
                   type="text"
                   value={newRoleForm.name}
                   onChange={(e) => setNewRoleForm({ ...newRoleForm, name: e.target.value })}
-                  placeholder="Ex: Sócio-Diretor / Master"
+                  placeholder="Ex: Analista Ambiental Júnior"
                   className="w-full px-3 py-2 rounded-xl border font-bold"
                   required
                 />
@@ -3494,7 +3397,7 @@ export default function App() {
                   type="text"
                   value={newRoleForm.holder}
                   onChange={(e) => setNewRoleForm({ ...newRoleForm, holder: e.target.value })}
-                  placeholder="Ex: Maikon Martins"
+                  placeholder="Ex: Carlos Silva"
                   className="w-full px-3 py-2 rounded-xl border"
                   required
                 />
@@ -3505,7 +3408,7 @@ export default function App() {
                   type="email"
                   value={newRoleForm.email}
                   onChange={(e) => setNewRoleForm({ ...newRoleForm, email: e.target.value })}
-                  placeholder="mwagronomia@gmail.com"
+                  placeholder="carlos@grupomartins.eng.br"
                   className="w-full px-3 py-2 rounded-xl border"
                   required
                 />
@@ -3513,10 +3416,10 @@ export default function App() {
               <div>
                 <label className="block font-bold mb-1">Senha Inicial</label>
                 <input
-                  type="text"
+                  type="password"
                   value={newRoleForm.password}
                   onChange={(e) => setNewRoleForm({ ...newRoleForm, password: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border font-bold"
+                  className="w-full px-3 py-2 rounded-xl border"
                   required
                 />
               </div>
@@ -3532,7 +3435,7 @@ export default function App() {
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={() => setShowUserRoleModal(false)} className="px-4 py-2 rounded-xl border font-bold">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold">Cadastrar Utilizador</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold">Cadastrar Utilizador na Nuvem</button>
               </div>
             </form>
           </div>
@@ -3604,13 +3507,16 @@ export default function App() {
 
             <div className="flex justify-end gap-2 pt-3 border-t">
               <button
-                onClick={() => {
-                  showToast('Permissões salvas com sucesso!');
+                onClick={async () => {
+                  if (supabase) {
+                    await supabase.from('user_roles').upsert([editingRolePermissions]);
+                  }
+                  showToast('Permissões salvas com sucesso na nuvem!');
                   setEditingRolePermissions(null);
                 }}
                 className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-bold text-xs hover:bg-[#2D5A43] cursor-pointer"
               >
-                Concluir & Fechar
+                Concluir & Salvar na Nuvem
               </button>
             </div>
           </div>
@@ -3634,13 +3540,12 @@ export default function App() {
             <form onSubmit={(e) => {
               e.preventDefault();
               setAuthErrorMsg('');
-              const cleanInputEmail = authEmailInput.trim().toLowerCase();
-              const found = accessRoles.find(r => r.email && r.email.trim().toLowerCase() === cleanInputEmail);
+              const found = accessRoles.find(r => r.email && r.email.toLowerCase() === authEmailInput.trim().toLowerCase());
               if (!found) {
-                setAuthErrorMsg('E-mail não cadastrado na árvore de acessos.');
+                setAuthErrorMsg('E-mail não cadastrado.');
                 return;
               }
-              if (found.password && found.password.trim() !== authPasswordInput.trim()) {
+              if (found.password && found.password !== authPasswordInput.trim()) {
                 setAuthErrorMsg('Senha incorreta.');
                 return;
               }
@@ -3650,11 +3555,11 @@ export default function App() {
             }} className="space-y-4 text-left text-xs">
               <div>
                 <label className="block font-bold text-slate-700 uppercase mb-1">E-mail Corporativo</label>
-                <input type="email" value={authEmailInput} onChange={(e) => setAuthEmailInput(e.target.value)} placeholder="ex: mwagronomia@gmail.com" className="w-full px-3.5 py-2.5 rounded-xl border" required />
+                <input type="email" value={authEmailInput} onChange={(e) => setAuthEmailInput(e.target.value)} placeholder="ex: pedrosmelos@gmail.com" className="w-full px-3.5 py-2.5 rounded-xl border" required />
               </div>
               <div>
                 <label className="block font-bold text-slate-700 uppercase mb-1">Senha</label>
-                <input type="password" value={authPasswordInput} onChange={(e) => setAuthPasswordInput(e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl border" required />
+                <input type="password" value={authPasswordInput} onChange={(e) => setAuthPasswordInput(e.target.value)} placeholder="••••••••" className="w-full px-3.5 py-2.5 rounded-xl border" required />
               </div>
               <button type="submit" className="w-full py-3 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer">
                 Entrar no ERP (Sincronizado)
