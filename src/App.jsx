@@ -314,7 +314,6 @@ const INITIAL_ACCESS_ROLES = [
     holder: 'Pedro Melo',
     email: 'pedrosmelos@gmail.com',
     password: 'Martins2027@',
-    badgeColor: 'bg-[#1B3B2B] text-emerald-300',
     description: 'Acesso total e liberação máxima a todos os módulos estratégicos, aprovação de saques de Pró-Labore, DRE Gerencial, contratos e governança do sistema.',
     permissions: {
       dashboard: { view: true, create: true, edit: true, delete: true, approve: true },
@@ -355,6 +354,7 @@ export default function App() {
 
   // Estado para Edição de Perfil na Árvore de Acessos
   const [editingRoleTarget, setEditingRoleTarget] = useState(null);
+  const [deleteRoleTarget, setDeleteRoleTarget] = useState(null);
 
   const [availableSegments, setAvailableSegments] = useState([
     'Agronegócio / Propriedade Rural',
@@ -476,7 +476,7 @@ export default function App() {
     status: 'Ativo'
   });
 
-  // Sincronização Supabase (incluindo user_roles na nuvem)
+  // Sincronização Supabase
   useEffect(() => {
     const fetchAllData = async () => {
       if (!supabase) return;
@@ -1014,8 +1014,7 @@ export default function App() {
     setDeleteClientTarget(null);
   };
 
-  // FUNÇÃO ATUALIZADA PARA SALVAR O NOVO UTILIZADOR DIRETAMENTE NO SUPABASE
-const handleSaveNewUserRole = async (e) => {
+  const handleSaveNewUserRole = async (e) => {
     e.preventDefault();
     if (!newRoleForm.name || !newRoleForm.holder || !newRoleForm.email) return;
     
@@ -1056,7 +1055,7 @@ const handleSaveNewUserRole = async (e) => {
       alert('Erro inesperado ao salvar utilizador.');
     }
   };
-  
+
   const handlePermissionToggle = (roleId, moduleKey, actionKey) => {
     setAccessRoles(prevRoles =>
       prevRoles.map(role => {
@@ -1092,6 +1091,26 @@ const handleSaveNewUserRole = async (e) => {
     }
     showToast('Perfil atualizado com sucesso na nuvem!');
     setEditingRoleTarget(null);
+  };
+
+  const confirmDeleteRole = async () => {
+    if (!deleteRoleTarget) return;
+    const roleId = deleteRoleTarget.id;
+    if (accessRoles.length <= 1) {
+      alert('Você precisa manter pelo menos um perfil de acesso no sistema.');
+      setDeleteRoleTarget(null);
+      return;
+    }
+
+    setAccessRoles(prev => prev.filter(r => r.id !== roleId));
+    if (supabase) {
+      await supabase.from('user_roles').delete().eq('id', roleId);
+    }
+    if (activeRoleId === roleId) {
+      setActiveRoleId(accessRoles.find(r => r.id !== roleId)?.id || 'ROLE-01-PEDRO');
+    }
+    showToast(`Perfil de ${deleteRoleTarget.holder} excluído com sucesso!`);
+    setDeleteRoleTarget(null);
   };
 
   const exportDREToExcel = () => {
@@ -1220,7 +1239,7 @@ const handleSaveNewUserRole = async (e) => {
                 {isCloudSynced ? 'Nuvem Sincronizada' : 'Conectando...'}
               </div>
               <div className="text-sm font-bold text-white truncate">
-                Pedro Melo
+                {currentRole.holder}
               </div>
               <div className="text-[11px] text-emerald-100/80 truncate">
                 Pró-Labore Pago: {formatCurrency(financialData.proLaborePago)}
@@ -2159,7 +2178,7 @@ const handleSaveNewUserRole = async (e) => {
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
                 <div>
                   <h3 className="text-base font-extrabold text-[#1B3B2B]">Árvore de Acessos & Perfis</h3>
-                  <p className="text-xs text-slate-500">Gerencie colaboradores e configure permissões granulares por módulo na nuvem.</p>
+                  <p className="text-xs text-slate-500">Gerencie colaboradores, altere senhas, exclua cadastros e configure permissões granulares na nuvem.</p>
                 </div>
                 <button
                   onClick={() => setShowUserRoleModal(true)}
@@ -2177,17 +2196,27 @@ const handleSaveNewUserRole = async (e) => {
                         <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#1B3B2B] text-emerald-300 uppercase">
                           {role.level}
                         </span>
-                        <button
-                          onClick={() => setEditingRoleTarget(role)}
-                          className="p-1.5 rounded-lg text-teal-800 hover:bg-teal-50 cursor-pointer"
-                          title="Editar Perfil"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setEditingRoleTarget(role)}
+                            className="p-1.5 rounded-lg text-teal-800 hover:bg-teal-50 cursor-pointer"
+                            title="Editar Perfil e Senha"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteRoleTarget(role)}
+                            className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
+                            title="Excluir Cadastro"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                       <h4 className="font-extrabold text-[#1B3B2B] text-sm">{role.name}</h4>
                       <div className="text-xs font-bold text-slate-700">👤 {role.holder}</div>
                       <div className="text-xs text-slate-500">✉️ {role.email}</div>
+                      <div className="text-xs text-slate-500 font-mono">🔑 Senha: {role.password || '—'}</div>
                       <p className="text-[11px] text-slate-600 border-t pt-2 mt-2">{role.description}</p>
                     </div>
 
@@ -2376,11 +2405,11 @@ const handleSaveNewUserRole = async (e) => {
         </main>
       </div>
 
-      {/* MODAL EDITAR PERFIL NA ÁRVORE DE ACESSOS */}
+      {/* MODAL EDITAR PERFIL E SENHA NA ÁRVORE DE ACESSOS */}
       {editingRoleTarget && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="text-base font-extrabold text-[#1B3B2B]">Editar Perfil / Colaborador</h3>
+            <h3 className="text-base font-extrabold text-[#1B3B2B]">Editar Perfil e Senha de Acesso</h3>
             <form onSubmit={handleSaveRoleEdit} className="space-y-3 text-xs">
               <div>
                 <label className="block font-bold mb-1">Cargo / Nível</label>
@@ -2423,6 +2452,17 @@ const handleSaveNewUserRole = async (e) => {
                 />
               </div>
               <div>
+                <label className="block font-bold mb-1">Alterar Senha de Acesso</label>
+                <input
+                  type="text"
+                  value={editingRoleTarget.password || ''}
+                  onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, password: e.target.value })}
+                  placeholder="Nova senha"
+                  className="w-full px-3 py-2 rounded-xl border font-mono font-bold text-emerald-800"
+                  required
+                />
+              </div>
+              <div>
                 <label className="block font-bold mb-1">Descrição / Alçadas</label>
                 <textarea
                   value={editingRoleTarget.description}
@@ -2436,6 +2476,25 @@ const handleSaveNewUserRole = async (e) => {
                 <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar Alterações</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CONFIRMAR EXCLUSÃO DE PERFIL */}
+      {deleteRoleTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-extrabold text-rose-700">Excluir Utilizador?</h3>
+            <p className="text-xs text-slate-600">
+              Deseja realmente excluir o perfil de <strong>{deleteRoleTarget.holder}</strong> ({deleteRoleTarget.email})? Esta ação removerá o acesso permanentemente da nuvem.
+            </p>
+            <div className="flex justify-center gap-2 pt-2">
+              <button onClick={() => setDeleteRoleTarget(null)} className="px-4 py-2 rounded-xl border font-bold text-xs text-slate-600 hover:bg-slate-50 cursor-pointer">Cancelar</button>
+              <button onClick={confirmDeleteRole} className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer">Sim, Excluir</button>
+            </div>
           </div>
         </div>
       )}
@@ -3415,10 +3474,10 @@ const handleSaveNewUserRole = async (e) => {
               <div>
                 <label className="block font-bold mb-1">Senha Inicial</label>
                 <input
-                  type="password"
+                  type="text"
                   value={newRoleForm.password}
                   onChange={(e) => setNewRoleForm({ ...newRoleForm, password: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border"
+                  className="w-full px-3 py-2 rounded-xl border font-mono font-bold"
                   required
                 />
               </div>
@@ -3539,12 +3598,12 @@ const handleSaveNewUserRole = async (e) => {
             <form onSubmit={(e) => {
               e.preventDefault();
               setAuthErrorMsg('');
-              const found = accessRoles.find(r => r.email && r.email.toLowerCase() === authEmailInput.trim().toLowerCase());
+              const found = accessRoles.find(r => r.email && r.email.trim().toLowerCase() === authEmailInput.trim().toLowerCase());
               if (!found) {
                 setAuthErrorMsg('E-mail não cadastrado.');
                 return;
               }
-              if (found.password && found.password !== authPasswordInput.trim()) {
+              if (!found.password || found.password.trim() !== authPasswordInput.trim()) {
                 setAuthErrorMsg('Senha incorreta.');
                 return;
               }
@@ -3554,7 +3613,7 @@ const handleSaveNewUserRole = async (e) => {
             }} className="space-y-4 text-left text-xs">
               <div>
                 <label className="block font-bold text-slate-700 uppercase mb-1">E-mail Corporativo</label>
-                <input type="email" value={authEmailInput} onChange={(e) => setAuthEmailInput(e.target.value)} placeholder="ex: pedrosmelos@gmail.com" className="w-full px-3.5 py-2.5 rounded-xl border" required />
+                <input type="email" value={authEmailInput} onChange={(e) => setAuthEmailInput(e.target.value)} placeholder="ex: mwagronomia@gmail.com" className="w-full px-3.5 py-2.5 rounded-xl border" required />
               </div>
               <div>
                 <label className="block font-bold text-slate-700 uppercase mb-1">Senha</label>
