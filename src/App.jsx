@@ -5,7 +5,7 @@ import {
   FileSpreadsheet,
   Briefcase,
   UserCheck,
-  Settings,
+  Settings..
   Plus,
   Search,
   Filter,
