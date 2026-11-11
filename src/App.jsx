@@ -841,7 +841,6 @@ export default function App() {
     const contract = contracts.find(c => c.id === contractId);
     if (!contract) return;
 
-    // Identifica a descrição exata gerada no caixa para remover
     const descPrefix1 = `Parcela ${installmentNumber}/${contract.installmentsData.length}`;
     const descPrefix2 = `Juros / Multa Parcela ${installmentNumber} — Contrato ${contractId}`;
 
@@ -871,7 +870,6 @@ export default function App() {
       await supabase.from('contracts').upsert([updatedContract]);
     }
 
-    // Remove do Livro Caixa (transactions) os registros vinculados a este contrato e parcela
     const txsToRemove = transactions.filter(t => t.contractId === contractId && (t.description.includes(descPrefix1) || t.description.includes(descPrefix2)));
     const txIdsToRemove = txsToRemove.map(t => t.id);
 
@@ -883,7 +881,6 @@ export default function App() {
       }
     }
 
-    // ATUALIZAÇÃO IMEDIATA DO MODAL ABERTO
     setViewingContractInstallments(updatedContract);
 
     showToast(`Recebimento da Parcela ${installmentNumber} cancelado e estornado do Caixa!`);
@@ -1686,7 +1683,7 @@ export default function App() {
                               <td className="py-3 px-3 text-center">
                                 <button
                                   onClick={() => setViewingContractInstallments(ct)}
-                                  className="px-3 py-1 rounded-lg bg-teal-800 text-white font-bold text-[10px] hover:bg-teal-900"
+                                  className="px-3 py-1 rounded-lg bg-teal-800 text-white font-bold text-[10px] hover:bg-teal-900 cursor-pointer"
                                 >
                                   Ver Parcelas ({insts.filter(i => i.status === 'Pago').length}/{insts.length})
                                 </button>
@@ -1709,14 +1706,14 @@ export default function App() {
                                     });
                                     setShowContractModal(true);
                                   }}
-                                  className="p-1.5 rounded-lg text-teal-700 hover:bg-teal-50"
+                                  className="p-1.5 rounded-lg text-teal-700 hover:bg-teal-50 cursor-pointer"
                                   title="Editar Contrato"
                                 >
                                   <Edit3 className="w-4 h-4 inline" />
                                 </button>
                                 <button
                                   onClick={() => setDeleteContractTarget(ct)}
-                                  className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50"
+                                  className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
                                   title="Excluir Contrato"
                                 >
                                   <Trash2 className="w-4 h-4 inline" />
@@ -2048,7 +2045,7 @@ export default function App() {
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => { setShowTxModal(false); setEditingTx(null); }} className="px-4 py-2 rounded-xl border font-bold">Cancelar</button>
+                <button type="button" onClick={() => { setShowTxModal(false); setEditingTx(null); }} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
                 <button type="button" onClick={handleSaveTransaction} className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar na Nuvem</button>
               </div>
             </div>
@@ -2243,7 +2240,7 @@ export default function App() {
                 <h3 className="text-base font-extrabold text-[#1B3B2B]">Controle de Parcelas — {viewingContractInstallments.id}</h3>
                 <p className="text-xs text-slate-600">Cliente: <strong>{viewingContractInstallments.client}</strong></p>
               </div>
-              <button onClick={() => setViewingContractInstallments(null)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500">
+              <button onClick={() => setViewingContractInstallments(null)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
