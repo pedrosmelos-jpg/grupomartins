@@ -422,55 +422,12 @@ export default function App() {
     description: ''
   });
 
-  // Sincronização Supabase
-  useEffect(() => {
-    const fetchAllData = async () => {
-      if (!supabase) return;
-      try {
-        const [txRes, ctRes, cliRes] = await Promise.all([
-          supabase.from('transactions').select('*'),
-          supabase.from('contracts').select('*'),
-          supabase.from('clients').select('*')
-        ]);
-
-        if (!txRes.error && txRes.data) {
-          setTransactions(txRes.data);
-          setIsCloudSynced(true);
-        }
-        if (!ctRes.error && ctRes.data) setContracts(ctRes.data);
-        if (!cliRes.error && cliRes.data) setClients(cliRes.data);
-      } catch (err) {
-        console.error('Supabase sync error:', err);
-      }
-    };
-
-    fetchAllData();
-    if (!supabase) return;
-
-    const channel = supabase
-      .channel('realtime-erp-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchAllData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'contracts' }, fetchAllData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, fetchAllData)
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') setIsCloudSynced(true);
-      });
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  const currentRole = useMemo(() => {
-    return accessRoles.find((r) => r.id === activeRoleId) || accessRoles[0];
-  }, [accessRoles, activeRoleId]);
-
-  const hasPermission = (moduleKey, actionKey = 'view') => {
-    if (!currentRole || !currentRole.permissions || !currentRole.permissions[moduleKey]) return true;
-    return Boolean(currentRole.permissions[moduleKey][actionKey]);
-  };
-
+  // Filtros avançados para Lançamentos
   const [txSearch, setTxSearch] = useState('');
+  const [txTypeFilter, setTxTypeFilter] = useState('Todos');
+  const [txCategoryFilter, setTxCategoryFilter] = useState('Todas');
+  const [txStatusFilter, setTxStatusFilter] = useState('Todos');
+
   const [ctSearch, setCtSearch] = useState('');
   const [ctStatusFilter, setCtStatusFilter] = useState('Todos');
   const [cliSearch, setCliSearch] = useState('');
@@ -527,6 +484,54 @@ export default function App() {
     mainProgram: 'Licenciamento Ambiental (LP / LI / LO)',
     status: 'Ativo'
   });
+
+  // Sincronização Supabase
+  useEffect(() => {
+    const fetchAllData = async () => {
+      if (!supabase) return;
+      try {
+        const [txRes, ctRes, cliRes] = await Promise.all([
+          supabase.from('transactions').select('*'),
+          supabase.from('contracts').select('*'),
+          supabase.from('clients').select('*')
+        ]);
+
+        if (!txRes.error && txRes.data) {
+          setTransactions(txRes.data);
+          setIsCloudSynced(true);
+        }
+        if (!ctRes.error && ctRes.data) setContracts(ctRes.data);
+        if (!cliRes.error && cliRes.data) setClients(cliRes.data);
+      } catch (err) {
+        console.error('Supabase sync error:', err);
+      }
+    };
+
+    fetchAllData();
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel('realtime-erp-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchAllData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contracts' }, fetchAllData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, fetchAllData)
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') setIsCloudSynced(true);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const currentRole = useMemo(() => {
+    return accessRoles.find((r) => r.id === activeRoleId) || accessRoles[0];
+  }, [accessRoles, activeRoleId]);
+
+  const hasPermission = (moduleKey, actionKey = 'view') => {
+    if (!currentRole || !currentRole.permissions || !currentRole.permissions[moduleKey]) return true;
+    return Boolean(currentRole.permissions[moduleKey][actionKey]);
+  };
 
   const financialData = useMemo(() => {
     const receitaBrutaAnual = transactions.filter((t) => t.type === 'Entrada').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
@@ -597,13 +602,39 @@ export default function App() {
   const handleSaveTransaction = async (e) => {
     e.preventDefault();
     const numericAmount = parseFloat(String(txForm.amount).replace(',', '.'));
-    if (!txForm.entity || isNaN(numericAmount) || numericAmount <= 0) return;
-    const txId = editingTx ? editingTx.id : `MT-${String(transactions.length + 15).padStart(3, '0')}`;
-    const txData = { id: txId, ...txForm, amount: numericAmount };
-    setTransactions(prev => editingTx ? prev.map(t => t.id === txId ? txData : t) : [...prev, txData]);
-    if (supabase) await supabase.from('transactions').upsert(txData);
-    showToast('Lançamento salvo!');
-    setShowTxModal(false);
+    if (!txForm.entity || isNaN(numericAmount) || numericAmount <= 0) {
+      alert('Preencha o favorecido e o valor corretamente.');
+      return;
+    }
+
+    try {
+      const txId = editingTx ? editingTx.id : `MT-${String(transactions.length + 15).padStart(3, '0')}`;
+      const txData = { id: txId, ...txForm, amount: numericAmount };
+
+      if (supabase) {
+        const { error } = await supabase.from('transactions').upsert([txData]);
+        if (error) {
+          console.error('Erro Supabase Lançamento:', error);
+          alert('Erro ao salvar lançamento na nuvem: ' + error.message);
+          return;
+        }
+      }
+
+      setTransactions(prev => {
+        const exists = prev.some(t => t.id === txId);
+        if (exists) {
+          return prev.map(t => t.id === txId ? txData : t);
+        } else {
+          return [...prev, txData];
+        }
+      });
+
+      showToast('Lançamento salvo na nuvem com sucesso!');
+      setShowTxModal(false);
+    } catch (err) {
+      console.error('Erro crítico:', err);
+      alert('Erro inesperado ao salvar lançamento.');
+    }
   };
 
   const handleSaveContract = async (e) => {
@@ -776,7 +807,19 @@ export default function App() {
     );
   };
 
-  const filteredTransactions = useMemo(() => transactions.filter(t => (t.entity || '').toLowerCase().includes(txSearch.toLowerCase()) || (t.description || '').toLowerCase().includes(txSearch.toLowerCase())), [transactions, txSearch]);
+  // Filtragem avançada das transações com base na busca e nos filtros de coluna
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      const matchSearch = (t.entity || '').toLowerCase().includes(txSearch.toLowerCase()) || 
+                          (t.description || '').toLowerCase().includes(txSearch.toLowerCase()) ||
+                          (t.id || '').toLowerCase().includes(txSearch.toLowerCase());
+      const matchType = txTypeFilter === 'Todos' || t.type === txTypeFilter;
+      const matchCategory = txCategoryFilter === 'Todas' || t.category === txCategoryFilter;
+      const matchStatus = txStatusFilter === 'Todos' || t.status === txStatusFilter;
+
+      return matchSearch && matchType && matchCategory && matchStatus;
+    });
+  }, [transactions, txSearch, txTypeFilter, txCategoryFilter, txStatusFilter]);
   
   const filteredContracts = useMemo(() => {
     return contracts.filter(c => {
@@ -1145,40 +1188,99 @@ export default function App() {
 
           {activeTab === 'lancamentos' && (
             <div className="space-y-5">
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
-                <div className="relative flex-1 min-w-[220px]">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                  <input
-                    type="text"
-                    value={txSearch}
-                    onChange={(e) => setTxSearch(e.target.value)}
-                    placeholder="Buscar lançamentos..."
-                    className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
-                  />
+              {/* Barra de Filtros e Busca */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="relative flex-1 min-w-[220px]">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                    <input
+                      type="text"
+                      value={txSearch}
+                      onChange={(e) => setTxSearch(e.target.value)}
+                      placeholder="Pesquisar por favorecido, ID ou descrição..."
+                      className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      setEditingTx(null);
+                      setTxForm({
+                        date: '2026-11-10',
+                        month: 'Nov',
+                        type: 'Entrada',
+                        category: revenueCategories[0],
+                        entity: '',
+                        contractId: '—',
+                        description: '',
+                        paymentMethod: 'PIX',
+                        status: 'Pago / Recebido',
+                        amount: ''
+                      });
+                      setShowTxModal(true);
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43]"
+                  >
+                    <Plus className="w-4 h-4" /> Incluir Lançamento
+                  </button>
                 </div>
-                <button
-                  onClick={() => {
-                    setEditingTx(null);
-                    setTxForm({
-                      date: '2026-11-10',
-                      month: 'Nov',
-                      type: 'Entrada',
-                      category: revenueCategories[0],
-                      entity: '',
-                      contractId: '—',
-                      description: '',
-                      paymentMethod: 'PIX',
-                      status: 'Pago / Recebido',
-                      amount: ''
-                    });
-                    setShowTxModal(true);
-                  }}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white"
-                >
-                  <Plus className="w-4 h-4" /> Incluir Lançamento
-                </button>
+
+                {/* Filtros em Linha por Coluna */}
+                <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100 text-xs">
+                  <span className="font-bold text-slate-600 flex items-center gap-1">
+                    <Filter className="w-3.5 h-3.5 text-[#1B3B2B]" /> Filtrar colunas:
+                  </span>
+                  
+                  <select
+                    value={txTypeFilter}
+                    onChange={(e) => setTxTypeFilter(e.target.value)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold"
+                  >
+                    <option value="Todos">Tipo: Todos</option>
+                    <option value="Entrada">Entrada</option>
+                    <option value="Saída">Saída</option>
+                  </select>
+
+                  <select
+                    value={txCategoryFilter}
+                    onChange={(e) => setTxCategoryFilter(e.target.value)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold max-w-[240px] truncate"
+                  >
+                    <option value="Todas">Plano de Contas: Todas</option>
+                    <optgroup label="Receitas">
+                      {revenueCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                    </optgroup>
+                    <optgroup label="Despesas / Custos / Pró-Labore">
+                      {expenseCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                    </optgroup>
+                  </select>
+
+                  <select
+                    value={txStatusFilter}
+                    onChange={(e) => setTxStatusFilter(e.target.value)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold"
+                  >
+                    <option value="Todos">Status: Todos</option>
+                    <option value="Pago / Recebido">Pago / Recebido</option>
+                    <option value="Pendente">Pendente</option>
+                  </select>
+
+                  {(txTypeFilter !== 'Todos' || txCategoryFilter !== 'Todas' || txStatusFilter !== 'Todos' || txSearch !== '') && (
+                    <button
+                      onClick={() => {
+                        setTxTypeFilter('Todos');
+                        setTxCategoryFilter('Todas');
+                        setTxStatusFilter('Todos');
+                        setTxSearch('');
+                      }}
+                      className="text-rose-600 font-bold hover:underline ml-auto"
+                    >
+                      Limpar Filtros
+                    </button>
+                  )}
+                </div>
               </div>
 
+              {/* Tabela de Lançamentos */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
@@ -1187,7 +1289,7 @@ export default function App() {
                         <th className="py-3.5 px-3">ID</th>
                         <th className="py-3.5 px-3">Data</th>
                         <th className="py-3.5 px-3">Tipo</th>
-                        <th className="py-3.5 px-3">Categoria</th>
+                        <th className="py-3.5 px-3">Plano de Contas / Categoria</th>
                         <th className="py-3.5 px-3">Favorecido / Cliente</th>
                         <th className="py-3.5 px-3">Descrição</th>
                         <th className="py-3.5 px-3 text-center">Status</th>
@@ -1195,28 +1297,34 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {filteredTransactions.map((tx) => (
-                        <tr key={tx.id} className="hover:bg-slate-50">
-                          <td className="py-2.5 px-3 font-mono font-bold">{tx.id}</td>
-                          <td className="py-2.5 px-3">{tx.date}</td>
-                          <td className="py-2.5 px-3">
-                            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${tx.type === 'Entrada' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                              {tx.type}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-3 font-medium">{tx.category}</td>
-                          <td className="py-2.5 px-3 font-bold">{tx.entity}</td>
-                          <td className="py-2.5 px-3">{tx.description}</td>
-                          <td className="py-2.5 px-3 text-center">
-                            <button onClick={() => handleToggleStatus(tx.id)} className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${tx.status === 'Pago / Recebido' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                              {tx.status}
-                            </button>
-                          </td>
-                          <td className={`py-2.5 px-3 text-right font-extrabold ${tx.type === 'Entrada' ? 'text-emerald-700' : 'text-rose-700'}`}>
-                            {formatCurrency(tx.amount)}
-                          </td>
+                      {filteredTransactions.length === 0 ? (
+                        <tr>
+                          <td colSpan="8" className="py-8 text-center text-slate-400">Nenhum lançamento encontrado com os filtros atuais.</td>
                         </tr>
-                      ))}
+                      ) : (
+                        filteredTransactions.map((tx) => (
+                          <tr key={tx.id} className="hover:bg-slate-50">
+                            <td className="py-2.5 px-3 font-mono font-bold">{tx.id}</td>
+                            <td className="py-2.5 px-3">{tx.date}</td>
+                            <td className="py-2.5 px-3">
+                              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${tx.type === 'Entrada' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                                {tx.type}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 font-medium text-slate-700">{tx.category}</td>
+                            <td className="py-2.5 px-3 font-bold">{tx.entity}</td>
+                            <td className="py-2.5 px-3">{tx.description}</td>
+                            <td className="py-2.5 px-3 text-center">
+                              <button onClick={() => handleToggleStatus(tx.id)} className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${tx.status === 'Pago / Recebido' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                                {tx.status}
+                              </button>
+                            </td>
+                            <td className={`py-2.5 px-3 text-right font-extrabold ${tx.type === 'Entrada' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                              {formatCurrency(tx.amount)}
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1635,39 +1743,50 @@ export default function App() {
         </main>
       </div>
 
-      {/* MODAL LANÇAMENTO */}
+      {/* MODAL LANÇAMENTO (COM PLANO DE CONTAS INTEGRADO) */}
       {showTxModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
             <h3 className="text-base font-bold text-[#1B3B2B]">Novo Lançamento no Livro Caixa</h3>
-            <form onSubmit={handleSaveTransaction} className="space-y-3 text-xs">
+            <div className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold mb-1">Data</label>
-                  <input type="date" value={txForm.date} onChange={(e) => setTxForm({ ...txForm, date: e.target.value })} className="w-full px-3 py-2 rounded-xl border" required />
+                  <input type="date" value={txForm.date} onChange={(e) => setTxForm({ ...txForm, date: e.target.value })} className="w-full px-3 py-2 rounded-xl border" />
                 </div>
                 <div>
                   <label className="block font-bold mb-1">Natureza</label>
-                  <select value={txForm.type} onChange={(e) => setTxForm({ ...txForm, type: e.target.value })} className="w-full px-3 py-2 rounded-xl border font-bold">
+                  <select 
+                    value={txForm.type} 
+                    onChange={(e) => {
+                      const newType = e.target.value;
+                      const defaultCat = newType === 'Entrada' ? revenueCategories[0] : expenseCategories[0];
+                      setTxForm({ ...txForm, type: newType, category: defaultCat });
+                    }} 
+                    className="w-full px-3 py-2 rounded-xl border font-bold"
+                  >
                     <option value="Entrada">Entrada (+)</option>
                     <option value="Saída">Saída (-)</option>
                   </select>
                 </div>
               </div>
+              
               <div>
-                <label className="block font-bold mb-1">Categoria</label>
-                <select value={txForm.category} onChange={(e) => setTxForm({ ...txForm, category: e.target.value })} className="w-full px-3 py-2 rounded-xl border">
+                <label className="block font-bold mb-1">Plano de Contas (Categoria)</label>
+                <select value={txForm.category} onChange={(e) => setTxForm({ ...txForm, category: e.target.value })} className="w-full px-3 py-2 rounded-xl border font-semibold">
                   {(txForm.type === 'Entrada' ? revenueCategories : expenseCategories).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
+
               <div>
                 <label className="block font-bold mb-1">Favorecido / Cliente</label>
-                <input type="text" value={txForm.entity} onChange={(e) => setTxForm({ ...txForm, entity: e.target.value })} placeholder="Nome do cliente ou sócio" className="w-full px-3 py-2 rounded-xl border" required />
+                <input type="text" value={txForm.entity} onChange={(e) => setTxForm({ ...txForm, entity: e.target.value })} placeholder="Nome do cliente ou sócio" className="w-full px-3 py-2 rounded-xl border" />
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold mb-1">Valor (R$)</label>
-                  <input type="number" step="0.01" value={txForm.amount} onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} placeholder="0.00" className="w-full px-3 py-2 rounded-xl border font-bold" required />
+                  <input type="number" step="0.01" value={txForm.amount} onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} placeholder="0.00" className="w-full px-3 py-2 rounded-xl border font-bold" />
                 </div>
                 <div>
                   <label className="block font-bold mb-1">Status</label>
@@ -1677,15 +1796,17 @@ export default function App() {
                   </select>
                 </div>
               </div>
+
               <div>
                 <label className="block font-bold mb-1">Descrição</label>
-                <input type="text" value={txForm.description} onChange={(e) => setTxForm({ ...txForm, description: e.target.value })} placeholder="Descrição detalhada" className="w-full px-3 py-2 rounded-xl border" required />
+                <input type="text" value={txForm.description} onChange={(e) => setTxForm({ ...txForm, description: e.target.value })} placeholder="Descrição detalhada" className="w-full px-3 py-2 rounded-xl border" />
               </div>
+
               <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={() => setShowTxModal(false)} className="px-4 py-2 rounded-xl border font-bold">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold">Salvar no Supabase</button>
+                <button type="button" onClick={handleSaveTransaction} className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar na Nuvem</button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
