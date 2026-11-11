@@ -494,12 +494,12 @@ export default function App() {
     entity: '',
     contractId: '—',
     description: '',
-    paymentMethod: 'PIX Empresarial',
+    paymentMethod: 'PIX',
     status: 'Pago / Recebido',
     amount: ''
   });
 
-  // Estado atualizado do Contrato conforme a referência exata da imagem
+  // Estado completo do Contrato com Formas de Pagamento e Parcelas até 10x com datas editáveis
   const [ctForm, setCtForm] = useState({
     client: '',
     service: '',
@@ -507,7 +507,10 @@ export default function App() {
     status: 'Em Elaboração Técnica',
     contractValue: '',
     receivedValue: '0',
-    directCosts: ''
+    directCosts: '',
+    installmentsCount: '1',
+    installmentDates: ['2026-12-30', '', '', '', '', '', '', '', '', ''],
+    paymentMethod: 'PIX'
   });
 
   const [cliForm, setCliForm] = useState({
@@ -559,7 +562,6 @@ export default function App() {
     const totalRecebidoContratos = contracts.reduce((acc, c) => acc + Number(c.receivedValue || 0), 0);
     const saldoAFaturar = totalContratado - totalRecebidoContratos;
     
-    // Margem técnica média
     let totalCustoContratos = contracts.reduce((acc, c) => acc + Number(c.directCosts || 0), 0);
     const margemMedia = totalContratado > 0 ? ((totalContratado - totalCustoContratos) / totalContratado) * 100 : 88.2;
 
@@ -608,6 +610,7 @@ export default function App() {
     const contractVal = parseFloat(String(ctForm.contractValue).replace(',', '.')) || 0;
     const receivedVal = parseFloat(String(ctForm.receivedValue).replace(',', '.')) || 0;
     const directVal = parseFloat(String(ctForm.directCosts).replace(',', '.')) || 0;
+    const nInstallments = parseInt(ctForm.installmentsCount) || 1;
     if (!ctForm.client || contractVal <= 0) return;
 
     const contractId = editingContract ? editingContract.id : `CT-2026-${String(contracts.length + 1).padStart(2, '0')}`;
@@ -620,8 +623,43 @@ export default function App() {
     };
 
     setContracts(prev => editingContract ? prev.map(c => c.id === contractId ? contractData : c) : [...prev, contractData]);
-    if (supabase) await supabase.from('contracts').upsert(contractData);
-    showToast('Contrato salvo com sucesso!');
+    if (supabase) {
+      await supabase.from('contracts').upsert(contractData);
+    }
+
+    // Gerar parcelas no Livro Caixa automaticamente
+    if (!editingContract) {
+      const installmentVal = contractVal / nInstallments;
+      const newTxs = [];
+      for (let i = 0; i < nInstallments; i++) {
+        const instDate = ctForm.installmentDates[i] || '2026-12-30';
+        const monthNames = { '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez' };
+        const monthNum = instDate.split('-')[1] || '12';
+        const monthStr = monthNames[monthNum] || 'Dez';
+        const tId = `MT-${String(transactions.length + 15 + i).padStart(3, '0')}`;
+        
+        const newTx = {
+          id: tId,
+          date: instDate,
+          month: monthStr,
+          type: 'Entrada',
+          category: 'Licenciamento Ambiental (LP / LI / LO)',
+          entity: ctForm.client,
+          contractId: contractId,
+          description: `Parcela ${i + 1}/${nInstallments} (${ctForm.paymentMethod}) — Contrato ${contractId}`,
+          paymentMethod: ctForm.paymentMethod,
+          status: i === 0 && receivedVal > 0 ? 'Pago / Recebido' : 'Pendente',
+          amount: installmentVal
+        };
+        newTxs.push(newTx);
+      }
+      setTransactions(prev => [...prev, ...newTxs]);
+      if (supabase && newTxs.length > 0) {
+        await supabase.from('transactions').upsert(newTxs);
+      }
+    }
+
+    showToast('Contrato e parcelas salvos com sucesso!');
     setShowContractModal(false);
   };
 
@@ -855,7 +893,7 @@ export default function App() {
                     entity: 'Maikon Martins (Sócio-Diretor)',
                     contractId: '—',
                     description: 'Saque de Pró-Labore Extraordinário',
-                    paymentMethod: 'PIX Empresarial',
+                    paymentMethod: 'PIX',
                     status: 'Pago / Recebido',
                     amount: '8000'
                   });
@@ -880,7 +918,7 @@ export default function App() {
                     entity: '',
                     contractId: '—',
                     description: '',
-                    paymentMethod: 'PIX Empresarial',
+                    paymentMethod: 'PIX',
                     status: 'Pago / Recebido',
                     amount: ''
                   });
@@ -1090,7 +1128,7 @@ export default function App() {
                       entity: '',
                       contractId: '—',
                       description: '',
-                      paymentMethod: 'PIX Empresarial',
+                      paymentMethod: 'PIX',
                       status: 'Pago / Recebido',
                       amount: ''
                     });
@@ -1149,7 +1187,7 @@ export default function App() {
 
           {activeTab === 'contratos' && (
             <div className="space-y-6">
-              {/* TOP CARDS DE CONTRATOS IDÊNTICOS À IMAGEM */}
+              {/* TOP CARDS DE CONTRATOS IDÊNTICOS À SUA IMAGEM */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
                   <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">VALOR TOTAL CONTRATADO ({contracts.length} CONTRATOS)</div>
@@ -1207,7 +1245,10 @@ export default function App() {
                         status: 'Em Elaboração Técnica',
                         contractValue: '',
                         receivedValue: '0',
-                        directCosts: ''
+                        directCosts: '',
+                        installmentsCount: '1',
+                        installmentDates: ['2026-12-30', '', '', '', '', '', '', '', '', ''],
+                        paymentMethod: 'PIX'
                       });
                       setShowContractModal(true);
                     }}
@@ -1218,7 +1259,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* TABELA DE CONTRATOS IDÊNTICA À IMAGEM */}
+              {/* TABELA DE CONTRATOS */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
@@ -1484,10 +1525,10 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CONTRATO (EXATAMENTE COMO NA SUA SEGUNDA IMAGEM DE REFERÊNCIA) */}
+      {/* MODAL CONTRATO (COM FORMAS DE PAGAMENTO E PARCELAMENTO ATÉ 10X COM DATAS EDITÁVEIS) */}
       {showContractModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B]">
+          <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
             <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
               <h3 className="text-base font-extrabold">Novo Contrato Ambiental & SST</h3>
               <button onClick={() => setShowContractModal(false)} className="text-white hover:text-emerald-300">
@@ -1551,6 +1592,59 @@ export default function App() {
                   </select>
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Forma de Pagamento</label>
+                  <select
+                    value={ctForm.paymentMethod}
+                    onChange={(e) => setCtForm({ ...ctForm, paymentMethod: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
+                  >
+                    <option value="PIX">PIX</option>
+                    <option value="Boleto">Boleto</option>
+                    <option value="Cartão">Cartão</option>
+                    <option value="Cheque">Cheque</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Parcelamento (Até 10x)</label>
+                  <select
+                    value={ctForm.installmentsCount}
+                    onChange={(e) => setCtForm({ ...ctForm, installmentsCount: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
+                  >
+                    {[...Array(10)].map((_, i) => (
+                      <option key={i + 1} value={String(i + 1)}>{i + 1}x {i === 0 ? '(À vista)' : ''}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Datas de Vencimento Dinâmicas e Editáveis */}
+              {parseInt(ctForm.installmentsCount) > 0 && (
+                <div className="space-y-2 bg-slate-50 p-3 rounded-xl border">
+                  <label className="block font-bold text-slate-700 uppercase text-[11px]">Datas de Vencimento das Parcelas</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
+                    {[...Array(parseInt(ctForm.installmentsCount))].map((_, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="text-[11px] font-bold text-slate-600 w-16">Parcela {i+1}:</span>
+                        <input
+                          type="date"
+                          value={ctForm.installmentDates[i] || '2026-12-30'}
+                          onChange={(e) => {
+                            const newDates = [...ctForm.installmentDates];
+                            newDates[i] = e.target.value;
+                            setCtForm({ ...ctForm, installmentDates: newDates });
+                          }}
+                          className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-white"
+                          required
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
@@ -1833,7 +1927,7 @@ export default function App() {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1"> LICENÇA / PROGRAMA PRINCIPAL CONTRATADO</label>
+                <label className="block font-bold text-slate-700 uppercase mb-1">LICENÇA / PROGRAMA PRINCIPAL CONTRATADO</label>
                 <input
                   type="text"
                   value={cliForm.mainProgram}
