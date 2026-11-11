@@ -388,7 +388,7 @@ export default function App() {
 
   // Estados de Cadastrar / Editar Permissões de Utilizador
   const [showUserRoleModal, setShowUserRoleModal] = useState(false);
-  const [editingRolePermissions, setEditingRolePermissions] = useState(null); // Role atualmente selecionada para flagar permissões
+  const [editingRolePermissions, setEditingRolePermissions] = useState(null);
   const [newRoleForm, setNewRoleForm] = useState({
     level: 'Nível Especial — Colaborador',
     name: '',
@@ -609,12 +609,13 @@ export default function App() {
     showToast('Novo utilizador cadastrado com sucesso!');
   };
 
+  // Atualização em tempo real das flags de permissão
   const handlePermissionToggle = (roleId, moduleKey, actionKey) => {
     setAccessRoles(prevRoles =>
       prevRoles.map(role => {
         if (role.id === roleId) {
           const currentVal = role.permissions?.[moduleKey]?.[actionKey] || false;
-          return {
+          const updatedRole = {
             ...role,
             permissions: {
               ...role.permissions,
@@ -624,6 +625,11 @@ export default function App() {
               }
             }
           };
+          // Atualiza também o modal ativo instantaneamente
+          if (editingRolePermissions && editingRolePermissions.id === roleId) {
+            setEditingRolePermissions(updatedRole);
+          }
+          return updatedRole;
         }
         return role;
       })
@@ -1229,13 +1235,13 @@ export default function App() {
                     <div className="space-y-2 pt-2 border-t border-slate-200">
                       <button
                         onClick={() => setEditingRolePermissions(role)}
-                        className="w-full py-1.5 rounded-lg text-xs font-bold bg-emerald-800 text-white hover:bg-emerald-900 flex items-center justify-center gap-1.5"
+                        className="w-full py-1.5 rounded-lg text-xs font-bold bg-emerald-800 text-white hover:bg-emerald-900 flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <Sliders className="w-3.5 h-3.5" /> Configurar Permissões (Flags)
                       </button>
                       <button
                         onClick={() => setActiveRoleId(role.id)}
-                        className={`w-full py-1.5 rounded-lg text-xs font-bold ${activeRoleId === role.id ? 'bg-[#1B3B2B] text-white' : 'bg-white text-[#1B3B2B] border'}`}
+                        className={`w-full py-1.5 rounded-lg text-xs font-bold cursor-pointer ${activeRoleId === role.id ? 'bg-[#1B3B2B] text-white' : 'bg-white text-[#1B3B2B] border'}`}
                       >
                         {activeRoleId === role.id ? 'Perfil Ativo' : 'Simular Perfil'}
                       </button>
@@ -1468,14 +1474,14 @@ export default function App() {
                 <h3 className="text-base font-extrabold text-[#1B3B2B]">Configurar Permissões (Flags)</h3>
                 <p className="text-xs text-slate-500">Perfil: <strong className="text-[#1B3B2B]">{editingRolePermissions.name}</strong> ({editingRolePermissions.holder})</p>
               </div>
-              <button onClick={() => setEditingRolePermissions(null)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500">
+              <button onClick={() => setEditingRolePermissions(null)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-4">
               <p className="text-xs text-slate-600 bg-emerald-50 p-3 rounded-xl border border-emerald-200">
-                Selecione abaixo as ações que este perfil tem autorização para realizar em cada módulo do ERP.
+                Altere abaixo as permissões em tempo real. Cada clique atualiza imediatamente o estado de acesso deste perfil.
               </p>
 
               <div className="border rounded-xl overflow-hidden">
@@ -1528,9 +1534,9 @@ export default function App() {
                   showToast('Permissões salvas com sucesso!');
                   setEditingRolePermissions(null);
                 }}
-                className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-bold text-xs hover:bg-[#2D5A43]"
+                className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-bold text-xs hover:bg-[#2D5A43] cursor-pointer"
               >
-                Concluir & Salvar Permissões
+                Concluir & Fechar
               </button>
             </div>
           </div>
@@ -1575,7 +1581,7 @@ export default function App() {
                 <label className="block font-bold text-slate-700 uppercase mb-1">Senha</label>
                 <input type="password" value={authPasswordInput} onChange={(e) => setAuthPasswordInput(e.target.value)} placeholder="••••••••" className="w-full px-3.5 py-2.5 rounded-xl border" required />
               </div>
-              <button type="submit" className="w-full py-3 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md">
+              <button type="submit" className="w-full py-3 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer">
                 Entrar no ERP (Sincronizado)
               </button>
             </form>
