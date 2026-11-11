@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   LayoutDashboard,
   ArrowUpDown,
-  FileSpreadsheet.
+  FileSpreadsheet,
   Briefcase,
   UserCheck,
   Settings,
