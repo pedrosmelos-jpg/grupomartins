@@ -2095,13 +2095,13 @@ export default function App() {
                   className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
-                >
-                  Salvar Cliente no CRM
-                </button>
+<button
+  type="button"
+  onClick={handleSaveClient}
+  className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
+>
+  Salvar Cliente no CRM
+</button>
               </div>
             </form>
           </div>
