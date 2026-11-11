@@ -306,7 +306,6 @@ const DEFAULT_PERMISSIONS = {
   acessos: { view: false, create: false, edit: false, delete: false, approve: false }
 };
 
-// Apenas o perfil do Pedro Melo mantido
 const INITIAL_ACCESS_ROLES = [
   {
     id: 'ROLE-01-PEDRO',
@@ -390,12 +389,12 @@ export default function App() {
   const [showUserRoleModal, setShowUserRoleModal] = useState(false);
   const [editingRolePermissions, setEditingRolePermissions] = useState(null);
   const [newRoleForm, setNewRoleForm] = useState({
-    level: 'Nível Especial — Colaborador',
-    name: '',
+    level: 'Nível 1 — Master',
+    name: 'Master',
     holder: '',
     email: '',
     password: 'martins2026',
-    description: ''
+    description: 'Acesso total e liberação máxima a todos os módulos estratégicos, aprovação de saques de Pró-Labore, DRE Gerencial, contratos e governança do sistema.'
   });
 
   // Filtros
@@ -1023,7 +1022,7 @@ export default function App() {
       level: newRoleForm.level,
       name: newRoleForm.name,
       holder: newRoleForm.holder,
-      email: newRoleForm.email,
+      email: newRoleForm.email.toLowerCase().trim(),
       password: newRoleForm.password || 'martins2026',
       badgeColor: 'bg-[#1B3B2B] text-white',
       description: newRoleForm.description || 'Perfil personalizado de acesso.',
@@ -1032,12 +1031,12 @@ export default function App() {
     setAccessRoles([...accessRoles, newRole]);
     setShowUserRoleModal(false);
     setNewRoleForm({
-      level: 'Nível Especial — Colaborador',
-      name: '',
+      level: 'Nível 1 — Master',
+      name: 'Master',
       holder: '',
       email: '',
       password: 'martins2026',
-      description: ''
+      description: 'Acesso total e liberação máxima a todos os módulos estratégicos, aprovação de saques de Pró-Labore, DRE Gerencial, contratos e governança do sistema.'
     });
     showToast('Novo utilizador cadastrado com sucesso!');
   };
@@ -1194,7 +1193,7 @@ export default function App() {
 
           <div className="mx-4 mt-4 p-3.5 rounded-xl bg-[#244B38] border border-[#3B7A57]/50 flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-[#F8F3EF] text-[#1B3B2B] font-extrabold flex items-center justify-center text-sm shrink-0 shadow">
-              PM
+              {currentRole ? currentRole.holder.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'PM'}
             </div>
             <div className="overflow-hidden">
               <div className="text-[10px] text-emerald-300 font-semibold uppercase tracking-wider truncate flex items-center gap-1">
@@ -1202,7 +1201,7 @@ export default function App() {
                 {isCloudSynced ? 'Nuvem Sincronizada' : 'Conectando...'}
               </div>
               <div className="text-sm font-bold text-white truncate">
-                Pedro Melo
+                {currentRole ? currentRole.holder : 'Pedro Melo'}
               </div>
               <div className="text-[11px] text-emerald-100/80 truncate">
                 Pró-Labore Pago: {formatCurrency(financialData.proLaborePago)}
@@ -1282,7 +1281,7 @@ export default function App() {
             <div className="flex items-center gap-2 bg-[#F8F3EF] px-3 py-1.5 rounded-xl border border-[#D5CFC7]">
               <KeyRound className="w-3.5 h-3.5 text-[#1B3B2B] shrink-0" />
               <span className="text-xs font-extrabold text-[#1B3B2B]">
-                Nível 1 — Master (Pedro Melo)
+                {currentRole ? `${currentRole.level} — ${currentRole.name} (${currentRole.holder})` : 'Master'}
               </span>
               <button
                 onClick={() => setAuthLoggedIn(false)}
@@ -2159,7 +2158,7 @@ export default function App() {
                 </button>
               </div>
 
-              {/* APENAS O PERFIL DO PEDRO MELO MANTIDO */}
+              {/* LISTA DE PERFIS */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {accessRoles.map((role) => (
                   <div key={role.id} className="p-5 rounded-2xl border border-slate-200 bg-white shadow-sm space-y-3 flex flex-col justify-between">
@@ -2189,9 +2188,21 @@ export default function App() {
                       >
                         <Sliders className="w-3.5 h-3.5" /> Configurar Permissões (Flags)
                       </button>
-                      <span className="w-full py-1.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800 flex items-center justify-center gap-1">
-                        <Check className="w-3.5 h-3.5" /> Perfil Ativo (Pedro Melo)
-                      </span>
+                      {activeRoleId === role.id ? (
+                        <span className="w-full py-1.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800 flex items-center justify-center gap-1">
+                          <Check className="w-3.5 h-3.5" /> Perfil Ativo ({role.holder})
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setActiveRoleId(role.id);
+                            showToast(`Alternado para o perfil de ${role.holder}!`);
+                          }}
+                          className="w-full py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          Ativar este Perfil
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -3370,7 +3381,7 @@ export default function App() {
                   type="text"
                   value={newRoleForm.name}
                   onChange={(e) => setNewRoleForm({ ...newRoleForm, name: e.target.value })}
-                  placeholder="Ex: Analista Ambiental Júnior"
+                  placeholder="Ex: Sócio-Diretor / Master"
                   className="w-full px-3 py-2 rounded-xl border font-bold"
                   required
                 />
@@ -3381,7 +3392,7 @@ export default function App() {
                   type="text"
                   value={newRoleForm.holder}
                   onChange={(e) => setNewRoleForm({ ...newRoleForm, holder: e.target.value })}
-                  placeholder="Ex: Carlos Silva"
+                  placeholder="Ex: Maikon Martins"
                   className="w-full px-3 py-2 rounded-xl border"
                   required
                 />
@@ -3392,7 +3403,7 @@ export default function App() {
                   type="email"
                   value={newRoleForm.email}
                   onChange={(e) => setNewRoleForm({ ...newRoleForm, email: e.target.value })}
-                  placeholder="carlos@grupomartins.eng.br"
+                  placeholder="mwagronomia@gmail.com"
                   className="w-full px-3 py-2 rounded-xl border"
                   required
                 />
@@ -3400,7 +3411,7 @@ export default function App() {
               <div>
                 <label className="block font-bold mb-1">Senha Inicial</label>
                 <input
-                  type="password"
+                  type="text"
                   value={newRoleForm.password}
                   onChange={(e) => setNewRoleForm({ ...newRoleForm, password: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border"
@@ -3521,12 +3532,13 @@ export default function App() {
             <form onSubmit={(e) => {
               e.preventDefault();
               setAuthErrorMsg('');
-              const found = accessRoles.find(r => r.email && r.email.toLowerCase() === authEmailInput.trim().toLowerCase());
+              const cleanInputEmail = authEmailInput.trim().toLowerCase();
+              const found = accessRoles.find(r => r.email && r.email.trim().toLowerCase() === cleanInputEmail);
               if (!found) {
-                setAuthErrorMsg('E-mail não cadastrado.');
+                setAuthErrorMsg('E-mail não cadastrado na árvore de acessos.');
                 return;
               }
-              if (found.password && found.password !== authPasswordInput.trim()) {
+              if (found.password && found.password.trim() !== authPasswordInput.trim()) {
                 setAuthErrorMsg('Senha incorreta.');
                 return;
               }
@@ -3536,7 +3548,7 @@ export default function App() {
             }} className="space-y-4 text-left text-xs">
               <div>
                 <label className="block font-bold text-slate-700 uppercase mb-1">E-mail Corporativo</label>
-                <input type="email" value={authEmailInput} onChange={(e) => setAuthEmailInput(e.target.value)} placeholder="ex: maikon@grupomartins.eng.br" className="w-full px-3.5 py-2.5 rounded-xl border" required />
+                <input type="email" value={authEmailInput} onChange={(e) => setAuthEmailInput(e.target.value)} placeholder="ex: mwagronomia@gmail.com" className="w-full px-3.5 py-2.5 rounded-xl border" required />
               </div>
               <div>
                 <label className="block font-bold text-slate-700 uppercase mb-1">Senha</label>
