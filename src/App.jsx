@@ -372,6 +372,12 @@ export default function App() {
     'Inativo'
   ]);
 
+  // Estados para Gerenciamento de Segmentos e Status
+  const [showManageSegmentsModal, setShowManageSegmentsModal] = useState(false);
+  const [showManageStatusesModal, setShowManageStatusesModal] = useState(false);
+  const [newSegmentInput, setNewSegmentInput] = useState('');
+  const [newStatusInput, setNewStatusInput] = useState('');
+
   const [accessRoles, setAccessRoles] = useState(INITIAL_ACCESS_ROLES);
   const [activeRoleId, setActiveRoleId] = useState('ROLE-01-PEDRO');
   const [authLoggedIn, setAuthLoggedIn] = useState(false);
@@ -3018,7 +3024,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CADASTRAR / EDITAR CLIENTE (CRM) */}
+      {/* MODAL CADASTRAR / EDITAR CLIENTE (CRM) COM GERENCIAMENTO DE STATUS E SEGMENTO */}
       {showClientModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B]">
@@ -3067,7 +3073,16 @@ export default function App() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">SEGMENTO ECONÔMICO</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-bold text-slate-700 uppercase">SEGMENTO ECONÔMICO</label>
+                    <button 
+                      type="button" 
+                      onClick={() => setShowManageSegmentsModal(true)}
+                      className="text-[10px] text-teal-800 font-bold hover:underline cursor-pointer"
+                    >
+                      ⚙️ Gerenciar Lista
+                    </button>
+                  </div>
                   <select
                     value={cliForm.segment}
                     onChange={(e) => setCliForm({ ...cliForm, segment: e.target.value })}
@@ -3125,7 +3140,16 @@ export default function App() {
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">STATUS DO CLIENTE</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-bold text-slate-700 uppercase">STATUS DO CLIENTE</label>
+                    <button 
+                      type="button" 
+                      onClick={() => setShowManageStatusesModal(true)}
+                      className="text-[10px] text-teal-800 font-bold hover:underline cursor-pointer"
+                    >
+                      ⚙️ Gerenciar Lista
+                    </button>
+                  </div>
                   <select
                     value={cliForm.status}
                     onChange={(e) => setCliForm({ ...cliForm, status: e.target.value })}
@@ -3165,6 +3189,142 @@ export default function App() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL GERENCIAR SEGMENTOS ECONÔMICOS */}
+      {showManageSegmentsModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <h3 className="text-base font-extrabold text-[#1B3B2B]">Gerenciar Segmentos Econômicos</h3>
+            
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newSegmentInput}
+                onChange={(e) => setNewSegmentInput(e.target.value)}
+                placeholder="Novo Segmento..."
+                className="flex-1 px-3 py-2 rounded-xl border text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (!newSegmentInput.trim()) return;
+                  if (availableSegments.includes(newSegmentInput.trim())) {
+                    alert('Este segmento já existe.');
+                    return;
+                  }
+                  setAvailableSegments([...availableSegments, newSegmentInput.trim()]);
+                  setNewSegmentInput('');
+                  showToast('Segmento adicionado!');
+                }}
+                className="px-4 py-2 bg-[#1B3B2B] text-white rounded-xl text-xs font-bold cursor-pointer"
+              >
+                Adicionar
+              </button>
+            </div>
+
+            <div className="max-h-48 overflow-y-auto space-y-2 border p-2 rounded-xl">
+              {availableSegments.map((seg, idx) => (
+                <div key={seg} className="flex items-center justify-between bg-slate-50 p-2 rounded-lg text-xs">
+                  <span className="font-semibold">{seg}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (availableSegments.length <= 1) {
+                        alert('Você precisa manter pelo menos um segmento.');
+                        return;
+                      }
+                      setAvailableSegments(availableSegments.filter((_, i) => i !== idx));
+                      showToast('Segmento removido!');
+                    }}
+                    className="text-rose-600 hover:text-rose-800 font-bold p-1"
+                    title="Excluir"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 inline" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setShowManageSegmentsModal(false)}
+                className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold text-xs cursor-pointer"
+              >
+                Concluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL GERENCIAR STATUS DO CLIENTE */}
+      {showManageStatusesModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <h3 className="text-base font-extrabold text-[#1B3B2B]">Gerenciar Status de Clientes</h3>
+            
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newStatusInput}
+                onChange={(e) => setNewStatusInput(e.target.value)}
+                placeholder="Novo Status..."
+                className="flex-1 px-3 py-2 rounded-xl border text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (!newStatusInput.trim()) return;
+                  if (availableStatuses.includes(newStatusInput.trim())) {
+                    alert('Este status já existe.');
+                    return;
+                  }
+                  setAvailableStatuses([...availableStatuses, newStatusInput.trim()]);
+                  setNewStatusInput('');
+                  showToast('Status adicionado!');
+                }}
+                className="px-4 py-2 bg-[#1B3B2B] text-white rounded-xl text-xs font-bold cursor-pointer"
+              >
+                Adicionar
+              </button>
+            </div>
+
+            <div className="max-h-48 overflow-y-auto space-y-2 border p-2 rounded-xl">
+              {availableStatuses.map((st, idx) => (
+                <div key={st} className="flex items-center justify-between bg-slate-50 p-2 rounded-lg text-xs">
+                  <span className="font-semibold">{st}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (availableStatuses.length <= 1) {
+                        alert('Você precisa manter pelo menos um status.');
+                        return;
+                      }
+                      setAvailableStatuses(availableStatuses.filter((_, i) => i !== idx));
+                      showToast('Status removido!');
+                    }}
+                    className="text-rose-600 hover:text-rose-800 font-bold p-1"
+                    title="Excluir"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 inline" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setShowManageStatusesModal(false)}
+                className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold text-xs cursor-pointer"
+              >
+                Concluir
+              </button>
+            </div>
           </div>
         </div>
       )}
