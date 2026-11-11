@@ -314,7 +314,6 @@ const INITIAL_ACCESS_ROLES = [
     holder: 'Pedro Melo',
     email: 'pedrosmelos@gmail.com',
     password: 'Martins2027@',
-    badgeColor: 'bg-[#1B3B2B] text-emerald-300',
     description: 'Acesso total e liberação máxima a todos os módulos estratégicos, aprovação de saques de Pró-Labore, DRE Gerencial, contratos e governança do sistema.',
     permissions: {
       dashboard: { view: true, create: true, edit: true, delete: true, approve: true },
@@ -501,7 +500,16 @@ export default function App() {
         if (!rolesRes.error && rolesRes.data && rolesRes.data.length > 0) {
           setAccessRoles(rolesRes.data);
         } else if (rolesRes.data && rolesRes.data.length === 0) {
-          await supabase.from('access_roles').upsert(INITIAL_ACCESS_ROLES);
+          await supabase.from('access_roles').upsert(INITIAL_ACCESS_ROLES.map(r => ({
+            id: r.id,
+            level: r.level,
+            name: r.name,
+            holder: r.holder,
+            email: r.email,
+            password: r.password,
+            description: r.description,
+            permissions: r.permissions
+          })));
         }
       } catch (err) {
         console.error('Supabase sync error:', err);
@@ -1033,7 +1041,6 @@ export default function App() {
       holder: newRoleForm.holder,
       email: newRoleForm.email.toLowerCase().trim(),
       password: newRoleForm.password || 'martins2026',
-      badgeColor: 'bg-[#1B3B2B] text-white',
       description: newRoleForm.description || 'Perfil personalizado de acesso.',
       permissions: JSON.parse(JSON.stringify(DEFAULT_PERMISSIONS))
     };
@@ -1042,7 +1049,16 @@ export default function App() {
     setAccessRoles(updatedRoles);
 
     if (supabase) {
-      const { error } = await supabase.from('access_roles').upsert([newRole]);
+      const { error } = await supabase.from('access_roles').upsert([{
+        id: newRole.id,
+        level: newRole.level,
+        name: newRole.name,
+        holder: newRole.holder,
+        email: newRole.email,
+        password: newRole.password,
+        description: newRole.description,
+        permissions: newRole.permissions
+      }]);
       if (error) {
         console.error('Erro Supabase Perfil:', error);
         alert('Erro ao salvar perfil na nuvem: ' + error.message);
@@ -1095,11 +1111,36 @@ export default function App() {
     setAccessRoles(updatedRoles);
 
     if (supabase) {
-      await supabase.from('access_roles').upsert([editingRoleTarget]);
+      await supabase.from('access_roles').upsert([{
+        id: editingRoleTarget.id,
+        level: editingRoleTarget.level,
+        name: editingRoleTarget.name,
+        holder: editingRoleTarget.holder,
+        email: editingRoleTarget.email,
+        password: editingRoleTarget.password,
+        description: editingRoleTarget.description,
+        permissions: editingRoleTarget.permissions
+      }]);
     }
 
     showToast('Perfil atualizado com sucesso!');
     setEditingRoleTarget(null);
+  };
+
+  const handleDeleteRole = async (roleId) => {
+    if (accessRoles.length <= 1) {
+      alert('Você não pode excluir o último perfil restante do sistema.');
+      return;
+    }
+    if (window.confirm('Deseja realmente excluir este perfil de acesso?')) {
+      const updatedRoles = accessRoles.filter(r => r.id !== roleId);
+      setAccessRoles(updatedRoles);
+      if (supabase) {
+        await supabase.from('access_roles').delete().eq('id', roleId);
+      }
+      showToast('Perfil excluído com sucesso!');
+      setEditingRoleTarget(null);
+    }
   };
 
   const exportDREToExcel = () => {
@@ -2194,13 +2235,22 @@ export default function App() {
                         <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#1B3B2B] text-emerald-300 uppercase">
                           {role.level}
                         </span>
-                        <button
-                          onClick={() => setEditingRoleTarget(role)}
-                          className="p-1.5 rounded-lg text-teal-800 hover:bg-teal-50 cursor-pointer"
-                          title="Editar Perfil"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setEditingRoleTarget(role)}
+                            className="p-1.5 rounded-lg text-teal-800 hover:bg-teal-50 cursor-pointer"
+                            title="Editar Perfil / Senha"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteRole(role.id)}
+                            className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
+                            title="Excluir Perfil"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                       <h4 className="font-extrabold text-[#1B3B2B] text-sm">{role.name}</h4>
                       <div className="text-xs font-bold text-slate-700">👤 {role.holder}</div>
@@ -2399,11 +2449,16 @@ export default function App() {
         </main>
       </div>
 
-      {/* MODAL EDITAR PERFIL NA ÁRVORE DE ACESSOS */}
+      {/* MODAL EDITAR PERFIL NA ÁRVORE DE ACESSOS (COM SENHA E EXCLUSÃO) */}
       {editingRoleTarget && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="text-base font-extrabold text-[#1B3B2B]">Editar Perfil / Colaborador</h3>
+            <div className="flex items-center justify-between border-b pb-2">
+              <h3 className="text-base font-extrabold text-[#1B3B2B]">Editar Perfil / Colaborador & Senha</h3>
+              <button onClick={() => setEditingRoleTarget(null)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
             <form onSubmit={handleSaveRoleEdit} className="space-y-3 text-xs">
               <div>
                 <label className="block font-bold mb-1">Cargo / Nível</label>
@@ -2446,17 +2501,37 @@ export default function App() {
                 />
               </div>
               <div>
+                <label className="block font-bold mb-1">Nova Senha de Acesso</label>
+                <input
+                  type="text"
+                  value={editingRoleTarget.password || ''}
+                  onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, password: e.target.value })}
+                  placeholder="Digite a nova senha se desejar alterar"
+                  className="w-full px-3 py-2 rounded-xl border font-bold text-emerald-800"
+                  required
+                />
+              </div>
+              <div>
                 <label className="block font-bold mb-1">Descrição / Alçadas</label>
                 <textarea
                   value={editingRoleTarget.description}
                   onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, description: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border h-20 resize-none"
+                  className="w-full px-3 py-2 rounded-xl border h-16 resize-none"
                   required
                 />
               </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setEditingRoleTarget(null)} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar Alterações</button>
+              <div className="flex items-center justify-between pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={() => handleDeleteRole(editingRoleTarget.id)}
+                  className="px-4 py-2 rounded-xl bg-rose-100 text-rose-700 font-bold hover:bg-rose-200 cursor-pointer flex items-center gap-1"
+                >
+                  <Trash2 className="w-4 h-4" /> Excluir Cadastro
+                </button>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setEditingRoleTarget(null)} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
+                  <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar Alterações</button>
+                </div>
               </div>
             </form>
           </div>
@@ -3441,7 +3516,7 @@ export default function App() {
                   type="text"
                   value={newRoleForm.password}
                   onChange={(e) => setNewRoleForm({ ...newRoleForm, password: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border"
+                  className="w-full px-3 py-2 rounded-xl border font-bold"
                   required
                 />
               </div>
