@@ -296,26 +296,18 @@ const INITIAL_PARAMETERS = {
   cidadeSede: 'Rondonópolis — MT'
 };
 
+const DEFAULT_PERMISSIONS = {
+  dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
+  prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
+  lancamentos: { view: true, create: true, edit: true, delete: false, approve: true },
+  dre: { view: true, create: false, edit: false, delete: false, approve: false },
+  contratos: { view: true, create: true, edit: true, delete: false, approve: false },
+  clientes: { view: true, create: true, edit: true, delete: false, approve: false },
+  acessos: { view: false, create: false, edit: false, delete: false, approve: false }
+};
+
+// Apenas o perfil do Pedro Melo mantido
 const INITIAL_ACCESS_ROLES = [
-  {
-    id: 'ROLE-01',
-    level: 'Nível 1 — Sócio-Administrador (Master)',
-    name: 'Diretoria Executiva / Sócio-Administrador',
-    holder: 'Maikon Martins (Sócio-Diretor)',
-    email: 'maikon@grupomartins.eng.br',
-    password: 'martins2026',
-    badgeColor: 'bg-[#1B3B2B] text-[#F8F3EF]',
-    description: 'Alçada Total: DRE, Saques de Pró-Labore, Exclusão de Contratos, Caixa e Governança',
-    permissions: {
-      dashboard: { view: true, create: true, edit: true, delete: true, approve: true },
-      prolabore: { view: true, create: true, edit: true, delete: true, approve: true },
-      lancamentos: { view: true, create: true, edit: true, delete: true, approve: true },
-      dre: { view: true, create: true, edit: true, delete: true, approve: true },
-      contratos: { view: true, create: true, edit: true, delete: true, approve: true },
-      clientes: { view: true, create: true, edit: true, delete: true, approve: true },
-      acessos: { view: true, create: true, edit: true, delete: true, approve: true }
-    }
-  },
   {
     id: 'ROLE-01-PEDRO',
     level: 'Nível 1 — Master',
@@ -333,82 +325,6 @@ const INITIAL_ACCESS_ROLES = [
       contratos: { view: true, create: true, edit: true, delete: true, approve: true },
       clientes: { view: true, create: true, edit: true, delete: true, approve: true },
       acessos: { view: true, create: true, edit: true, delete: true, approve: true }
-    }
-  },
-  {
-    id: 'ROLE-02',
-    level: 'Nível 2 — Financeiro',
-    name: 'Gestão Financeira & Faturamento',
-    holder: 'Aline Costa (Analista Financeira)',
-    email: 'financeiro@grupomartins.eng.br',
-    password: 'martins2026',
-    badgeColor: 'bg-teal-800 text-white',
-    description: 'Operação diária do Livro Caixa, emissão de boletos/NF, baixa de parcelas de contratos e cadastro de clientes.',
-    permissions: {
-      dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
-      prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
-      lancamentos: { view: true, create: true, edit: true, delete: false, approve: true },
-      dre: { view: true, create: false, edit: false, delete: false, approve: false },
-      contratos: { view: true, create: true, edit: true, delete: false, approve: false },
-      clientes: { view: true, create: true, edit: true, delete: false, approve: false },
-      acessos: { view: false, create: false, edit: false, delete: false, approve: false }
-    }
-  },
-  {
-    id: 'ROLE-03',
-    level: 'Nível 3 — Ambiental',
-    name: 'Coordenação de Engenharia Ambiental (SEMA / IBAMA / CAR)',
-    holder: 'Eng. Ambiental & Equipe Geoprocessamento',
-    email: 'ambiental@grupomartins.eng.br',
-    password: 'martins2026',
-    badgeColor: 'bg-emerald-800 text-white',
-    description: 'Gestão técnica de processos LP/LI/LO, PRAD, PGRS, CAR e Outorgas, atualização de status SEMA-MT e consulta técnica ao CRM de Clientes.',
-    permissions: {
-      dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
-      prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
-      lancamentos: { view: true, create: true, edit: true, delete: false, approve: false },
-      dre: { view: true, create: false, edit: false, delete: false, approve: false },
-      contratos: { view: true, create: true, edit: true, delete: false, approve: false },
-      clientes: { view: true, create: true, edit: true, delete: false, approve: false },
-      acessos: { view: false, create: false, edit: false, delete: false, approve: false }
-    }
-  },
-  {
-    id: 'ROLE-04',
-    level: 'Nível 4 — MS SST',
-    name: 'Coordenação de Segurança do Trabalho (MS SST / eSocial)',
-    holder: 'Eng. Segurança & Técnicos SST',
-    email: 'sst@grupomartins.eng.br',
-    password: 'martins2026',
-    badgeColor: 'bg-teal-900 text-white',
-    description: 'Gestão de programas PGR, PCMSO, LTCAT, eventos S-2210/S-2220/S-2240 no eSocial, treinamentos de NRs e carteira de contratos recorrentes.',
-    permissions: {
-      dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
-      prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
-      lancamentos: { view: true, create: true, edit: true, delete: false, approve: false },
-      dre: { view: true, create: false, edit: false, delete: false, approve: false },
-      contratos: { view: true, create: true, edit: true, delete: false, approve: false },
-      clientes: { view: true, create: true, edit: true, delete: false, approve: false },
-      acessos: { view: false, create: false, edit: false, delete: false, approve: false }
-    }
-  },
-  {
-    id: 'ROLE-05',
-    level: 'Nível 5 — Comercial',
-    name: 'Comercial, Prospecção & Parceiros Agro/Industrial',
-    holder: 'Consultores Comerciais Externos',
-    email: 'comercial@grupomartins.eng.br',
-    password: 'martins2026',
-    badgeColor: 'bg-amber-800 text-white',
-    description: 'Prospecção de novos clientes no CRM Ambiental & SST, abertura de propostas de contratos e acompanhamento de status comercial.',
-    permissions: {
-      dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
-      prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
-      lancamentos: { view: false, create: false, edit: false, delete: false, approve: false },
-      dre: { view: false, create: false, edit: false, delete: false, approve: false },
-      contratos: { view: true, create: true, edit: true, delete: false, approve: false },
-      clientes: { view: true, create: true, edit: true, delete: false, approve: false },
-      acessos: { view: false, create: false, edit: false, delete: false, approve: false }
     }
   }
 ];
@@ -457,7 +373,7 @@ export default function App() {
   ]);
 
   const [accessRoles, setAccessRoles] = useState(INITIAL_ACCESS_ROLES);
-  const [activeRoleId, setActiveRoleId] = useState('ROLE-01');
+  const [activeRoleId, setActiveRoleId] = useState('ROLE-01-PEDRO');
   const [authLoggedIn, setAuthLoggedIn] = useState(false);
   const [authEmailInput, setAuthEmailInput] = useState('');
   const [authPasswordInput, setAuthPasswordInput] = useState('');
@@ -1128,7 +1044,6 @@ export default function App() {
     );
   };
 
-  // Salvar edições feitas nos perfis da Árvore de Acessos
   const handleSaveRoleEdit = (e) => {
     e.preventDefault();
     if (!editingRoleTarget) return;
@@ -1182,7 +1097,6 @@ export default function App() {
     showToast(`Planilha DRE (${selectedDreYear}) exportada com sucesso!`);
   };
 
-  // Filtros avançados das transações
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
       const matchSearch = (t.entity || '').toLowerCase().includes(txSearch.toLowerCase()) || 
@@ -1235,7 +1149,7 @@ export default function App() {
     { id: 'dre', label: 'DRE Gerencial Mensal', icon: FileSpreadsheet, badge: 'AV%', permKey: 'dre' },
     { id: 'contratos', label: 'Contratos Ambientais & SST', icon: Briefcase, badge: contracts.length, permKey: 'contratos' },
     { id: 'clientes', label: 'Cadastro de Clientes (CRM)', icon: Users, badge: clients.length, permKey: 'clientes' },
-    { id: 'acessos', label: 'Árvore de Acessos & Perfis', icon: Network, badge: `${accessRoles.length} Níveis`, permKey: 'acessos' },
+    { id: 'acessos', label: 'Árvore de Acessos & Perfis', icon: Network, badge: `${accessRoles.length} Nível`, permKey: 'acessos' },
     { id: 'config', label: 'Plano de Contas & Metas', icon: Settings, permKey: 'dashboard' }
   ];
 
@@ -1257,7 +1171,7 @@ export default function App() {
 
           <div className="mx-4 mt-4 p-3.5 rounded-xl bg-[#244B38] border border-[#3B7A57]/50 flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-[#F8F3EF] text-[#1B3B2B] font-extrabold flex items-center justify-center text-sm shrink-0 shadow">
-              MM
+              PM
             </div>
             <div className="overflow-hidden">
               <div className="text-[10px] text-emerald-300 font-semibold uppercase tracking-wider truncate flex items-center gap-1">
@@ -1265,7 +1179,7 @@ export default function App() {
                 {isCloudSynced ? 'Nuvem Sincronizada' : 'Conectando...'}
               </div>
               <div className="text-sm font-bold text-white truncate">
-                {currentRole.holder}
+                Pedro Melo
               </div>
               <div className="text-[11px] text-emerald-100/80 truncate">
                 Pró-Labore Pago: {formatCurrency(financialData.proLaborePago)}
@@ -1345,11 +1259,11 @@ export default function App() {
             <div className="flex items-center gap-2 bg-[#F8F3EF] px-3 py-1.5 rounded-xl border border-[#D5CFC7]">
               <KeyRound className="w-3.5 h-3.5 text-[#1B3B2B] shrink-0" />
               <span className="text-xs font-extrabold text-[#1B3B2B]">
-                {currentRole.level} ({currentRole.holder})
+                Nível 1 — Master (Pedro Melo)
               </span>
               <button
                 onClick={() => setAuthLoggedIn(false)}
-                className="ml-2 px-2 py-0.5 rounded bg-[#1B3B2B] text-white text-[10px] font-bold hover:bg-[#2D5A43]"
+                className="ml-2 px-2 py-0.5 rounded bg-[#1B3B2B] text-white text-[10px] font-bold hover:bg-[#2D5A43] cursor-pointer"
               >
                 Sair
               </button>
@@ -1374,7 +1288,7 @@ export default function App() {
                   });
                   setShowTxModal(true);
                 }}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] shadow"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] shadow cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 Novo Lançamento
@@ -1563,7 +1477,6 @@ export default function App() {
                 </div>
                 
                 <div className="flex flex-wrap items-center gap-3">
-                  {/* Seletor de Anos (2026 a 2040) */}
                   <div className="flex items-center gap-2 bg-[#F8F3EF] px-3 py-1.5 rounded-xl border border-[#D5CFC7]">
                     <Calendar className="w-4 h-4 text-[#1B3B2B]" />
                     <span className="text-xs font-extrabold text-[#1B3B2B]">Exercício:</span>
@@ -2184,27 +2097,13 @@ export default function App() {
                 </button>
               </div>
 
-              {/* CARD SUPERIOR DO MASTER */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
-                <div className="px-4 py-1 rounded-full bg-[#1B3B2B] text-amber-300 text-[10px] font-black uppercase tracking-wider mb-2">
-                  Nível 1 — Sócio-Administrador (Master)
-                </div>
-                <h3 className="text-xl font-black text-[#1B3B2B]">{params.socioDiretor} — Sócio-Diretor</h3>
-                <p className="text-xs text-slate-600 mt-1 max-w-xl">
-                  Alçada Total: DRE, Saques de Pró-Labore, Exclusão de Contratos, Caixa e Governança
-                </p>
-                <span className="mt-3 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1">
-                  <Check className="w-3.5 h-3.5" /> Perfil Ativo
-                </span>
-              </div>
-
-              {/* GRID DOS DEMAIS NÍVEIS (COM OPÇÃO DE EDIÇÃO) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {accessRoles.filter(r => r.id !== 'ROLE-01').map((role) => (
+              {/* ÚNICO PERFIL ATIVO: PEDRO MELO (MASTER) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {accessRoles.map((role) => (
                   <div key={role.id} className="p-5 rounded-2xl border border-slate-200 bg-white shadow-sm space-y-3 flex flex-col justify-between">
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 uppercase">
+                        <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#1B3B2B] text-emerald-300 uppercase">
                           {role.level}
                         </span>
                         <button
@@ -2228,15 +2127,9 @@ export default function App() {
                       >
                         <Sliders className="w-3.5 h-3.5" /> Configurar Permissões (Flags)
                       </button>
-                      <button
-                        onClick={() => {
-                          setActiveRoleId(role.id);
-                          showToast(`Simulando perfil de ${role.holder}`);
-                        }}
-                        className={`w-full py-1.5 rounded-xl text-xs font-bold cursor-pointer ${activeRoleId === role.id ? 'bg-[#1B3B2B] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
-                      >
-                        {activeRoleId === role.id ? 'Perfil Ativo' : 'Simular Perfil'}
-                      </button>
+                      <span className="w-full py-1.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800 flex items-center justify-center gap-1">
+                        <Check className="w-3.5 h-3.5" /> Perfil Ativo (Pedro Melo)
+                      </span>
                     </div>
                   </div>
                 ))}
