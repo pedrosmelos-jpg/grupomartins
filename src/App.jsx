@@ -259,7 +259,6 @@ const GrupoMartinsLogo = ({ size = 'md', theme = 'cream', className = '' }) => {
 const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const MONTH_NAMES_MAP = { '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez' };
 
-// Array de anos gerado automaticamente de 2026 até 2040
 const ANOS_DRE = Array.from({ length: 15 }, (_, i) => 2026 + i);
 
 const INITIAL_PLANO_CONTAS = {
@@ -297,26 +296,16 @@ const INITIAL_PARAMETERS = {
   cidadeSede: 'Rondonópolis — MT'
 };
 
-const DEFAULT_PERMISSIONS = {
-  dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
-  prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
-  lancamentos: { view: true, create: true, edit: true, delete: false, approve: true },
-  dre: { view: true, create: false, edit: false, delete: false, approve: false },
-  contratos: { view: true, create: true, edit: true, delete: false, approve: false },
-  clientes: { view: true, create: true, edit: true, delete: false, approve: false },
-  acessos: { view: false, create: false, edit: false, delete: false, approve: false }
-};
-
 const INITIAL_ACCESS_ROLES = [
   {
     id: 'ROLE-01',
-    level: 'Nível 1 — Master',
+    level: 'Nível 1 — Sócio-Administrador (Master)',
     name: 'Diretoria Executiva / Sócio-Administrador',
     holder: 'Maikon Martins (Sócio-Diretor)',
     email: 'maikon@grupomartins.eng.br',
     password: 'martins2026',
     badgeColor: 'bg-[#1B3B2B] text-[#F8F3EF]',
-    description: 'Acesso total e irrestrito a todos os módulos estratégicos, aprovação de saques de Pró-Labore, DRE Gerencial, exclusão de contratos/lançamentos e governança de acessos.',
+    description: 'Alçada Total: DRE, Saques de Pró-Labore, Exclusão de Contratos, Caixa e Governança',
     permissions: {
       dashboard: { view: true, create: true, edit: true, delete: true, approve: true },
       prolabore: { view: true, create: true, edit: true, delete: true, approve: true },
@@ -364,6 +353,63 @@ const INITIAL_ACCESS_ROLES = [
       clientes: { view: true, create: true, edit: true, delete: false, approve: false },
       acessos: { view: false, create: false, edit: false, delete: false, approve: false }
     }
+  },
+  {
+    id: 'ROLE-03',
+    level: 'Nível 3 — Ambiental',
+    name: 'Coordenação de Engenharia Ambiental (SEMA / IBAMA / CAR)',
+    holder: 'Eng. Ambiental & Equipe Geoprocessamento',
+    email: 'ambiental@grupomartins.eng.br',
+    password: 'martins2026',
+    badgeColor: 'bg-emerald-800 text-white',
+    description: 'Gestão técnica de processos LP/LI/LO, PRAD, PGRS, CAR e Outorgas, atualização de status SEMA-MT e consulta técnica ao CRM de Clientes.',
+    permissions: {
+      dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
+      prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
+      lancamentos: { view: true, create: true, edit: true, delete: false, approve: false },
+      dre: { view: true, create: false, edit: false, delete: false, approve: false },
+      contratos: { view: true, create: true, edit: true, delete: false, approve: false },
+      clientes: { view: true, create: true, edit: true, delete: false, approve: false },
+      acessos: { view: false, create: false, edit: false, delete: false, approve: false }
+    }
+  },
+  {
+    id: 'ROLE-04',
+    level: 'Nível 4 — MS SST',
+    name: 'Coordenação de Segurança do Trabalho (MS SST / eSocial)',
+    holder: 'Eng. Segurança & Técnicos SST',
+    email: 'sst@grupomartins.eng.br',
+    password: 'martins2026',
+    badgeColor: 'bg-teal-900 text-white',
+    description: 'Gestão de programas PGR, PCMSO, LTCAT, eventos S-2210/S-2220/S-2240 no eSocial, treinamentos de NRs e carteira de contratos recorrentes.',
+    permissions: {
+      dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
+      prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
+      lancamentos: { view: true, create: true, edit: true, delete: false, approve: false },
+      dre: { view: true, create: false, edit: false, delete: false, approve: false },
+      contratos: { view: true, create: true, edit: true, delete: false, approve: false },
+      clientes: { view: true, create: true, edit: true, delete: false, approve: false },
+      acessos: { view: false, create: false, edit: false, delete: false, approve: false }
+    }
+  },
+  {
+    id: 'ROLE-05',
+    level: 'Nível 5 — Comercial',
+    name: 'Comercial, Prospecção & Parceiros Agro/Industrial',
+    holder: 'Consultores Comerciais Externos',
+    email: 'comercial@grupomartins.eng.br',
+    password: 'martins2026',
+    badgeColor: 'bg-amber-800 text-white',
+    description: 'Prospecção de novos clientes no CRM Ambiental & SST, abertura de propostas de contratos e acompanhamento de status comercial.',
+    permissions: {
+      dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
+      prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
+      lancamentos: { view: false, create: false, edit: false, delete: false, approve: false },
+      dre: { view: false, create: false, edit: false, delete: false, approve: false },
+      contratos: { view: true, create: true, edit: true, delete: false, approve: false },
+      clientes: { view: true, create: true, edit: true, delete: false, approve: false },
+      acessos: { view: false, create: false, edit: false, delete: false, approve: false }
+    }
   }
 ];
 
@@ -384,13 +430,16 @@ export default function App() {
   const [contracts, setContracts] = useState([]);
   const [clients, setClients] = useState([]);
 
-  // Estado do ano selecionado para visualização da DRE (2026 a 2040)
+  // Estado do ano selecionado para DRE (2026 a 2040)
   const [selectedDreYear, setSelectedDreYear] = useState(2026);
 
   // Plano de Contas dinâmico
   const [planoContasData, setPlanoContasData] = useState(INITIAL_PLANO_CONTAS);
   const [showPlanoModal, setShowPlanoModal] = useState(false);
   const [planoForm, setPlanoForm] = useState({ tipo: 'receitas', codigo: '', nome: '', originalCodigo: null });
+
+  // Estado para Edição de Perfil na Árvore de Acessos
+  const [editingRoleTarget, setEditingRoleTarget] = useState(null);
 
   const [availableSegments, setAvailableSegments] = useState([
     'Agronegócio / Propriedade Rural',
@@ -427,7 +476,7 @@ export default function App() {
     description: ''
   });
 
-  // Filtros avançados
+  // Filtros
   const [txSearch, setTxSearch] = useState('');
   const [txTypeFilter, setTxTypeFilter] = useState('Todos');
   const [txCategoryFilter, setTxCategoryFilter] = useState('Todas');
@@ -554,22 +603,19 @@ export default function App() {
   };
 
   // ============================================================================
-  // CÁLCULO DINÂMICO DA DRE GERENCIAL PARA O ANO SELECIONADO
+  // CÁLCULO DINÂMICO DA DRE GERENCIAL (2026 a 2040)
   // ============================================================================
   const dreGerencialData = useMemo(() => {
     const monthsFull = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     
-    // Filtra transações do ano selecionado (baseado na data ou no mês)
     const getVal = (codigoConta, mesStr, anoNum) => {
       return transactions
         .filter(t => t.status === 'Pago / Recebido' && (t.planoContas === codigoConta || (t.category || '').includes(codigoConta)))
         .filter(t => {
-          // Verifica o ano
           if (t.date) {
             const txAno = parseInt(t.date.split('-')[0], 10);
             if (txAno !== anoNum) return false;
           }
-          // Verifica o mês se especificado
           if (mesStr) {
             const mName = t.month || (t.date ? MONTH_NAMES_MAP[t.date.split('-')[1]] : '');
             if (mName !== mesStr) return false;
@@ -1082,7 +1128,16 @@ export default function App() {
     );
   };
 
-  // Função para exportar a DRE do ano selecionado em Excel (.csv)
+  // Salvar edições feitas nos perfis da Árvore de Acessos
+  const handleSaveRoleEdit = (e) => {
+    e.preventDefault();
+    if (!editingRoleTarget) return;
+
+    setAccessRoles(prev => prev.map(r => r.id === editingRoleTarget.id ? editingRoleTarget : r));
+    showToast('Perfil atualizado com sucesso!');
+    setEditingRoleTarget(null);
+  };
+
   const exportDREToExcel = () => {
     const { selectedDreYear, monthsFull, receitasRows, receitaBrutaTotalAnual, impostosRows, impostoTotalAnual, receitaLiquidaTotalAnual, custosDiretosRows, custosDiretosTotalAnual, lucroBrutoTotalAnual, despesasOpRows, despesasOpTotalAnual, lucroLiquidoTotalAnual } = dreGerencialData;
     
@@ -1127,7 +1182,7 @@ export default function App() {
     showToast(`Planilha DRE (${selectedDreYear}) exportada com sucesso!`);
   };
 
-  // Filtragem avançada das transações
+  // Filtros avançados das transações
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
       const matchSearch = (t.entity || '').toLowerCase().includes(txSearch.toLowerCase()) || 
@@ -1504,7 +1559,7 @@ export default function App() {
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <h3 className="text-base font-extrabold text-[#1B3B2B]">DRE Gerencial Consolidada (Exercício {selectedDreYear})</h3>
-                  <p className="text-xs text-slate-500">Selecione o ano desejado para visualizar a projeção e os lançamentos oficiais.</p>
+                  <p className="text-xs text-slate-500">Selecione o ano desejado (2026 a 2040) para visualizar a projeção e os lançamentos oficiais.</p>
                 </div>
                 
                 <div className="flex flex-wrap items-center gap-3">
@@ -1691,7 +1746,6 @@ export default function App() {
 
           {activeTab === 'lancamentos' && (
             <div className="space-y-5">
-              {/* Barra de Filtros e Busca */}
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="relative flex-1 min-w-[220px]">
@@ -1728,7 +1782,6 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* Filtros em Linha por Coluna */}
                 <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100 text-xs">
                   <span className="font-bold text-slate-600 flex items-center gap-1">
                     <Filter className="w-3.5 h-3.5 text-[#1B3B2B]" /> Filtrar colunas:
@@ -1784,7 +1837,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Tabela de Lançamentos */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
@@ -2132,26 +2184,56 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {accessRoles.map((role) => (
-                  <div key={role.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3 flex flex-col justify-between">
-                    <div className="space-y-1">
-                      <div className="font-extrabold text-[#1B3B2B]">{role.name}</div>
-                      <div className="text-xs text-slate-600">Titular: {role.holder}</div>
-                      <div className="text-xs text-slate-500">E-mail: {role.email}</div>
-                      <div className="text-[11px] text-slate-500 italic mt-1">{role.description}</div>
+              {/* CARD SUPERIOR DO MASTER */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
+                <div className="px-4 py-1 rounded-full bg-[#1B3B2B] text-amber-300 text-[10px] font-black uppercase tracking-wider mb-2">
+                  Nível 1 — Sócio-Administrador (Master)
+                </div>
+                <h3 className="text-xl font-black text-[#1B3B2B]">{params.socioDiretor} — Sócio-Diretor</h3>
+                <p className="text-xs text-slate-600 mt-1 max-w-xl">
+                  Alçada Total: DRE, Saques de Pró-Labore, Exclusão de Contratos, Caixa e Governança
+                </p>
+                <span className="mt-3 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1">
+                  <Check className="w-3.5 h-3.5" /> Perfil Ativo
+                </span>
+              </div>
+
+              {/* GRID DOS DEMAIS NÍVEIS (COM OPÇÃO DE EDIÇÃO) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {accessRoles.filter(r => r.id !== 'ROLE-01').map((role) => (
+                  <div key={role.id} className="p-5 rounded-2xl border border-slate-200 bg-white shadow-sm space-y-3 flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 uppercase">
+                          {role.level}
+                        </span>
+                        <button
+                          onClick={() => setEditingRoleTarget(role)}
+                          className="p-1.5 rounded-lg text-teal-800 hover:bg-teal-50 cursor-pointer"
+                          title="Editar Perfil"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <h4 className="font-extrabold text-[#1B3B2B] text-sm">{role.name}</h4>
+                      <div className="text-xs font-bold text-slate-700">👤 {role.holder}</div>
+                      <div className="text-xs text-slate-500">✉️ {role.email}</div>
+                      <p className="text-[11px] text-slate-600 border-t pt-2 mt-2">{role.description}</p>
                     </div>
-                    
-                    <div className="space-y-2 pt-2 border-t border-slate-200">
+
+                    <div className="space-y-2 pt-2 border-t border-slate-100">
                       <button
                         onClick={() => setEditingRolePermissions(role)}
-                        className="w-full py-1.5 rounded-lg text-xs font-bold bg-emerald-800 text-white hover:bg-emerald-900 flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="w-full py-1.5 rounded-xl text-xs font-bold bg-emerald-800 text-white hover:bg-emerald-900 flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <Sliders className="w-3.5 h-3.5" /> Configurar Permissões (Flags)
                       </button>
                       <button
-                        onClick={() => setActiveRoleId(role.id)}
-                        className={`w-full py-1.5 rounded-lg text-xs font-bold cursor-pointer ${activeRoleId === role.id ? 'bg-[#1B3B2B] text-white' : 'bg-white text-[#1B3B2B] border'}`}
+                        onClick={() => {
+                          setActiveRoleId(role.id);
+                          showToast(`Simulando perfil de ${role.holder}`);
+                        }}
+                        className={`w-full py-1.5 rounded-xl text-xs font-bold cursor-pointer ${activeRoleId === role.id ? 'bg-[#1B3B2B] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
                       >
                         {activeRoleId === role.id ? 'Perfil Ativo' : 'Simular Perfil'}
                       </button>
@@ -2323,6 +2405,70 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {/* MODAL EDITAR PERFIL NA ÁRVORE DE ACESSOS */}
+      {editingRoleTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <h3 className="text-base font-extrabold text-[#1B3B2B]">Editar Perfil / Colaborador</h3>
+            <form onSubmit={handleSaveRoleEdit} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold mb-1">Cargo / Nível</label>
+                <input
+                  type="text"
+                  value={editingRoleTarget.level}
+                  onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, level: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border font-bold"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">Nome do Departamento / Função</label>
+                <input
+                  type="text"
+                  value={editingRoleTarget.name}
+                  onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, name: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border font-bold"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">Titular / Responsável</label>
+                <input
+                  type="text"
+                  value={editingRoleTarget.holder}
+                  onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, holder: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">E-mail Corporativo</label>
+                <input
+                  type="email"
+                  value={editingRoleTarget.email}
+                  onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, email: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">Descrição / Alçadas</label>
+                <textarea
+                  value={editingRoleTarget.description}
+                  onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, description: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border h-20 resize-none"
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setEditingRoleTarget(null)} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar Alterações</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* MODAL ADICIONAR / EDITAR PLANO DE CONTAS */}
       {showPlanoModal && (
