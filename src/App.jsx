@@ -377,7 +377,9 @@ export default function App() {
   const [newSegmentInput, setNewSegmentInput] = useState('');
   const [newStatusInput, setNewStatusInput] = useState('');
 
+  // Perfis de Acesso sincronizados via Supabase
   const [accessRoles, setAccessRoles] = useState(INITIAL_ACCESS_ROLES);
+
   const [activeRoleId, setActiveRoleId] = useState('ROLE-01-PEDRO');
   const [authLoggedIn, setAuthLoggedIn] = useState(false);
   const [authEmailInput, setAuthEmailInput] = useState('');
@@ -478,15 +480,16 @@ export default function App() {
     status: 'Ativo'
   });
 
-  // Sincronização Supabase
+  // Sincronização Supabase (incluindo perfis de acesso)
   useEffect(() => {
     const fetchAllData = async () => {
       if (!supabase) return;
       try {
-        const [txRes, ctRes, cliRes] = await Promise.all([
+        const [txRes, ctRes, cliRes, rolesRes] = await Promise.all([
           supabase.from('transactions').select('*'),
           supabase.from('contracts').select('*'),
-          supabase.from('clients').select('*')
+          supabase.from('clients').select('*'),
+          supabase.from('access_roles').select('*')
         ]);
 
         if (!txRes.error && txRes.data) {
@@ -495,6 +498,11 @@ export default function App() {
         }
         if (!ctRes.error && ctRes.data) setContracts(ctRes.data);
         if (!cliRes.error && cliRes.data) setClients(cliRes.data);
+        if (!rolesRes.error && rolesRes.data && rolesRes.data.length > 0) {
+          setAccessRoles(rolesRes.data);
+        } else if (rolesRes.data && rolesRes.data.length === 0) {
+          await supabase.from('access_roles').upsert(INITIAL_ACCESS_ROLES);
+        }
       } catch (err) {
         console.error('Supabase sync error:', err);
       }
@@ -508,6 +516,7 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchAllData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contracts' }, fetchAllData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, fetchAllData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'access_roles' }, fetchAllData)
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') setIsCloudSynced(true);
       });
@@ -1014,7 +1023,7 @@ export default function App() {
     setDeleteClientTarget(null);
   };
 
-  const handleSaveNewUserRole = (e) => {
+  const handleSaveNewUserRole = async (e) => {
     e.preventDefault();
     if (!newRoleForm.name || !newRoleForm.holder || !newRoleForm.email) return;
     const newRole = {
@@ -1028,7 +1037,19 @@ export default function App() {
       description: newRoleForm.description || 'Perfil personalizado de acesso.',
       permissions: JSON.parse(JSON.stringify(DEFAULT_PERMISSIONS))
     };
-    setAccessRoles([...accessRoles, newRole]);
+
+    const updatedRoles = [...accessRoles, newRole];
+    setAccessRoles(updatedRoles);
+
+    if (supabase) {
+      const { error } = await supabase.from('access_roles').upsert([newRole]);
+      if (error) {
+        console.error('Erro Supabase Perfil:', error);
+        alert('Erro ao salvar perfil na nuvem: ' + error.message);
+        return;
+      }
+    }
+
     setShowUserRoleModal(false);
     setNewRoleForm({
       level: 'Nível 1 — Master',
@@ -1038,7 +1059,7 @@ export default function App() {
       password: 'martins2026',
       description: 'Acesso total e liberação máxima a todos os módulos estratégicos, aprovação de saques de Pró-Labore, DRE Gerencial, contratos e governança do sistema.'
     });
-    showToast('Novo utilizador cadastrado com sucesso!');
+    showToast('Novo utilizador cadastrado e sincronizado com a nuvem!');
   };
 
   const handlePermissionToggle = (roleId, moduleKey, actionKey) => {
@@ -1066,11 +1087,17 @@ export default function App() {
     );
   };
 
-  const handleSaveRoleEdit = (e) => {
+  const handleSaveRoleEdit = async (e) => {
     e.preventDefault();
     if (!editingRoleTarget) return;
 
-    setAccessRoles(prev => prev.map(r => r.id === editingRoleTarget.id ? editingRoleTarget : r));
+    const updatedRoles = accessRoles.map(r => r.id === editingRoleTarget.id ? editingRoleTarget : r);
+    setAccessRoles(updatedRoles);
+
+    if (supabase) {
+      await supabase.from('access_roles').upsert([editingRoleTarget]);
+    }
+
     showToast('Perfil atualizado com sucesso!');
     setEditingRoleTarget(null);
   };
@@ -3552,7 +3579,7 @@ export default function App() {
               </div>
               <div>
                 <label className="block font-bold text-slate-700 uppercase mb-1">Senha</label>
-                <input type="password" value={authPasswordInput} onChange={(e) => setAuthPasswordInput(e.target.value)} placeholder="••••••••" className="w-full px-3.5 py-2.5 rounded-xl border" required />
+                <input type="password" value={authPasswordInput} onChange={(e) => setAuthPasswordInput(e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl border" required />
               </div>
               <button type="submit" className="w-full py-3 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer">
                 Entrar no ERP (Sincronizado)
