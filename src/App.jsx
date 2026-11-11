@@ -254,31 +254,33 @@ const GrupoMartinsLogo = ({ size = 'md', theme = 'cream', className = '' }) => {
 };
 
 // ============================================================================
-// 2. CONSTANTES E DADOS INICIAIS
+// 2. CONSTANTES E PLANO DE CONTAS ESTRUTURADO PARA DRE
 // ============================================================================
 const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-const REVENUE_CATEGORIES = [
-  'Licenciamento Ambiental (LP / LI / LO)',
-  'Planos Ambientais (PRAD / PGRS) e Auditorias',
-  'CAR, Georreferenciamento e Outorga de Água',
-  'Segurança do Trabalho (PGR / PCMSO / LTCAT)',
-  'Gestão de eSocial SST e Treinamentos NRs'
-];
-
-const EXPENSE_CATEGORIES = [
-  'Impostos sobre Faturamento (ISS / Simples / PIS-COFINS)',
-  'Taxas de Órgãos (SEMA-MT / IBAMA / CREA / ART)',
-  'Análises Laboratoriais (Água / Solo / Efluentes) e Laudos',
-  'Topografia, Geoprocessamento e Vistorias de Campo',
-  'Deslocamento, Combustível e Diárias Técnicas',
-  'Saque de Pró-Labore — Sócio Maikon Martins',
-  'Folha de Pagamento Equipe Técnica e Encargos',
-  'Comissões Comerciais e Prospecção de Clientes',
-  'Softwares Técnicos (AutoCAD / QGIS / Sistema SST)',
-  'Aluguel, Energia, Internet e Infraestrutura',
-  'Tarifas Bancárias, Marketing e Despesas Gerais'
-];
+const PLANO_CONTAS_OPCOES = {
+  receitas: [
+    { codigo: '1.1.01', nome: '1.1.01 — Receita de Licenciamento Ambiental (LP / LI / LO)' },
+    { codigo: '1.1.02', nome: '1.1.02 — Receita de Planos Ambientais (PRAD / PGRS) e Auditorias' },
+    { codigo: '1.1.03', nome: '1.1.03 — Receita de CAR, Georreferenciamento e Outorga' },
+    { codigo: '1.1.04', nome: '1.1.04 — Receita de Segurança do Trabalho (PGR / PCMSO / LTCAT)' },
+    { codigo: '1.1.05', nome: '1.1.05 — Receita de Gestão eSocial SST e Treinamentos' },
+    { codigo: '1.2.01', nome: '1.2.01 — Receitas Financeiras (Juros e Multas por Atraso)' }
+  ],
+  despesas: [
+    { codigo: '2.1.01', nome: '2.1.01 — Impostos sobre Faturamento (ISS / Simples / PIS-COFINS)' },
+    { codigo: '2.2.01', nome: '2.2.01 — Taxas de Órgãos (SEMA-MT / IBAMA / CREA / ART)' },
+    { codigo: '2.2.02', nome: '2.2.02 — Análises Laboratoriais e Laudos Técnicos' },
+    { codigo: '2.2.03', nome: '2.2.03 — Topografia, Geoprocessamento e Vistoria de Campo' },
+    { codigo: '2.3.01', nome: '2.3.01 — Deslocamento, Combustível e Diárias' },
+    { codigo: '2.4.01', nome: '2.4.01 — Saque de Pró-Labore — Sócio Maikon Martins' },
+    { codigo: '2.4.02', nome: '2.4.02 — Folha de Pagamento e Encargos da Equipe' },
+    { codigo: '2.5.01', nome: '2.5.01 — Comissões Comerciais e Prospecção' },
+    { codigo: '2.6.01', nome: '2.6.01 — Softwares Técnicos (AutoCAD / QGIS / SST)' },
+    { codigo: '2.7.01', nome: '2.7.01 — Aluguel, Energia, Internet e Infraestrutura' },
+    { codigo: '2.8.01', nome: '2.8.01 — Tarifas Bancárias, Marketing e Despesas Gerais' }
+  ]
+};
 
 const INITIAL_PARAMETERS = {
   saldoInicialCaixa: 35000,
@@ -393,11 +395,6 @@ export default function App() {
     'Inativo'
   ]);
 
-  const [revenueCategories, setRevenueCategories] = useState(REVENUE_CATEGORIES);
-  const [expenseCategories, setExpenseCategories] = useState(EXPENSE_CATEGORIES);
-  const [newRevenueCatText, setNewRevenueCatText] = useState('');
-  const [newExpenseCatText, setNewExpenseCatText] = useState('');
-
   const [accessRoles, setAccessRoles] = useState(INITIAL_ACCESS_ROLES);
   const [activeRoleId, setActiveRoleId] = useState('ROLE-01');
   const [authLoggedIn, setAuthLoggedIn] = useState(false);
@@ -424,10 +421,10 @@ export default function App() {
   const [txCategoryFilter, setTxCategoryFilter] = useState('Todas');
   const [txStatusFilter, setTxStatusFilter] = useState('Todos');
 
-  // Filtros avançados para Contratos (incluindo Vencimento)
+  // Filtros avançados para Contratos
   const [ctSearch, setCtSearch] = useState('');
   const [ctStatusFilter, setCtStatusFilter] = useState('Todos');
-  const [ctDueDateFilter, setCtDueDateFilter] = useState('Todos'); // 'Todos', 'Vencidos', 'Hoje', 'AVencer'
+  const [ctDueDateFilter, setCtDueDateFilter] = useState('Todos');
 
   const [cliSearch, setCliSearch] = useState('');
 
@@ -441,7 +438,7 @@ export default function App() {
   const [deleteContractTarget, setDeleteContractTarget] = useState(null);
   const [viewingContractInstallments, setViewingContractInstallments] = useState(null);
 
-  // Modal de Recebimento de Parcela Específica (com data de recebimento e juros)
+  // Modal de Recebimento de Parcela Específica (com data e juros separados)
   const [receivingInstallmentData, setReceivingInstallmentData] = useState(null);
   const [receiveForm, setReceiveForm] = useState({
     paymentDate: new Date().toISOString().split('T')[0],
@@ -461,7 +458,8 @@ export default function App() {
     date: '2026-11-10',
     month: 'Nov',
     type: 'Entrada',
-    category: revenueCategories[0],
+    planoContas: PLANO_CONTAS_OPCOES.receitas[0].codigo,
+    category: PLANO_CONTAS_OPCOES.receitas[0].nome,
     entity: '',
     contractId: '—',
     description: '',
@@ -549,9 +547,9 @@ export default function App() {
     const saidasTotaisAnual = transactions.filter((t) => t.type === 'Saída').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
     const lucroLiquidoAnual = receitaBrutaAnual - saidasTotaisAnual;
     
-    const proLaboreCat = 'Saque de Pró-Labore — Sócio Maikon Martins';
-    const proLaboreTotalAnual = transactions.filter((t) => t.category === proLaboreCat).reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
-    const proLaborePago = transactions.filter((t) => t.category === proLaboreCat && t.status === 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    const proLaboreCat = '2.4.01 — Saque de Pró-Labore — Sócio Maikon Martins';
+    const proLaboreTotalAnual = transactions.filter((t) => (t.category || t.planoContas || '').includes('Pró-Labore')).reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    const proLaborePago = transactions.filter((t) => (t.category || t.planoContas || '').includes('Pró-Labore') && t.status === 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
 
     const entradasRealizadas = transactions.filter((t) => t.type === 'Entrada' && t.status === 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
     const saidasRealizadas = transactions.filter((t) => t.type === 'Saída' && t.status === 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
@@ -570,9 +568,9 @@ export default function App() {
       return { month: m, entradas, saidas, resultadoLiquido, saldoAcumulado: runningBalance };
     });
 
-    const revenueByCategory = revenueCategories.map((cat) => {
-      const value = transactions.filter(t => t.category === cat).reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
-      return { category: cat, shortName: cat.split(' (')[0], value, share: receitaBrutaAnual > 0 ? value / receitaBrutaAnual : 0 };
+    const revenueByCategory = PLANO_CONTAS_OPCOES.receitas.map((rev) => {
+      const value = transactions.filter(t => (t.planoContas === rev.codigo || t.category === rev.nome)).reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+      return { category: rev.nome, shortName: rev.nome.split(' — ')[1] || rev.nome, value, share: receitaBrutaAnual > 0 ? value / receitaBrutaAnual : 0 };
     }).sort((a, b) => b.value - a.value);
 
     const totalContratado = contracts.reduce((acc, c) => acc + Number(c.contractValue || 0), 0);
@@ -604,7 +602,7 @@ export default function App() {
       saldoAFaturar,
       margemMedia
     };
-  }, [transactions, contracts, params, revenueCategories]);
+  }, [transactions, contracts, params]);
 
   const handleToggleStatus = async (id) => {
     const item = transactions.find(t => t.id === id);
@@ -699,7 +697,7 @@ export default function App() {
         service: ctForm.service,
         agency: ctForm.agency,
         status: ctForm.status,
-        contractValue: contractVal, // O valor do contrato permanece fixo e não reduz com juros
+        contractValue: contractVal, // Valor total fixo do contrato
         receivedValue: installments.filter(i => i.status === 'Pago').reduce((acc, cur) => acc + Number(cur.amount), 0),
         directCosts: directVal,
         installmentsCount: String(nInstallments),
@@ -734,7 +732,7 @@ export default function App() {
     }
   };
 
-  // Processar o recebimento com Data de Recebimento e Juros
+  // Processar recebimento gerando 2 lançamentos separados (Parcela Principal e Juros)
   const handleConfirmReceiveInstallment = async () => {
     if (!receivingInstallmentData) return;
     const { contractId, installmentNumber } = receivingInstallmentData;
@@ -747,7 +745,6 @@ export default function App() {
 
     const baseAmount = Number(targetInst.amount || 0);
     const interest = parseFloat(String(receiveForm.interestAmount).replace(',', '.')) || 0;
-    const totalReceivedWithInterest = baseAmount + interest;
     const payDate = receiveForm.paymentDate || new Date().toISOString().split('T')[0];
 
     // Atualiza status da parcela no contrato
@@ -758,7 +755,7 @@ export default function App() {
           status: 'Pago', 
           paymentDate: payDate, 
           interestPaid: interest,
-          totalPaid: totalReceivedWithInterest 
+          totalPaid: baseAmount + interest 
         };
       }
       return inst;
@@ -777,37 +774,57 @@ export default function App() {
       await supabase.from('contracts').upsert([updatedContract]);
     }
 
-    // Cria o lançamento no Livro Caixa usando a DATA DE RECEBIMENTO e o VALOR TOTAL COM JUROS
-    const tId = `MT-${String(transactions.length + 15).padStart(3, '0')}`;
+    // Configurações de data para o Livro Caixa
     const monthNames = { '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez' };
     const monthNum = payDate.split('-')[1] || '12';
     const monthStr = monthNames[monthNum] || 'Dez';
 
-    let desc = `Parcela ${installmentNumber}/${contract.installmentsData.length} (${contract.paymentMethod}) — Contrato ${contractId}`;
-    if (interest > 0) {
-      desc += ` (Inclui Juros/Acréscimo: ${formatCurrency(interest)})`;
-    }
+    const newTransactionsList = [];
 
-    const newTx = {
-      id: tId,
-      date: payDate, // Data de recebimento
+    // 1. Lançamento da Parcela Principal
+    const tId1 = `MT-${String(transactions.length + 15).padStart(3, '0')}`;
+    const txPrincipal = {
+      id: tId1,
+      date: payDate,
       month: monthStr,
       type: 'Entrada',
-      category: revenueCategories[0],
+      planoContas: '1.1.01',
+      category: 'Licenciamento Ambiental (LP / LI / LO)',
       entity: contract.client,
       contractId: contractId,
-      description: desc,
+      description: `Parcela ${installmentNumber}/${contract.installmentsData.length} (${contract.paymentMethod}) — Contrato ${contractId}`,
       paymentMethod: contract.paymentMethod,
       status: 'Pago / Recebido',
-      amount: totalReceivedWithInterest // Valor total com juros
+      amount: baseAmount
     };
+    newTransactionsList.push(txPrincipal);
 
-    setTransactions(prev => [...prev, newTx]);
-    if (supabase) {
-      await supabase.from('transactions').upsert([newTx]);
+    // 2. Lançamento Separado de Juros (se houver)
+    if (interest > 0) {
+      const tId2 = `MT-${String(transactions.length + 16).padStart(3, '0')}`;
+      const txJuros = {
+        id: tId2,
+        date: payDate,
+        month: monthStr,
+        type: 'Entrada',
+        planoContas: '1.2.01',
+        category: 'Receitas Financeiras (Juros e Multas por Atraso)',
+        entity: contract.client,
+        contractId: contractId,
+        description: `Juros / Multa Parcela ${installmentNumber} — Contrato ${contractId}`,
+        paymentMethod: contract.paymentMethod,
+        status: 'Pago / Recebido',
+        amount: interest
+      };
+      newTransactionsList.push(txJuros);
     }
 
-    showToast(`Parcela recebida! Valor total ${formatCurrency(totalReceivedWithInterest)} lançado no Caixa.`);
+    setTransactions(prev => [...prev, ...newTransactionsList]);
+    if (supabase) {
+      await supabase.from('transactions').upsert(newTransactionsList);
+    }
+
+    showToast(`Recebimento registrado com sucesso em 2 lançamentos separados no Caixa!`);
     setReceivingInstallmentData(null);
     setReceiveForm({ paymentDate: new Date().toISOString().split('T')[0], interestAmount: '' });
   };
@@ -932,14 +949,14 @@ export default function App() {
                           (t.description || '').toLowerCase().includes(txSearch.toLowerCase()) ||
                           (t.id || '').toLowerCase().includes(txSearch.toLowerCase());
       const matchType = txTypeFilter === 'Todos' || t.type === txTypeFilter;
-      const matchCategory = txCategoryFilter === 'Todas' || t.category === txCategoryFilter;
+      const matchCategory = txCategoryFilter === 'Todas' || t.category === txCategoryFilter || t.planoContas === txCategoryFilter;
       const matchStatus = txStatusFilter === 'Todos' || t.status === txStatusFilter;
 
       return matchSearch && matchType && matchCategory && matchStatus;
     });
   }, [transactions, txSearch, txTypeFilter, txCategoryFilter, txStatusFilter]);
   
-  // Filtragem avançada de Contratos (incluindo Vencimento, Vencendo Hoje e A Vencer)
+  // Filtragem de Contratos (Vencidos, Vencendo Hoje, A Vencer)
   const filteredContracts = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
 
@@ -950,7 +967,6 @@ export default function App() {
         (c.agency || '').toLowerCase().includes(ctSearch.toLowerCase());
       const matchStatus = ctStatusFilter === 'Todos' || c.status === ctStatusFilter;
 
-      // Filtro de Vencimento baseado nas parcelas pendentes
       let matchDueDate = true;
       if (ctDueDateFilter !== 'Todos') {
         const insts = c.installmentsData || [];
@@ -1108,7 +1124,8 @@ export default function App() {
                     date: '2026-11-10',
                     month: 'Nov',
                     type: 'Entrada',
-                    category: revenueCategories[0],
+                    planoContas: PLANO_CONTAS_OPCOES.receitas[0].codigo,
+                    category: PLANO_CONTAS_OPCOES.receitas[0].nome,
                     entity: '',
                     contractId: '—',
                     description: '',
@@ -1277,7 +1294,7 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {transactions.filter(t => t.category === 'Saque de Pró-Labore — Sócio Maikon Martins').map((tx) => (
+                      {transactions.filter(t => (t.category || t.planoContas || '').includes('Pró-Labore')).map((tx) => (
                         <tr key={tx.id} className="hover:bg-[#F8F3EF]/50">
                           <td className="py-3 px-4 font-mono font-bold text-[#1B3B2B]">{tx.id}</td>
                           <td className="py-3 px-4">{tx.date}</td>
@@ -1320,7 +1337,8 @@ export default function App() {
                         date: '2026-11-10',
                         month: 'Nov',
                         type: 'Entrada',
-                        category: revenueCategories[0],
+                        planoContas: PLANO_CONTAS_OPCOES.receitas[0].codigo,
+                        category: PLANO_CONTAS_OPCOES.receitas[0].nome,
                         entity: '',
                         contractId: '—',
                         description: '',
@@ -1355,14 +1373,14 @@ export default function App() {
                   <select
                     value={txCategoryFilter}
                     onChange={(e) => setTxCategoryFilter(e.target.value)}
-                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold max-w-[240px] truncate"
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold max-w-[260px] truncate"
                   >
                     <option value="Todas">Plano de Contas: Todas</option>
-                    <optgroup label="Receitas">
-                      {revenueCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                    <optgroup label="Receitas (1.X)">
+                      {PLANO_CONTAS_OPCOES.receitas.map(r => <option key={r.codigo} value={r.codigo}>{r.nome}</option>)}
                     </optgroup>
-                    <optgroup label="Despesas / Custos / Pró-Labore">
-                      {expenseCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                    <optgroup label="Despesas (2.X)">
+                      {PLANO_CONTAS_OPCOES.despesas.map(d => <option key={d.codigo} value={d.codigo}>{d.nome}</option>)}
                     </optgroup>
                   </select>
 
@@ -1392,7 +1410,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Tabela de Lançamentos com Edição e Exclusão */}
+              {/* Tabela de Lançamentos com Plano de Contas e Categoria Separados */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
@@ -1401,7 +1419,8 @@ export default function App() {
                         <th className="py-3.5 px-3">ID</th>
                         <th className="py-3.5 px-3">Data</th>
                         <th className="py-3.5 px-3">Tipo</th>
-                        <th className="py-3.5 px-3">Plano de Contas / Categoria</th>
+                        <th className="py-3.5 px-3">Plano de Contas</th>
+                        <th className="py-3.5 px-3">Categoria Detalhada</th>
                         <th className="py-3.5 px-3">Favorecido / Cliente</th>
                         <th className="py-3.5 px-3">Descrição</th>
                         <th className="py-3.5 px-3 text-center">Status</th>
@@ -1412,7 +1431,7 @@ export default function App() {
                     <tbody className="divide-y divide-slate-100">
                       {filteredTransactions.length === 0 ? (
                         <tr>
-                          <td colSpan="9" className="py-8 text-center text-slate-400">Nenhum lançamento encontrado com os filtros atuais.</td>
+                          <td colSpan="10" className="py-8 text-center text-slate-400">Nenhum lançamento encontrado com os filtros atuais.</td>
                         </tr>
                       ) : (
                         filteredTransactions.map((tx) => (
@@ -1424,7 +1443,8 @@ export default function App() {
                                 {tx.type}
                               </span>
                             </td>
-                            <td className="py-2.5 px-3 font-medium text-slate-700">{tx.category}</td>
+                            <td className="py-2.5 px-3 font-mono font-bold text-teal-900">{tx.planoContas || '1.1.01'}</td>
+                            <td className="py-2.5 px-3 text-slate-700">{tx.category}</td>
                             <td className="py-2.5 px-3 font-bold">{tx.entity}</td>
                             <td className="py-2.5 px-3">{tx.description}</td>
                             <td className="py-2.5 px-3 text-center">
@@ -1443,6 +1463,7 @@ export default function App() {
                                     date: tx.date,
                                     month: tx.month,
                                     type: tx.type,
+                                    planoContas: tx.planoContas || '1.1.01',
                                     category: tx.category,
                                     entity: tx.entity,
                                     contractId: tx.contractId || '—',
@@ -1831,15 +1852,15 @@ export default function App() {
                 <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
                   <div className="flex items-center justify-between border-b pb-3">
                     <h3 className="text-xs font-extrabold text-[#1B3B2B] tracking-wider uppercase">
-                      CATEGORIAS DE RECEITA OPERACIONAL (AMBIENTAL & SST)
+                      PLANO DE CONTAS — RECEITAS (1.X)
                     </h3>
                   </div>
 
                   <div className="space-y-2.5">
-                    {revenueCategories.map((cat, idx) => (
-                      <div key={cat} className="flex items-center justify-between p-3 rounded-xl border border-emerald-200 bg-emerald-50/40">
+                    {PLANO_CONTAS_OPCOES.receitas.map((rev) => (
+                      <div key={rev.codigo} className="flex items-center justify-between p-3 rounded-xl border border-emerald-200 bg-emerald-50/40">
                         <span className="text-xs font-semibold text-slate-800">
-                          {idx + 1}. {cat}
+                          {rev.nome}
                         </span>
                         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 shrink-0">
                           Entrada
@@ -1847,76 +1868,26 @@ export default function App() {
                       </div>
                     ))}
                   </div>
-
-                  <div className="pt-2 flex gap-2">
-                    <input
-                      type="text"
-                      value={newRevenueCatText}
-                      onChange={(e) => setNewRevenueCatText(e.target.value)}
-                      placeholder="Adicionar nova categoria de receita..."
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (newRevenueCatText.trim()) {
-                          if (!revenueCategories.includes(newRevenueCatText.trim())) {
-                            setRevenueCategories([...revenueCategories, newRevenueCatText.trim()]);
-                            showToast('Categoria de receita adicionada!');
-                          }
-                          setNewRevenueCatText('');
-                        }
-                      }}
-                      className="px-4 py-2 bg-[#1B3B2B] text-white rounded-xl text-xs font-bold shrink-0 hover:bg-[#2D5A43]"
-                    >
-                      Adicionar
-                    </button>
-                  </div>
                 </div>
 
                 <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
                   <div className="flex items-center justify-between border-b pb-3">
                     <h3 className="text-xs font-extrabold text-rose-900 tracking-wider uppercase">
-                      CATEGORIAS DE CUSTOS DIRETOS, DESPESAS E PRÓ-LABORE
+                      PLANO DE CONTAS — DESPESAS / CUSTOS (2.X)
                     </h3>
                   </div>
 
                   <div className="space-y-2.5 max-h-[480px] overflow-y-auto pr-1">
-                    {expenseCategories.map((cat, idx) => (
-                      <div key={cat} className="flex items-center justify-between p-3 rounded-xl border border-rose-200 bg-rose-50/30">
+                    {PLANO_CONTAS_OPCOES.despesas.map((desp) => (
+                      <div key={desp.codigo} className="flex items-center justify-between p-3 rounded-xl border border-rose-200 bg-rose-50/30">
                         <span className="text-xs font-semibold text-slate-800">
-                          {idx + 1}. {cat}
+                          {desp.nome}
                         </span>
                         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 shrink-0">
                           Saída
                         </span>
                       </div>
                     ))}
-                  </div>
-
-                  <div className="pt-2 flex gap-2">
-                    <input
-                      type="text"
-                      value={newExpenseCatText}
-                      onChange={(e) => setNewExpenseCatText(e.target.value)}
-                      placeholder="Adicionar nova categoria de despesa..."
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (newExpenseCatText.trim()) {
-                          if (!expenseCategories.includes(newExpenseCatText.trim())) {
-                            setExpenseCategories([...expenseCategories, newExpenseCatText.trim()]);
-                            showToast('Categoria de despesa adicionada!');
-                          }
-                          setNewExpenseCatText('');
-                        }
-                      }}
-                      className="px-4 py-2 bg-rose-700 text-white rounded-xl text-xs font-bold shrink-0 hover:bg-rose-800"
-                    >
-                      Adicionar
-                    </button>
                   </div>
                 </div>
               </div>
@@ -1925,7 +1896,7 @@ export default function App() {
         </main>
       </div>
 
-      {/* MODAL LANÇAMENTO (COM EDIÇÃO) */}
+      {/* MODAL LANÇAMENTO (COM PLANO DE CONTAS E CATEGORIA SEPARADOS) */}
       {showTxModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
@@ -1944,8 +1915,13 @@ export default function App() {
                     value={txForm.type} 
                     onChange={(e) => {
                       const newType = e.target.value;
-                      const defaultCat = newType === 'Entrada' ? revenueCategories[0] : expenseCategories[0];
-                      setTxForm({ ...txForm, type: newType, category: defaultCat });
+                      const defaultOpt = newType === 'Entrada' ? PLANO_CONTAS_OPCOES.receitas[0] : PLANO_CONTAS_OPCOES.despesas[0];
+                      setTxForm({ 
+                        ...txForm, 
+                        type: newType, 
+                        planoContas: defaultOpt.codigo, 
+                        category: defaultOpt.nome 
+                      });
                     }} 
                     className="w-full px-3 py-2 rounded-xl border font-bold"
                   >
@@ -1956,10 +1932,35 @@ export default function App() {
               </div>
               
               <div>
-                <label className="block font-bold mb-1">Plano de Contas (Categoria)</label>
-                <select value={txForm.category} onChange={(e) => setTxForm({ ...txForm, category: e.target.value })} className="w-full px-3 py-2 rounded-xl border font-semibold">
-                  {(txForm.type === 'Entrada' ? revenueCategories : expenseCategories).map(c => <option key={c} value={c}>{c}</option>)}
+                <label className="block font-bold mb-1">Plano de Contas (Código & Grupo)</label>
+                <select 
+                  value={txForm.planoContas} 
+                  onChange={(e) => {
+                    const selectedCode = e.target.value;
+                    const list = txForm.type === 'Entrada' ? PLANO_CONTAS_OPCOES.receitas : PLANO_CONTAS_OPCOES.despesas;
+                    const found = list.find(item => item.codigo === selectedCode);
+                    setTxForm({ 
+                      ...txForm, 
+                      planoContas: selectedCode, 
+                      category: found ? found.nome : txForm.category 
+                    });
+                  }} 
+                  className="w-full px-3 py-2 rounded-xl border font-bold text-teal-900 bg-emerald-50"
+                >
+                  {(txForm.type === 'Entrada' ? PLANO_CONTAS_OPCOES.receitas : PLANO_CONTAS_OPCOES.despesas).map(item => (
+                    <option key={item.codigo} value={item.codigo}>{item.nome}</option>
+                  ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1">Categoria Detalhada (Descrição Contábil)</label>
+                <input 
+                  type="text" 
+                  value={txForm.category} 
+                  onChange={(e) => setTxForm({ ...txForm, category: e.target.value })} 
+                  className="w-full px-3 py-2 rounded-xl border font-semibold" 
+                />
               </div>
 
               <div>
@@ -1995,7 +1996,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CONTRATO (COM EDIÇÃO DE VALORES DAS PARCELAS) */}
+      {/* MODAL CONTRATO */}
       {showContractModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
@@ -2189,7 +2190,7 @@ export default function App() {
 
             <div className="space-y-3">
               <p className="text-xs text-slate-500 bg-emerald-50 p-3 rounded-xl border border-emerald-200">
-                Clique em <strong>"Receber Parcela"</strong> para informar a data de recebimento e eventuais juros. O valor total será lançado no Livro Caixa automaticamente.
+                Clique em <strong>"Receber Parcela"</strong> para informar a data de recebimento e juros. O sistema criará dois lançamentos separados no Caixa (um para a parcela e outro para os juros).
               </p>
 
               <div className="border rounded-xl overflow-hidden">
@@ -2257,7 +2258,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL DE CONFIRMAÇÃO DE RECEBIMENTO (DATA E JUROS) */}
+      {/* MODAL DE CONFIRMAÇÃO DE RECEBIMENTO (DATA E JUROS SEPARADOS) */}
       {receivingInstallmentData && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-emerald-200">
@@ -2279,7 +2280,7 @@ export default function App() {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">Valor de Juros / Multa / Acréscimo (R$)</label>
+                <label className="block font-bold text-slate-700 uppercase mb-1">Valor de Juros / Multa por Atraso (R$)</label>
                 <input
                   type="number"
                   step="0.01"
@@ -2289,15 +2290,25 @@ export default function App() {
                   className="w-full px-3.5 py-2 rounded-xl border font-bold text-amber-700"
                 />
                 <span className="text-[10px] text-slate-500 italic mt-1 block">
-                  * O valor dos juros será somado para o lançamento no Livro Caixa, mas não reduz nem altera o valor total original do contrato.
+                  * Gerará um lançamento separado no Livro Caixa para Juros (1.2.01). O valor original do contrato não será reduzido.
                 </span>
               </div>
 
-              <div className="p-3 rounded-xl bg-slate-50 border flex items-center justify-between">
-                <span className="font-bold text-slate-700">Total a Entrar no Caixa:</span>
-                <span className="font-black text-emerald-700 text-sm">
-                  {formatCurrency(Number(receivingInstallmentData.baseAmount) + (parseFloat(String(receiveForm.interestAmount).replace(',', '.')) || 0))}
-                </span>
+              <div className="p-3 rounded-xl bg-slate-50 border space-y-1">
+                <div className="flex justify-between text-slate-600">
+                  <span>Valor Parcela:</span>
+                  <span className="font-bold">{formatCurrency(receivingInstallmentData.baseAmount)}</span>
+                </div>
+                <div className="flex justify-between text-amber-700">
+                  <span>Juros / Multa:</span>
+                  <span className="font-bold">+{formatCurrency(parseFloat(String(receiveForm.interestAmount).replace(',', '.')) || 0)}</span>
+                </div>
+                <div className="flex justify-between text-[#1B3B2B] font-black pt-2 border-t text-sm">
+                  <span>Total a Entrar no Caixa:</span>
+                  <span>
+                    {formatCurrency(Number(receivingInstallmentData.baseAmount) + (parseFloat(String(receiveForm.interestAmount).replace(',', '.')) || 0))}
+                  </span>
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
@@ -2312,13 +2323,12 @@ export default function App() {
                   type="button"
                   onClick={() => {
                     handleConfirmReceiveInstallment();
-                    // Atualiza a visualização do modal de parcelas se estiver aberto
                     const updated = contracts.find(c => c.id === viewingContractInstallments?.id);
                     if (updated) setViewingContractInstallments(updated);
                   }}
                   className="px-5 py-2 rounded-xl bg-emerald-700 text-white font-bold hover:bg-emerald-800 shadow-md cursor-pointer"
                 >
-                  Confirmar e Lançar no Caixa
+                  Confirmar e Gerar Lançamentos
                 </button>
               </div>
             </div>
