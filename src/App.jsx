@@ -476,8 +476,10 @@ export default function App() {
     status: 'Ativo'
   });
 
-  // Sincronização Supabase
+  // Sincronização Supabase & Realtime em Tempo Real
   useEffect(() => {
+    let channel = null;
+
     const fetchAllData = async () => {
       if (!supabase) return;
       try {
@@ -503,20 +505,28 @@ export default function App() {
     };
 
     fetchAllData();
-    if (!supabase) return;
 
-    const channel = supabase
-      .channel('realtime-erp-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchAllData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'contracts' }, fetchAllData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, fetchAllData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_roles' }, fetchAllData)
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') setIsCloudSynced(true);
-      });
+    if (supabase) {
+      channel = supabase
+        .channel('schema-db-changes')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public' },
+          (payload) => {
+            fetchAllData();
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            setIsCloudSynced(true);
+          }
+        });
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel && supabase) {
+        supabase.removeChannel(channel);
+      }
     };
   }, []);
 
