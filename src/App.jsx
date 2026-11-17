@@ -597,7 +597,7 @@ export default function App() {
     }
   };
 
-  // Sincronização Supabase
+  // Sincronização Supabase (Com escuta Realtime otimizada para Condicionantes)
   useEffect(() => {
     const fetchAllData = async () => {
       if (!supabase) return;
@@ -635,7 +635,7 @@ export default function App() {
     if (!supabase) return;
 
     const channel = supabase
-      .channel('realtime-erp-sync')
+      .channel('realtime-erp-sync-global')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchAllData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contracts' }, fetchAllData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, fetchAllData)
@@ -1143,7 +1143,7 @@ export default function App() {
     setDeleteClientTarget(null);
   };
 
-  // Funções para CRUD de Condicionantes Ambientais (Com comando direto ao Supabase)
+  // Funções para CRUD de Condicionantes Ambientais (Com gravação e exclusão direta no Supabase)
   const handleSaveCondicionante = async (e) => {
     e.preventDefault();
     if (!condForm.client || !condForm.service) {
@@ -1152,7 +1152,7 @@ export default function App() {
     }
 
     try {
-      const condId = editingCond ? editingCond.id : `COND-${String(condicionantes.length + 1).padStart(2, '0')}`;
+      const condId = editingCond ? editingCond.id : `COND-${Date.now().toString().slice(-4)}`;
       const condData = { id: condId, ...condForm };
 
       setCondicionantes(prev => {
