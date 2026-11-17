@@ -1190,13 +1190,23 @@ export default function App() {
     }
   };
 
-  const confirmDeleteCondicionante = async () => {
+const confirmDeleteCondicionante = async () => {
     if (!deleteCondTarget) return;
     const id = deleteCondTarget.id;
+    
+    // Atualiza o estado local
     setCondicionantes(prev => prev.filter(c => c.id !== id));
+    
+    // Envia o comando de exclusão para o Supabase
     if (supabase) {
-      await supabase.from('condicionantes').delete().eq('id', id);
+      const { error } = await supabase.from('condicionantes').delete().eq('id', id);
+      if (error) {
+        console.error('Erro ao excluir no Supabase:', error);
+        alert('Erro ao excluir condicionante na nuvem: ' + error.message);
+        return;
+      }
     }
+    
     showToast('Condicionante excluída.');
     setDeleteCondTarget(null);
   };
