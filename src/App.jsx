@@ -475,44 +475,44 @@ const handleCnpjBlur = async (cnpjValue) => {
       return;
     }
 
-    showToast('Consultando CNPJ na base de dados...');
+    showToast('Consultando CNPJ...');
     try {
-      // 1ª Tentativa: BrasilAPI
       let response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
-      
       if (!response.ok) {
-        // 2ª Tentativa (Fallback): MinhaReceita (alternativa pública e rápida)
         response = await fetch(`https://minhareceita.org/${cleanCnpj}`);
       }
 
       if (!response.ok) {
-        throw new Error('CNPJ não encontrado nas bases oficiais.');
+        throw new Error('CNPJ não encontrado.');
       }
 
       const data = await response.json();
 
-      // Mapeamento compatível com ambas as APIs
-      const razaoSocial = data.razao_social || data.nome_fantasia;
-      const municipio = data.municipio || data.estabelecimento?.cidade?.nome;
-      const uf = data.uf || data.estabelecimento?.estado?.sigla;
-      const telefone = data.ddd_telefone_1 || data.estabelecimento?.telefone1;
-      const emailCorretor = data.email || data.estabelecimento?.email;
-      const ie = data.inscricoes_estaduais?.[0]?.inscricao_estadual || '';
+      // Mapeamento abrangente de campos de IE de diferentes fontes públicas
+      const ieEncontrada = 
+        data.inscricoes_estaduais?.[0]?.inscricao_estadual || 
+        data.estabelecimento?.inscricoes_estaduais?.[0]?.inscricao_estadual || 
+        '';
 
       setCliForm(prev => ({
         ...prev,
-        name: razaoSocial || prev.name,
+        name: data.razao_social || data.nome_fantasia || prev.name,
         document: cnpjValue,
-        city: municipio && uf ? `${municipio} — ${uf}` : prev.city,
-        phone: telefone ? String(telefone) : prev.phone,
-        email: emailCorretor || prev.email,
-        registration: ie || prev.registration
+        city: data.municipio && data.uf ? `${data.municipio} — ${data.uf}` : (data.estabelecimento?.cidade?.nome ? `${data.estabelecimento.cidade.nome} — ${data.estabelecimento.estado.sigla}` : prev.city),
+        phone: data.ddd_telefone_1 ? String(data.ddd_telefone_1) : (data.estabelecimento?.telefone1 ? String(data.estabelecimento.telefone1) : prev.phone),
+        email: data.email || data.estabelecimento?.email || prev.email,
+        // Se a API não retornar, mantém o que o usuário digitar ou preenche com a encontrada
+        registration: ieEncontrada || prev.registration
       }));
 
-      showToast('Dados preenchidos com sucesso!');
+      if (ieEncontrada) {
+        showToast('Dados e Inscrição Estadual preenchidos!');
+      } else {
+        showToast('Dados preenchidos! (Inscrição Estadual não informada pela API)');
+      }
     } catch (err) {
       console.error(err);
-      alert('Serviço de consulta de CNPJ temporariamente instável ou CNPJ inválido. Você pode preencher os dados manualmente.');
+      alert('Erro ao consultar CNPJ. Preencha os dados manualmente.');
     }
   };
   
