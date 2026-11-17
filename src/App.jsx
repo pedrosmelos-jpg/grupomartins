@@ -347,7 +347,6 @@ export default function App() {
 
   const [editingRoleTarget, setEditingRoleTarget] = useState(null);
 
-  // Estados para gerenciar e cadastrar novos Segmentos e Status dinamicamente
   const [availableSegments, setAvailableSegments] = useState([
     'Agronegócio / Propriedade Rural',
     'Indústria / Agroindústria',
@@ -467,8 +466,7 @@ export default function App() {
     status: 'Ativo'
   });
 
-  // Função para consultar o CNPJ automaticamente na API pública (BrasilAPI)
-// Função de consulta de CNPJ com Proxy anti-CORS para rodar perfeitamente na Vercel
+  // Função robusta de consulta CNPJ com Fallback
   const handleCnpjBlur = async (cnpjValue) => {
     const cleanCnpj = cnpjValue.replace(/\D/g, '');
     if (cleanCnpj.length !== 14) {
@@ -478,11 +476,7 @@ export default function App() {
 
     showToast('Consultando CNPJ...');
     try {
-      // Usando proxy público para contornar o bloqueio de CORS da Vercel
-      const proxyUrl = `https://r.jina.ai/https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`;
-      
       let response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
-      
       if (!response.ok) {
         response = await fetch(`https://minhareceita.org/${cleanCnpj}`);
       }
@@ -498,7 +492,6 @@ export default function App() {
       const uf = data.uf || data.estabelecimento?.estado?.sigla;
       const telefone = data.ddd_telefone_1 || data.estabelecimento?.telefone1;
       const emailCorretor = data.email || data.estabelecimento?.email;
-      const ie = data.inscricoes_estaduais?.[0]?.inscricao_estadual || '';
 
       setCliForm(prev => ({
         ...prev,
@@ -506,26 +499,26 @@ export default function App() {
         document: cnpjValue,
         city: municipio && uf ? `${municipio} — ${uf}` : prev.city,
         phone: telefone ? String(telefone) : prev.phone,
-        email: emailCorretor || prev.email,
-        registration: ie || prev.registration
+        email: emailCorretor || prev.email
       }));
 
       showToast('Dados preenchidos com sucesso!');
     } catch (err) {
       console.error(err);
-      alert('Não foi possível consultar automaticamente devido a restrições de rede. Preencha os dados manualmente.');
+      alert('Não foi possível consultar automaticamente. Preencha os dados manualmente.');
     }
   };
-  
-  // Sincronização Supabase
+
+  // Sincronização Supabase (Transações, Contratos, Clientes e Perfis de Acesso)
   useEffect(() => {
     const fetchAllData = async () => {
       if (!supabase) return;
       try {
-        const [txRes, ctRes, cliRes] = await Promise.all([
+        const [txRes, ctRes, cliRes, roleRes] = await Promise.all([
           supabase.from('transactions').select('*'),
           supabase.from('contracts').select('*'),
-          supabase.from('clients').select('*')
+          supabase.from('clients').select('*'),
+          supabase.from('user_roles').select('*')
         ]);
 
         if (!txRes.error && txRes.data) {
@@ -534,6 +527,12 @@ export default function App() {
         }
         if (!ctRes.error && ctRes.data) setContracts(ctRes.data);
         if (!cliRes.error && cliRes.data) setClients(cliRes.data);
+        if (!roleRes.error && roleRes.data && roleRes.data.length > 0) {
+          setAccessRoles(roleRes.data);
+        } else if (supabase && (!roleRes.data || roleRes.data.length === 0)) {
+          // Inicializa o Supabase com o perfil padrão se estiver vazio
+          await supabase.from('user_roles').upsert(INITIAL_ACCESS_ROLES);
+        }
       } catch (err) {
         console.error('Supabase sync error:', err);
       }
@@ -547,6 +546,7 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchAllData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contracts' }, fetchAllData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, fetchAllData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_roles' }, fetchAllData)
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') setIsCloudSynced(true);
       });
@@ -1049,7 +1049,7 @@ export default function App() {
     setDeleteClientTarget(null);
   };
 
-  const handleSaveNewUserRole = (e) => {
+  const handleSaveNewUserRole = async (e) => {
     e.preventDefault();
     if (!newRoleForm.name || !newRoleForm.holder || !newRoleForm.email) return;
     const newRole = {
@@ -1063,7 +1063,12 @@ export default function App() {
       description: newRoleForm.description || 'Perfil personalizado de acesso.',
       permissions: JSON.parse(JSON.stringify(DEFAULT_PERMISSIONS))
     };
+
     setAccessRoles([...accessRoles, newRole]);
+    if (supabase) {
+      await supabase.from('user_roles').upsert([newRole]);
+    }
+
     setShowUserRoleModal(false);
     setNewRoleForm({
       level: 'Nível Especial — Colaborador',
@@ -1073,40 +1078,47 @@ export default function App() {
       password: 'martins2026',
       description: ''
     });
-    showToast('Novo utilizador cadastrado com sucesso!');
+    showToast('Novo utilizador cadastrado e salvo na nuvem!');
   };
 
-  const handlePermissionToggle = (roleId, moduleKey, actionKey) => {
-    setAccessRoles(prevRoles =>
-      prevRoles.map(role => {
-        if (role.id === roleId) {
-          const currentVal = role.permissions?.[moduleKey]?.[actionKey] || false;
-          const updatedRole = {
-            ...role,
-            permissions: {
-              ...role.permissions,
-              [moduleKey]: {
-                ...role.permissions[moduleKey],
-                [actionKey]: !currentVal
-              }
+  const handlePermissionToggle = async (roleId, moduleKey, actionKey) => {
+    const updatedRoles = accessRoles.map(role => {
+      if (role.id === roleId) {
+        const currentVal = role.permissions?.[moduleKey]?.[actionKey] || false;
+        const updatedRole = {
+          ...role,
+          permissions: {
+            ...role.permissions,
+            [moduleKey]: {
+              ...role.permissions[moduleKey],
+              [actionKey]: !currentVal
             }
-          };
-          if (editingRolePermissions && editingRolePermissions.id === roleId) {
-            setEditingRolePermissions(updatedRole);
           }
-          return updatedRole;
+        };
+        if (editingRolePermissions && editingRolePermissions.id === roleId) {
+          setEditingRolePermissions(updatedRole);
         }
-        return role;
-      })
-    );
+        return updatedRole;
+      }
+      return role;
+    });
+
+    setAccessRoles(updatedRoles);
+    const targetRole = updatedRoles.find(r => r.id === roleId);
+    if (supabase && targetRole) {
+      await supabase.from('user_roles').upsert([targetRole]);
+    }
   };
 
-  const handleSaveRoleEdit = (e) => {
+  const handleSaveRoleEdit = async (e) => {
     e.preventDefault();
     if (!editingRoleTarget) return;
 
     setAccessRoles(prev => prev.map(r => r.id === editingRoleTarget.id ? editingRoleTarget : r));
-    showToast('Perfil atualizado com sucesso!');
+    if (supabase) {
+      await supabase.from('user_roles').upsert([editingRoleTarget]);
+    }
+    showToast('Perfil atualizado e salvo na nuvem!');
     setEditingRoleTarget(null);
   };
 
@@ -2173,7 +2185,7 @@ export default function App() {
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
                 <div>
                   <h3 className="text-base font-extrabold text-[#1B3B2B]">Árvore de Acessos & Perfis</h3>
-                  <p className="text-xs text-slate-500">Gerencie colaboradores e configure permissões granulares por módulo.</p>
+                  <p className="text-xs text-slate-500">Gerencie colaboradores e configure permissões granulares por módulo (Salvo no Supabase).</p>
                 </div>
                 <button
                   onClick={() => setShowUserRoleModal(true)}
@@ -2213,7 +2225,7 @@ export default function App() {
                         <Sliders className="w-3.5 h-3.5" /> Configurar Permissões (Flags)
                       </button>
                       <span className="w-full py-1.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800 flex items-center justify-center gap-1">
-                        <Check className="w-3.5 h-3.5" /> Perfil Ativo (Pedro Melo)
+                        <Check className="w-3.5 h-3.5" /> Sincronizado na Nuvem
                       </span>
                     </div>
                   </div>
@@ -3043,7 +3055,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CADASTRAR / EDITAR CLIENTE (CRM) COM BUSCA CNPJ E ADIÇÃO DE SEGMENTO/STATUS */}
+      {/* MODAL CADASTRAR / EDITAR CLIENTE (CRM) */}
       {showClientModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
@@ -3086,7 +3098,7 @@ export default function App() {
                     type="text"
                     value={cliForm.registration}
                     onChange={(e) => setCliForm({ ...cliForm, registration: e.target.value })}
-                    placeholder="Preenchido via CNPJ ou manual"
+                    placeholder="Digite a Inscrição Estadual..."
                     className="w-full px-3.5 py-2.5 rounded-xl border"
                   />
                 </div>
