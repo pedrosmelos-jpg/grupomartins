@@ -1143,7 +1143,7 @@ export default function App() {
     setDeleteClientTarget(null);
   };
 
-  // Funções para CRUD de Condicionantes Ambientais
+  // Funções para CRUD de Condicionantes Ambientais (Com comando direto ao Supabase)
   const handleSaveCondicionante = async (e) => {
     e.preventDefault();
     if (!condForm.client || !condForm.service) {
@@ -1155,14 +1155,6 @@ export default function App() {
       const condId = editingCond ? editingCond.id : `COND-${String(condicionantes.length + 1).padStart(2, '0')}`;
       const condData = { id: condId, ...condForm };
 
-      if (supabase) {
-        const { error } = await supabase.from('condicionantes').upsert([condData]);
-        if (error) {
-          alert('Erro ao salvar condicionante na nuvem: ' + error.message);
-          return;
-        }
-      }
-
       setCondicionantes(prev => {
         const exists = prev.some(c => c.id === condId);
         if (exists) {
@@ -1172,9 +1164,18 @@ export default function App() {
         }
       });
 
+      if (supabase) {
+        const { error } = await supabase.from('condicionantes').upsert([condData]);
+        if (error) {
+          console.error('Erro Supabase Condicionantes:', error);
+          alert('Erro ao salvar condicionante na nuvem: ' + error.message);
+          return;
+        }
+      }
+
       setShowCondModal(false);
       setEditingCond(null);
-      showToast('Condicionante salva com sucesso!');
+      showToast('Condicionante salva com sucesso na nuvem!');
       setCondForm({
         client: '',
         service: '',
@@ -1190,14 +1191,12 @@ export default function App() {
     }
   };
 
-const confirmDeleteCondicionante = async () => {
+  const confirmDeleteCondicionante = async () => {
     if (!deleteCondTarget) return;
     const id = deleteCondTarget.id;
-    
-    // Atualiza o estado local
+
     setCondicionantes(prev => prev.filter(c => c.id !== id));
-    
-    // Envia o comando de exclusão para o Supabase
+
     if (supabase) {
       const { error } = await supabase.from('condicionantes').delete().eq('id', id);
       if (error) {
@@ -1206,8 +1205,8 @@ const confirmDeleteCondicionante = async () => {
         return;
       }
     }
-    
-    showToast('Condicionante excluída.');
+
+    showToast('Condicionante excluída com sucesso!');
     setDeleteCondTarget(null);
   };
 
