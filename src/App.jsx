@@ -466,7 +466,6 @@ export default function App() {
     status: 'Ativo'
   });
 
-  // Função robusta de consulta CNPJ com Fallback
   const handleCnpjBlur = async (cnpjValue) => {
     const cleanCnpj = cnpjValue.replace(/\D/g, '');
     if (cleanCnpj.length !== 14) {
@@ -509,7 +508,7 @@ export default function App() {
     }
   };
 
-  // Sincronização Supabase (Transações, Contratos, Clientes e Perfis de Acesso)
+  // Sincronização Supabase
   useEffect(() => {
     const fetchAllData = async () => {
       if (!supabase) return;
@@ -1117,8 +1116,23 @@ export default function App() {
     if (supabase) {
       await supabase.from('user_roles').upsert([editingRoleTarget]);
     }
-    showToast('Perfil atualizado e salvo na nuvem!');
+    showToast('Perfil e senha atualizados na nuvem!');
     setEditingRoleTarget(null);
+  };
+
+  const handleDeleteRole = async (roleId) => {
+    if (accessRoles.length <= 1) {
+      alert('Você não pode excluir o último perfil ativo do sistema.');
+      return;
+    }
+    if (window.confirm('Deseja realmente excluir este perfil de acesso do sistema?')) {
+      setAccessRoles(prev => prev.filter(r => r.id !== roleId));
+      if (supabase) {
+        await supabase.from('user_roles').delete().eq('id', roleId);
+      }
+      showToast('Perfil excluído com sucesso!');
+      setEditingRoleTarget(null);
+    }
   };
 
   const exportDREToExcel = () => {
@@ -2184,7 +2198,7 @@ export default function App() {
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
                 <div>
                   <h3 className="text-base font-extrabold text-[#1B3B2B]">Árvore de Acessos & Perfis</h3>
-                  <p className="text-xs text-slate-500">Gerencie colaboradores e configure permissões granulares por módulo (Salvo no Supabase).</p>
+                  <p className="text-xs text-slate-500">Gerencie colaboradores, edite senhas e configure permissões granulares por módulo.</p>
                 </div>
                 <button
                   onClick={() => setShowUserRoleModal(true)}
@@ -2202,13 +2216,22 @@ export default function App() {
                         <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#1B3B2B] text-emerald-300 uppercase">
                           {role.level}
                         </span>
-                        <button
-                          onClick={() => setEditingRoleTarget(role)}
-                          className="p-1.5 rounded-lg text-teal-800 hover:bg-teal-50 cursor-pointer"
-                          title="Editar Perfil"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setEditingRoleTarget(role)}
+                            className="p-1.5 rounded-lg text-teal-800 hover:bg-teal-50 cursor-pointer"
+                            title="Editar Perfil e Senha"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteRole(role.id)}
+                            className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
+                            title="Excluir Perfil"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                       <h4 className="font-extrabold text-[#1B3B2B] text-sm">{role.name}</h4>
                       <div className="text-xs font-bold text-slate-700">👤 {role.holder}</div>
@@ -2394,11 +2417,16 @@ export default function App() {
         </main>
       </div>
 
-      {/* MODAL EDITAR PERFIL */}
+      {/* MODAL EDITAR PERFIL / SENHA / EXCLUIR */}
       {editingRoleTarget && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="text-base font-extrabold text-[#1B3B2B]">Editar Perfil / Colaborador</h3>
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-base font-extrabold text-[#1B3B2B]">Editar Perfil e Senha</h3>
+              <button onClick={() => setEditingRoleTarget(null)} className="text-slate-500 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
             <form onSubmit={handleSaveRoleEdit} className="space-y-3 text-xs">
               <div>
                 <label className="block font-bold mb-1">Cargo / Nível</label>
@@ -2441,17 +2469,37 @@ export default function App() {
                 />
               </div>
               <div>
+                <label className="block font-bold mb-1">Nova Senha de Acesso</label>
+                <input
+                  type="text"
+                  value={editingRoleTarget.password || ''}
+                  onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, password: e.target.value })}
+                  placeholder="Digite a nova senha..."
+                  className="w-full px-3 py-2 rounded-xl border font-bold text-teal-900 bg-emerald-50"
+                  required
+                />
+              </div>
+              <div>
                 <label className="block font-bold mb-1">Descrição / Alçadas</label>
                 <textarea
                   value={editingRoleTarget.description}
                   onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, description: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border h-20 resize-none"
+                  className="w-full px-3 py-2 rounded-xl border h-16 resize-none"
                   required
                 />
               </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setEditingRoleTarget(null)} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar Alterações</button>
+              <div className="flex items-center justify-between pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={() => handleDeleteRole(editingRoleTarget.id)}
+                  className="px-4 py-2 rounded-xl bg-rose-100 text-rose-700 font-bold hover:bg-rose-200 cursor-pointer"
+                >
+                  Excluir Perfil
+                </button>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setEditingRoleTarget(null)} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
+                  <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar Alterações</button>
+                </div>
               </div>
             </form>
           </div>
