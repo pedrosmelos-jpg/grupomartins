@@ -300,6 +300,7 @@ const DEFAULT_PERMISSIONS = {
   dre: { view: true, create: false, edit: false, delete: false, approve: false },
   contratos: { view: true, create: true, edit: true, delete: false, approve: false },
   clientes: { view: true, create: true, edit: true, delete: false, approve: false },
+  condicionantes: { view: true, create: true, edit: true, delete: true, approve: false },
   acessos: { view: false, create: false, edit: false, delete: false, approve: false }
 };
 
@@ -320,8 +321,72 @@ const INITIAL_ACCESS_ROLES = [
       dre: { view: true, create: true, edit: true, delete: true, approve: true },
       contratos: { view: true, create: true, edit: true, delete: true, approve: true },
       clientes: { view: true, create: true, edit: true, delete: true, approve: true },
+      condicionantes: { view: true, create: true, edit: true, delete: true, approve: true },
       acessos: { view: true, create: true, edit: true, delete: true, approve: true }
     }
+  }
+];
+
+const INITIAL_CONDICIONANTES = [
+  {
+    id: 'COND-01',
+    client: 'SIRLEIDE PASSOS - RADIADORES',
+    service: 'EM 90 DIAS - LIGAÇÃO DA CAIXA A REDE DE ESGOTO E TAMPONAMENTO DO SUMIDOURO',
+    dueDate: '2026-10-07',
+    license: 'LO: 106/2026',
+    responsible: 'SIRLEIDE',
+    observation: 'CONDICIONANTE ATENDIDA POR OFÍCIO E ENVIO DE FATURA DE ÁGUA VIA EMAIL',
+    status: 'FINALIZADO'
+  },
+  {
+    id: 'COND-02',
+    client: 'ULTRACAR FUNILARIA',
+    service: 'A CADA 6 MESES - ANÁLISE FÍSICO QUÍMICA DA ÚLTIMA CAIXA SAO',
+    dueDate: '2027-01-05',
+    license: 'LO: 164/2026',
+    responsible: 'JHONY',
+    observation: 'SEM CONDICIONANTE A PRAZO PARA ENTREGAR - APENAS ENTREGAR NA RENOVAÇÃO',
+    status: 'ATENDIDO'
+  },
+  {
+    id: 'COND-03',
+    client: 'MECANICA-CENTROCAR',
+    service: 'A CADA 4 MESES - LIMPEZA DE TODAS AS CAIXAS SAO; A CADA 6 MESES - ANÁLISE FÍSICO QUÍMICA',
+    dueDate: '2027-03-20',
+    license: 'LO: 154/2026',
+    responsible: 'LUCIANO',
+    observation: 'SEM CONDICIONANTE A PRAZO PARA ENTREGAR',
+    status: 'EM ANDAMENTO'
+  },
+  {
+    id: 'COND-04',
+    client: 'MECANICA-CENTROCAR',
+    service: 'A CADA 4 MESES - LIMPEZA DE TODAS AS CAIXAS SAO',
+    dueDate: '2027-01-12',
+    license: 'LO: 177/2026',
+    responsible: 'ANTONINO',
+    observation: 'SEM CONDICIONANTE...',
+    status: 'A VENCER'
+  },
+  {
+    id: 'COND-05',
+    client: 'LIMPA JÁ - ANTONIO',
+    service: 'A CADA 4 MESES - LIMPEZA DE TODAS AS CAIXAS SAO; A CADA 6 MESES - ANÁLISE',
+    dueDate: '2027-03-09',
+    license: 'LO: 178/2026',
+    responsible: 'JUNINHO - ELIANE',
+    observation: 'SEM CONDICIONANTE...',
+    status: 'ATENDIDO'
+  },
+  {
+    id: 'COND-06',
+    client: 'JUNINHO AUTO CENTER',
+    service: 'A CADA 4 MESES - LIMPEZA DE TODAS AS CAIXAS SAO',
+    dueDate: '2027-04-16',
+    license: 'LO: 180/2026',
+    responsible: 'RONALDO',
+    observation: 'SEM CONDICIONANTE...',
+    status: 'A VENCER'
   }
 ];
 
@@ -338,6 +403,7 @@ export default function App() {
   const [transactions, setTransactions] = useState([]);
   const [contracts, setContracts] = useState([]);
   const [clients, setClients] = useState([]);
+  const [condicionantes, setCondicionantes] = useState(INITIAL_CONDICIONANTES);
 
   const [selectedDreYear, setSelectedDreYear] = useState(2026);
 
@@ -397,6 +463,24 @@ export default function App() {
   const [ctDueDateFilter, setCtDueDateFilter] = useState('Todos');
 
   const [cliSearch, setCliSearch] = useState('');
+
+  // Filtros e Modais da aba de Condicionantes
+  const [condSearch, setCondSearch] = useState('');
+  const [condStatusFilter, setCondStatusFilter] = useState('Todos');
+  const [condDateFilter, setCondDateFilter] = useState('');
+  const [showCondModal, setShowCondModal] = useState(false);
+  const [editingCond, setEditingCond] = useState(null);
+  const [deleteCondTarget, setDeleteCondTarget] = useState(null);
+
+  const [condForm, setCondForm] = useState({
+    client: '',
+    service: '',
+    dueDate: new Date().toISOString().split('T')[0],
+    license: '',
+    responsible: '',
+    observation: '',
+    status: 'EM ANDAMENTO'
+  });
 
   const [showTxModal, setShowTxModal] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
@@ -513,11 +597,12 @@ export default function App() {
     const fetchAllData = async () => {
       if (!supabase) return;
       try {
-        const [txRes, ctRes, cliRes, roleRes] = await Promise.all([
+        const [txRes, ctRes, cliRes, roleRes, condRes] = await Promise.all([
           supabase.from('transactions').select('*'),
           supabase.from('contracts').select('*'),
           supabase.from('clients').select('*'),
-          supabase.from('user_roles').select('*')
+          supabase.from('user_roles').select('*'),
+          supabase.from('condicionantes').select('*')
         ]);
 
         if (!txRes.error && txRes.data) {
@@ -530,6 +615,11 @@ export default function App() {
           setAccessRoles(roleRes.data);
         } else if (supabase && (!roleRes.data || roleRes.data.length === 0)) {
           await supabase.from('user_roles').upsert(INITIAL_ACCESS_ROLES);
+        }
+        if (!condRes.error && condRes.data && condRes.data.length > 0) {
+          setCondicionantes(condRes.data);
+        } else if (supabase && (!condRes.data || condRes.data.length === 0)) {
+          await supabase.from('condicionantes').upsert(INITIAL_CONDICIONANTES);
         }
       } catch (err) {
         console.error('Supabase sync error:', err);
@@ -545,6 +635,7 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contracts' }, fetchAllData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, fetchAllData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'user_roles' }, fetchAllData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'condicionantes' }, fetchAllData)
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') setIsCloudSynced(true);
       });
@@ -1047,6 +1138,64 @@ export default function App() {
     setDeleteClientTarget(null);
   };
 
+  // Funções para CRUD de Condicionantes Ambientais
+  const handleSaveCondicionante = async (e) => {
+    e.preventDefault();
+    if (!condForm.client || !condForm.service) {
+      alert('Preencha o cliente e o serviço/condicionante.');
+      return;
+    }
+
+    try {
+      const condId = editingCond ? editingCond.id : `COND-${String(condicionantes.length + 1).padStart(2, '0')}`;
+      const condData = { id: condId, ...condForm };
+
+      if (supabase) {
+        const { error } = await supabase.from('condicionantes').upsert([condData]);
+        if (error) {
+          alert('Erro ao salvar condicionante na nuvem: ' + error.message);
+          return;
+        }
+      }
+
+      setCondicionantes(prev => {
+        const exists = prev.some(c => c.id === condId);
+        if (exists) {
+          return prev.map(c => c.id === condId ? condData : c);
+        } else {
+          return [...prev, condData];
+        }
+      });
+
+      setShowCondModal(false);
+      setEditingCond(null);
+      showToast('Condicionante salva com sucesso!');
+      setCondForm({
+        client: '',
+        service: '',
+        dueDate: new Date().toISOString().split('T')[0],
+        license: '',
+        responsible: '',
+        observation: '',
+        status: 'EM ANDAMENTO'
+      });
+    } catch (err) {
+      console.error(err);
+      alert('Erro inesperado ao salvar condicionante.');
+    }
+  };
+
+  const confirmDeleteCondicionante = async () => {
+    if (!deleteCondTarget) return;
+    const id = deleteCondTarget.id;
+    setCondicionantes(prev => prev.filter(c => c.id !== id));
+    if (supabase) {
+      await supabase.from('condicionantes').delete().eq('id', id);
+    }
+    showToast('Condicionante excluída.');
+    setDeleteCondTarget(null);
+  };
+
   const handleSaveNewUserRole = async (e) => {
     e.preventDefault();
     if (!newRoleForm.name || !newRoleForm.holder || !newRoleForm.email) return;
@@ -1222,6 +1371,19 @@ export default function App() {
 
   const filteredClients = useMemo(() => clients.filter(cli => (cli.name || '').toLowerCase().includes(cliSearch.toLowerCase())), [clients, cliSearch]);
 
+  const filteredCondicionantes = useMemo(() => {
+    return condicionantes.filter(cond => {
+      const matchSearch = (cond.client || '').toLowerCase().includes(condSearch.toLowerCase()) ||
+                          (cond.service || '').toLowerCase().includes(condSearch.toLowerCase()) ||
+                          (cond.license || '').toLowerCase().includes(condSearch.toLowerCase()) ||
+                          (cond.responsible || '').toLowerCase().includes(condSearch.toLowerCase());
+      const matchStatus = condStatusFilter === 'Todos' || cond.status === condStatusFilter;
+      const matchDate = !condDateFilter || cond.dueDate === condDateFilter;
+
+      return matchSearch && matchStatus && matchDate;
+    });
+  }, [condicionantes, condSearch, condStatusFilter, condDateFilter]);
+
   const PIE_COLORS = ['#1B3B2B', '#2D5A43', '#3B7A57', '#557A46', '#7A9A8B'];
 
   const navItems = [
@@ -1231,6 +1393,7 @@ export default function App() {
     { id: 'dre', label: 'DRE Gerencial Mensal', icon: FileSpreadsheet, badge: 'AV%', permKey: 'dre' },
     { id: 'contratos', label: 'Contratos Ambientais & SST', icon: Briefcase, badge: contracts.length, permKey: 'contratos' },
     { id: 'clientes', label: 'Cadastro de Clientes (CRM)', icon: Users, badge: clients.length, permKey: 'clientes' },
+    { id: 'condicionantes', label: 'Controle de Condicionantes', icon: Leaf, badge: condicionantes.length, permKey: 'condicionantes' },
     { id: 'acessos', label: 'Árvore de Acessos & Perfis', icon: Network, badge: `${accessRoles.length} Nível`, permKey: 'acessos' },
     { id: 'config', label: 'Plano de Contas & Metas', icon: Settings, permKey: 'dashboard' }
   ];
@@ -2193,6 +2356,143 @@ export default function App() {
             </div>
           )}
 
+          {activeTab === 'condicionantes' && (
+            <div className="space-y-6">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
+                <div className="relative flex-1 min-w-[240px]">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                  <input
+                    type="text"
+                    value={condSearch}
+                    onChange={(e) => setCondSearch(e.target.value)}
+                    placeholder="Buscar por cliente, condicionante, licença ou responsável..."
+                    className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-1.5 bg-[#F8F3EF] px-3 py-1.5 rounded-xl border border-[#D5CFC7]">
+                    <span className="text-xs font-bold text-[#1B3B2B]">Vencimento:</span>
+                    <input
+                      type="date"
+                      value={condDateFilter}
+                      onChange={(e) => setCondDateFilter(e.target.value)}
+                      className="bg-white px-2 py-1 rounded-lg border text-xs font-bold"
+                    />
+                    {condDateFilter && (
+                      <button onClick={() => setCondDateFilter('')} className="text-rose-600 font-bold text-xs ml-1">Limpar</button>
+                    )}
+                  </div>
+
+                  <select
+                    value={condStatusFilter}
+                    onChange={(e) => setCondStatusFilter(e.target.value)}
+                    className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white text-[#1B3B2B]"
+                  >
+                    <option value="Todos">Filtrar por Status</option>
+                    <option value="FINALIZADO">FINALIZADO</option>
+                    <option value="ATENDIDO">ATENDIDO</option>
+                    <option value="EM ANDAMENTO">EM ANDAMENTO</option>
+                    <option value="A VENCER">A VENCER</option>
+                  </select>
+
+                  <button
+                    onClick={() => {
+                      setEditingCond(null);
+                      setCondForm({
+                        client: '',
+                        service: '',
+                        dueDate: new Date().toISOString().split('T')[0],
+                        license: '',
+                        responsible: '',
+                        observation: '',
+                        status: 'EM ANDAMENTO'
+                      });
+                      setShowCondModal(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> Nova Condicionante
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px]">
+                        <th className="py-3.5 px-3">Nome do Cliente</th>
+                        <th className="py-3.5 px-3">Condicionantes / Serviço</th>
+                        <th className="py-3.5 px-3">Vencimento Final</th>
+                        <th className="py-3.5 px-3">Licença</th>
+                        <th className="py-3.5 px-3">Responsável - Empresa</th>
+                        <th className="py-3.5 px-3">Observação</th>
+                        <th className="py-3.5 px-3 text-center">Status</th>
+                        <th className="py-3.5 px-3 text-center">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredCondicionantes.length === 0 ? (
+                        <tr>
+                          <td colSpan="8" className="py-8 text-center text-slate-400">Nenhuma condicionante encontrada.</td>
+                        </tr>
+                      ) : (
+                        filteredCondicionantes.map((cond) => (
+                          <tr key={cond.id} className="hover:bg-slate-50">
+                            <td className="py-3 px-3 font-bold text-slate-900">{cond.client}</td>
+                            <td className="py-3 px-3 text-slate-700 max-w-xs">{cond.service}</td>
+                            <td className="py-3 px-3 font-mono">{cond.dueDate}</td>
+                            <td className="py-3 px-3 font-semibold">{cond.license}</td>
+                            <td className="py-3 px-3 font-bold text-slate-700">{cond.responsible}</td>
+                            <td className="py-3 px-3 text-slate-500 max-w-xs truncate">{cond.observation || '—'}</td>
+                            <td className="py-3 px-3 text-center">
+                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
+                                cond.status === 'FINALIZADO' ? 'bg-emerald-700 text-white' :
+                                cond.status === 'ATENDIDO' ? 'bg-emerald-600 text-white' :
+                                cond.status === 'EM ANDAMENTO' ? 'bg-amber-500 text-white' : 'bg-amber-600 text-white'
+                              }`}>
+                                {cond.status}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-center space-x-1">
+                              <button
+                                onClick={() => {
+                                  setEditingCond(cond);
+                                  setCondForm({
+                                    client: cond.client,
+                                    service: cond.service,
+                                    dueDate: cond.dueDate,
+                                    license: cond.license,
+                                    responsible: cond.responsible,
+                                    observation: cond.observation,
+                                    status: cond.status
+                                  });
+                                  setShowCondModal(true);
+                                }}
+                                className="p-1.5 rounded-lg text-teal-700 hover:bg-teal-50 cursor-pointer"
+                                title="Editar Condicionante"
+                              >
+                                <Edit3 className="w-4 h-4 inline" />
+                              </button>
+                              <button
+                                onClick={() => setDeleteCondTarget(cond)}
+                                className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                title="Excluir Condicionante"
+                              >
+                                <Trash2 className="w-4 h-4 inline" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'acessos' && (
             <div className="space-y-6">
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
@@ -2417,6 +2717,155 @@ export default function App() {
         </main>
       </div>
 
+      {/* MODAL CADASTRAR / EDITAR CONDICIONANTE */}
+      {showCondModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
+            <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
+              <h3 className="text-base font-extrabold">{editingCond ? 'Editar Condicionante Ambiental' : 'Novo Cadastro de Condicionante Ambiental'}</h3>
+              <button onClick={() => { setShowCondModal(false); setEditingCond(null); }} className="text-white hover:text-emerald-300">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCondicionante} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">NOME DO CLIENTE / EMPREENDIMENTO</label>
+                <input
+                  type="text"
+                  list="client-list-cond"
+                  value={condForm.client}
+                  onChange={(e) => setCondForm({ ...condForm, client: e.target.value })}
+                  placeholder="Selecione ou digite o nome do cliente..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-slate-800"
+                  required
+                />
+                <datalist id="client-list-cond">
+                  {clients.map(cli => (
+                    <option key={cli.id} value={cli.name} />
+                  ))}
+                </datalist>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">LICENÇA (Nº / ANO)</label>
+                  <input
+                    type="text"
+                    value={condForm.license}
+                    onChange={(e) => setCondForm({ ...condForm, license: e.target.value })}
+                    placeholder="Ex: LO: 106/2026"
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-semibold"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">VENCIMENTO FINAL</label>
+                  <input
+                    type="date"
+                    value={condForm.dueDate}
+                    onChange={(e) => setCondForm({ ...condForm, dueDate: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">STATUS</label>
+                  <select
+                    value={condForm.status}
+                    onChange={(e) => setCondForm({ ...condForm, status: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B]"
+                  >
+                    <option value="FINALIZADO">FINALIZADO</option>
+                    <option value="ATENDIDO">ATENDIDO</option>
+                    <option value="EM ANDAMENTO">EM ANDAMENTO</option>
+                    <option value="A VENCER">A VENCER</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">RESPONSÁVEL - EMPRESA</label>
+                <input
+                  type="text"
+                  value={condForm.responsible}
+                  onChange={(e) => setCondForm({ ...condForm, responsible: e.target.value })}
+                  placeholder="Nome do responsável técnico..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border font-semibold"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">TIPO DE SERVIÇO / DESCRIÇÃO DA CONDICIONANTE</label>
+                <textarea
+                  value={condForm.service}
+                  onChange={(e) => setCondForm({ ...condForm, service: e.target.value })}
+                  placeholder="Ex: A CADA 6 MESES - ANÁLISE FÍSICO QUÍMICA..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border h-20 resize-none font-medium"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">OBSERVAÇÃO</label>
+                <textarea
+                  value={condForm.observation}
+                  onChange={(e) => setCondForm({ ...condForm, observation: e.target.value })}
+                  placeholder="Digite observações adicionais..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border h-16 resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => { setShowCondModal(false); setEditingCond(null); }}
+                  className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
+                >
+                  Salvar Condicionante
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EXCLUIR CONDICIONANTE */}
+      {deleteCondTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-extrabold text-rose-700">Excluir Condicionante?</h3>
+            <p className="text-xs text-slate-600">
+              Deseja realmente remover a condicionante de <strong>{deleteCondTarget.client}</strong>?
+            </p>
+            <div className="flex justify-center gap-2 pt-2">
+              <button 
+                onClick={() => setDeleteCondTarget(null)} 
+                className="px-4 py-2 rounded-xl border font-bold text-xs text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={confirmDeleteCondicionante} 
+                className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer"
+              >
+                Sim, Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL EDITAR PERFIL / SENHA / EXCLUIR */}
       {editingRoleTarget && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
@@ -2502,1018 +2951,6 @@ export default function App() {
                 </div>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL PLANO DE CONTAS */}
-      {showPlanoModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="text-base font-extrabold text-[#1B3B2B]">
-              {planoForm.originalCodigo ? 'Editar Conta do Plano' : 'Novo Plano de Contas'}
-            </h3>
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              if (!planoForm.codigo || !planoForm.nome) return;
-
-              const targetListKey = planoForm.tipo;
-              const currentList = [...planoContasData[targetListKey]];
-
-              if (planoForm.originalCodigo) {
-                const idx = currentList.findIndex(item => item.codigo === planoForm.originalCodigo);
-                if (idx !== -1) {
-                  currentList[idx] = { codigo: planoForm.codigo, nome: planoForm.nome };
-                }
-              } else {
-                currentList.push({ codigo: planoForm.codigo, nome: planoForm.nome });
-              }
-
-              setPlanoContasData({
-                ...planoContasData,
-                [targetListKey]: currentList
-              });
-
-              showToast('Plano de contas atualizado com sucesso!');
-              setShowPlanoModal(false);
-            }} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold mb-1">Tipo de Conta</label>
-                <select
-                  value={planoForm.tipo}
-                  onChange={(e) => setPlanoForm({ ...planoForm, tipo: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border font-bold bg-white"
-                  disabled={Boolean(planoForm.originalCodigo)}
-                >
-                  <option value="receitas">Receita (1.X)</option>
-                  <option value="despesas">Despesa / Custo (2.X)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-bold mb-1">Código Contábil (Ex: 1.1.06 ou 2.9.01)</label>
-                <input
-                  type="text"
-                  value={planoForm.codigo}
-                  onChange={(e) => setPlanoForm({ ...planoForm, codigo: e.target.value })}
-                  placeholder="Ex: 1.1.06"
-                  className="w-full px-3 py-2 rounded-xl border font-mono font-bold"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold mb-1">Nome Completo da Conta</label>
-                <input
-                  type="text"
-                  value={planoForm.nome}
-                  onChange={(e) => setPlanoForm({ ...planoForm, nome: e.target.value })}
-                  placeholder="Ex: 1.1.06 — Nova Receita de Consultoria"
-                  className="w-full px-3 py-2 rounded-xl border font-semibold"
-                  required
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowPlanoModal(false)} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar Conta</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL LANÇAMENTO */}
-      {showTxModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="text-base font-bold text-[#1B3B2B]">
-              {editingTx ? 'Editar Lançamento' : 'Novo Lançamento no Livro Caixa'}
-            </h3>
-            <div className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold mb-1">Data</label>
-                  <input type="date" value={txForm.date} onChange={(e) => setTxForm({ ...txForm, date: e.target.value })} className="w-full px-3 py-2 rounded-xl border" />
-                </div>
-                <div>
-                  <label className="block font-bold mb-1">Natureza</label>
-                  <select 
-                    value={txForm.type} 
-                    onChange={(e) => {
-                      const newType = e.target.value;
-                      const defaultOpt = newType === 'Entrada' ? planoContasData.receitas[0] : planoContasData.despesas[0];
-                      setTxForm({ 
-                        ...txForm, 
-                        type: newType, 
-                        planoContas: defaultOpt.codigo, 
-                        category: defaultOpt.nome 
-                      });
-                    }} 
-                    className="w-full px-3 py-2 rounded-xl border font-bold"
-                  >
-                    <option value="Entrada">Entrada (+)</option>
-                    <option value="Saída">Saída (-)</option>
-                  </select>
-                </div>
-              </div>
-              
-              <div>
-                <label className="block font-bold mb-1">Plano de Contas (Código & Grupo)</label>
-                <select 
-                  value={txForm.planoContas} 
-                  onChange={(e) => {
-                    const selectedCode = e.target.value;
-                    const list = txForm.type === 'Entrada' ? planoContasData.receitas : planoContasData.despesas;
-                    const found = list.find(item => item.codigo === selectedCode);
-                    setTxForm({ 
-                      ...txForm, 
-                      planoContas: selectedCode, 
-                      category: found ? found.nome : txForm.category 
-                    });
-                  }} 
-                  className="w-full px-3 py-2 rounded-xl border font-bold text-teal-900 bg-emerald-50"
-                >
-                  {(txForm.type === 'Entrada' ? planoContasData.receitas : planoContasData.despesas).map(item => (
-                    <option key={item.codigo} value={item.codigo}>{item.nome}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-bold mb-1">Categoria Detalhada (Descrição Contábil)</label>
-                <input 
-                  type="text" 
-                  value={txForm.category} 
-                  onChange={(e) => setTxForm({ ...txForm, category: e.target.value })} 
-                  className="w-full px-3 py-2 rounded-xl border font-semibold" 
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold mb-1">Favorecido / Cliente</label>
-                <input type="text" value={txForm.entity} onChange={(e) => setTxForm({ ...txForm, entity: e.target.value })} placeholder="Nome do cliente ou sócio" className="w-full px-3 py-2 rounded-xl border" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold mb-1">Valor (R$)</label>
-                  <input type="number" step="0.01" value={txForm.amount} onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} placeholder="0.00" className="w-full px-3 py-2 rounded-xl border font-bold" />
-                </div>
-                <div>
-                  <label className="block font-bold mb-1">Status</label>
-                  <select value={txForm.status} onChange={(e) => setTxForm({ ...txForm, status: e.target.value })} className="w-full px-3 py-2 rounded-xl border font-bold">
-                    <option value="Pago / Recebido">Pago / Recebido</option>
-                    <option value="Pendente">Pendente</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold mb-1">Descrição</label>
-                <input type="text" value={txForm.description} onChange={(e) => setTxForm({ ...txForm, description: e.target.value })} placeholder="Descrição detalhada" className="w-full px-3 py-2 rounded-xl border" />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => { setShowTxModal(false); setEditingTx(null); }} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
-                <button type="button" onClick={handleSaveTransaction} className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar na Nuvem</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL CONTRATO */}
-      {showContractModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
-            <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
-              <h3 className="text-base font-extrabold">{editingContract ? 'Editar Contrato Ambiental & SST' : 'Novo Contrato Ambiental & SST'}</h3>
-              <button onClick={() => { setShowContractModal(false); setEditingContract(null); }} className="text-white hover:text-emerald-300">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveContract} className="p-6 space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">Cliente / Fazenda / Indústria (Vinculado ao CRM)</label>
-                <input
-                  type="text"
-                  list="client-list"
-                  value={ctForm.client}
-                  onChange={(e) => setCtForm({ ...ctForm, client: e.target.value })}
-                  placeholder="Selecione da base de clientes ou digite novo..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-slate-800"
-                  required
-                />
-                <datalist id="client-list">
-                  {clients.map(cli => (
-                    <option key={cli.id} value={cli.name} />
-                  ))}
-                </datalist>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">Serviço Técnico (Ambiental / SST)</label>
-                <input
-                  type="text"
-                  value={ctForm.service}
-                  onChange={(e) => setCtForm({ ...ctForm, service: e.target.value })}
-                  placeholder="Ex: Licenciamento LP/LI/LO SEMA-MT + PGR/LTCAT"
-                  className="w-full px-3.5 py-2.5 rounded-xl border"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Órgão Regulador / Norma</label>
-                  <input
-                    type="text"
-                    value={ctForm.agency}
-                    onChange={(e) => setCtForm({ ...ctForm, agency: e.target.value })}
-                    placeholder="SEMA-MT"
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-semibold"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Status do Processo</label>
-                  <select
-                    value={ctForm.status}
-                    onChange={(e) => setCtForm({ ...ctForm, status: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
-                  >
-                    <option value="Em Elaboração Técnica">Em Elaboração Técnica</option>
-                    <option value="Protocolado / SEMA">Protocolado / SEMA</option>
-                    <option value="Em Andamento">Em Andamento</option>
-                    <option value="Concluído / Licença Emitida">Concluído / Licença Emitida</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Forma de Pagamento</label>
-                  <select
-                    value={ctForm.paymentMethod}
-                    onChange={(e) => setCtForm({ ...ctForm, paymentMethod: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
-                  >
-                    <option value="PIX">PIX</option>
-                    <option value="Boleto">Boleto</option>
-                    <option value="Cartão">Cartão</option>
-                    <option value="Cheque">Cheque</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Parcelamento (Até 10x)</label>
-                  <select
-                    value={ctForm.installmentsCount}
-                    onChange={(e) => setCtForm({ ...ctForm, installmentsCount: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
-                  >
-                    {[...Array(10)].map((_, i) => (
-                      <option key={i + 1} value={String(i + 1)}>{i + 1}x {i === 0 ? '(À vista)' : ''}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {parseInt(ctForm.installmentsCount) > 0 && (
-                <div className="space-y-2 bg-slate-50 p-3 rounded-xl border">
-                  <label className="block font-bold text-slate-700 uppercase text-[11px]">Datas e Valores Individuais das Parcelas</label>
-                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                    {[...Array(parseInt(ctForm.installmentsCount))].map((_, i) => (
-                      <div key={i} className="flex items-center gap-2 bg-white p-2 rounded-lg border">
-                        <span className="text-[11px] font-extrabold text-[#1B3B2B] w-16">Parc. {i+1}:</span>
-                        <input
-                          type="date"
-                          value={ctForm.installmentDates[i] || `${selectedDreYear}-12-30`}
-                          onChange={(e) => {
-                            const newDates = [...ctForm.installmentDates];
-                            newDates[i] = e.target.value;
-                            setCtForm({ ...ctForm, installmentDates: newDates });
-                          }}
-                          className="w-1/2 px-2.5 py-1 rounded border text-xs"
-                          required
-                        />
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={ctForm.installmentAmounts[i] !== undefined && ctForm.installmentAmounts[i] !== '' ? ctForm.installmentAmounts[i] : (parseFloat(ctForm.contractValue) / parseInt(ctForm.installmentsCount) || 0).toFixed(2)}
-                          onChange={(e) => {
-                            const newAmounts = [...ctForm.installmentAmounts];
-                            newAmounts[i] = e.target.value;
-                            setCtForm({ ...ctForm, installmentAmounts: newAmounts });
-                          }}
-                          placeholder="Valor (R$)"
-                          className="w-1/2 px-2.5 py-1 rounded border text-xs font-bold text-emerald-800"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Valor Total Contrato (R$)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={ctForm.contractValue}
-                    onChange={(e) => setCtForm({ ...ctForm, contractValue: e.target.value })}
-                    placeholder="0.00"
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-emerald-800"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">Custos Diretos (R$)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={ctForm.directCosts}
-                    onChange={(e) => setCtForm({ ...ctForm, directCosts: e.target.value })}
-                    placeholder="0.00"
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-rose-700"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t">
-                <button
-                  type="button"
-                  onClick={() => { setShowContractModal(false); setEditingContract(null); }}
-                  className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
-                >
-                  Salvar Contrato
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL GERENCIAR / RECEBER / CANCELAR PARCELAS */}
-      {viewingContractInstallments && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b pb-3">
-              <div>
-                <h3 className="text-base font-extrabold text-[#1B3B2B]">Controle de Parcelas — {viewingContractInstallments.id}</h3>
-                <p className="text-xs text-slate-600">Cliente: <strong>{viewingContractInstallments.client}</strong></p>
-              </div>
-              <button onClick={() => setViewingContractInstallments(null)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <p className="text-xs text-slate-500 bg-emerald-50 p-3 rounded-xl border border-emerald-200">
-                Gerencie os recebimentos abaixo. É possível receber com juros ou estornar/cancelar um recebimento caso necessário.
-              </p>
-
-              <div className="border rounded-xl overflow-hidden">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-100 font-bold uppercase text-slate-700 border-b">
-                      <th className="p-3">Parcela</th>
-                      <th className="p-3">Vencimento</th>
-                      <th className="p-3 text-right">Valor Parcela</th>
-                      <th className="p-3 text-center">Status</th>
-                      <th className="p-3 text-center">Ação</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {viewingContractInstallments.installmentsData?.map((inst) => (
-                      <tr key={inst.number} className="hover:bg-slate-50">
-                        <td className="p-3 font-bold">Parcela {inst.number}</td>
-                        <td className="p-3">{inst.dueDate}</td>
-                        <td className="p-3 text-right font-extrabold text-[#1B3B2B]">{formatCurrency(inst.amount)}</td>
-                        <td className="p-3 text-center">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${inst.status === 'Pago' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                            {inst.status === 'Pago' ? `Pago em ${inst.paymentDate || '—'}` : 'Pendente'}
-                          </span>
-                        </td>
-                        <td className="p-3 text-center">
-                          {inst.status !== 'Pago' ? (
-                            <button
-                              onClick={() => {
-                                setReceivingInstallmentData({
-                                  contractId: viewingContractInstallments.id,
-                                  installmentNumber: inst.number,
-                                  baseAmount: inst.amount
-                                });
-                                setReceiveForm({
-                                  paymentDate: new Date().toISOString().split('T')[0],
-                                  interestAmount: ''
-                                });
-                              }}
-                              className="px-3 py-1 bg-emerald-700 text-white font-bold rounded-lg text-[10px] hover:bg-emerald-800 cursor-pointer"
-                            >
-                              Receber Parcela
-                            </button>
-                          ) : (
-                            <div className="flex items-center justify-center gap-2">
-                              <span className="text-emerald-700 font-bold flex items-center gap-1">
-                                <Check className="w-3.5 h-3.5" /> Liquidado
-                              </span>
-                              <button
-                                onClick={() => {
-                                  setCancelInstallmentTarget({
-                                    contractId: viewingContractInstallments.id,
-                                    installmentNumber: inst.number
-                                  });
-                                }}
-                                className="px-2.5 py-1 bg-rose-100 text-rose-700 font-bold rounded-lg text-[10px] hover:bg-rose-200 cursor-pointer"
-                                title="Cancelar / Estornar Recebimento"
-                              >
-                                Cancelar Baixa
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-3 border-t">
-              <button
-                onClick={() => setViewingContractInstallments(null)}
-                className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold text-xs cursor-pointer"
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL DE CONFIRMAÇÃO DE RECEBIMENTO */}
-      {receivingInstallmentData && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-emerald-200">
-            <h3 className="text-base font-extrabold text-[#1B3B2B]">Confirmar Recebimento de Parcela</h3>
-            <p className="text-xs text-slate-600">
-              Parcela <strong>{receivingInstallmentData.installmentNumber}</strong> — Valor base: <strong>{formatCurrency(receivingInstallmentData.baseAmount)}</strong>
-            </p>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">Data de Recebimento Efetiva</label>
-                <input
-                  type="date"
-                  value={receiveForm.paymentDate}
-                  onChange={(e) => setReceiveForm({ ...receiveForm, paymentDate: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border font-bold bg-white"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">Valor de Juros / Multa por Atraso (R$)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={receiveForm.interestAmount}
-                  onChange={(e) => setReceiveForm({ ...receiveForm, interestAmount: e.target.value })}
-                  placeholder="0.00"
-                  className="w-full px-3.5 py-2 rounded-xl border font-bold text-amber-700"
-                />
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-50 border space-y-1">
-                <div className="flex justify-between text-slate-600">
-                  <span>Valor Parcela:</span>
-                  <span className="font-bold">{formatCurrency(receivingInstallmentData.baseAmount)}</span>
-                </div>
-                <div className="flex justify-between text-amber-700">
-                  <span>Juros / Multa:</span>
-                  <span className="font-bold">+{formatCurrency(parseFloat(String(receiveForm.interestAmount).replace(',', '.')) || 0)}</span>
-                </div>
-                <div className="flex justify-between text-[#1B3B2B] font-black pt-2 border-t text-sm">
-                  <span>Total a Entrar no Caixa:</span>
-                  <span>
-                    {formatCurrency(Number(receivingInstallmentData.baseAmount) + (parseFloat(String(receiveForm.interestAmount).replace(',', '.')) || 0))}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setReceivingInstallmentData(null)}
-                  className="px-4 py-2 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmReceiveInstallment}
-                  className="px-5 py-2 rounded-xl bg-emerald-700 text-white font-bold hover:bg-emerald-800 shadow-md cursor-pointer"
-                >
-                  Confirmar e Gerar Lançamentos
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL CANCELAR BAIXA */}
-      {cancelInstallmentTarget && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
-            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-            <h3 className="text-base font-extrabold text-rose-700">Cancelar Baixa de Parcela?</h3>
-            <p className="text-xs text-slate-600">
-              Deseja realmente cancelar o recebimento da <strong>Parcela {cancelInstallmentTarget.installmentNumber}</strong>?
-            </p>
-            <div className="flex justify-center gap-2 pt-2">
-              <button 
-                onClick={() => setCancelInstallmentTarget(null)} 
-                className="px-4 py-2 rounded-xl border font-bold text-xs text-slate-600 hover:bg-slate-50 cursor-pointer"
-              >
-                Voltar
-              </button>
-              <button 
-                onClick={confirmCancelReceiveInstallment} 
-                className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer"
-              >
-                Sim, Cancelar Baixa
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL EXCLUIR LANÇAMENTO */}
-      {deleteTxTarget && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
-            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <h3 className="text-base font-extrabold text-rose-700">Excluir Lançamento?</h3>
-            <p className="text-xs text-slate-600">
-              Deseja realmente remover o lançamento <strong>{deleteTxTarget.id}</strong>?
-            </p>
-            <div className="flex justify-center gap-2 pt-2">
-              <button 
-                onClick={() => setDeleteTxTarget(null)} 
-                className="px-4 py-2 rounded-xl border font-bold text-xs text-slate-600 hover:bg-slate-50 cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button 
-                onClick={confirmDeleteTransaction} 
-                className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer"
-              >
-                Sim, Excluir
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL EXCLUIR CONTRATO */}
-      {deleteContractTarget && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl">
-            <h3 className="text-base font-bold text-rose-700">Excluir Contrato?</h3>
-            <p className="text-xs text-slate-600">Deseja realmente remover o contrato <strong>{deleteContractTarget.id}</strong>?</p>
-            <div className="flex justify-center gap-2 pt-2">
-              <button onClick={() => setDeleteContractTarget(null)} className="px-4 py-2 rounded-xl border font-bold text-xs">Cancelar</button>
-              <button onClick={confirmDeleteContract} className="px-4 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700">Sim, Excluir</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL CADASTRAR / EDITAR CLIENTE (CRM) */}
-      {showClientModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
-            <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
-              <h3 className="text-base font-extrabold">{editingClient ? 'Editar Cliente / CRM' : 'Novo Cadastro de Cliente — CRM com Busca CNPJ'}</h3>
-              <button onClick={() => { setShowClientModal(false); setEditingClient(null); }} className="text-white hover:text-emerald-300">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <form onSubmit={handleSaveClient} className="p-6 space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">CNPJ (Busca Automática)</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={cliForm.document}
-                      onChange={(e) => setCliForm({ ...cliForm, document: e.target.value })}
-                      onBlur={(e) => handleCnpjBlur(e.target.value)}
-                      placeholder="00.000.000/0001-00"
-                      className="w-full px-3.5 py-2.5 rounded-xl border font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleCnpjBlur(cliForm.document)}
-                      className="px-3 py-2 bg-[#1B3B2B] text-white rounded-xl text-xs font-bold hover:bg-[#2D5A43] shrink-0 cursor-pointer"
-                      title="Consultar CNPJ"
-                    >
-                      <Search className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <span className="text-[10px] text-slate-500 mt-1 block">
-                    Digite os 14 números e clique na lupa ou saia do campo.
-                  </span>
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">INSCRIÇÃO ESTADUAL / SINFRAM</label>
-                  <input
-                    type="text"
-                    value={cliForm.registration}
-                    onChange={(e) => setCliForm({ ...cliForm, registration: e.target.value })}
-                    placeholder="Digite a Inscrição Estadual..."
-                    className="w-full px-3.5 py-2.5 rounded-xl border"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">RAZÃO SOCIAL / NOME DO EMPREENDIMENTO</label>
-                <input
-                  type="text"
-                  value={cliForm.name}
-                  onChange={(e) => setCliForm({ ...cliForm, name: e.target.value })}
-                  placeholder="Ex: Agropecuária Rio Vermelho S/A"
-                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-slate-800"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-bold text-slate-700 uppercase">SEGMENTO ECONÔMICO</label>
-                    <button
-                      type="button"
-                      onClick={() => setShowNewSegmentField(!showNewSegmentField)}
-                      className="text-teal-800 font-bold hover:underline text-[11px]"
-                    >
-                      {showNewSegmentField ? 'Selecionar existente' : '+ Novo Segmento'}
-                    </button>
-                  </div>
-
-                  {!showNewSegmentField ? (
-                    <select
-                      value={cliForm.segment}
-                      onChange={(e) => setCliForm({ ...cliForm, segment: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
-                    >
-                      {availableSegments.map(seg => (
-                        <option key={seg} value={seg}>{seg}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={newSegmentInput}
-                        onChange={(e) => setNewSegmentInput(e.target.value)}
-                        placeholder="Nome do novo segmento..."
-                        className="w-full px-3 py-2 rounded-xl border font-bold"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (newSegmentInput.trim()) {
-                            setAvailableSegments([...availableSegments, newSegmentInput.trim()]);
-                            setCliForm({ ...cliForm, segment: newSegmentInput.trim() });
-                            setNewSegmentInput('');
-                            setShowNewSegmentField(false);
-                            showToast('Novo segmento adicionado!');
-                          }
-                        }}
-                        className="px-3 py-2 bg-emerald-800 text-white rounded-xl text-xs font-bold shrink-0"
-                      >
-                        Adicionar
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">CIDADE / UF</label>
-                  <input
-                    type="text"
-                    value={cliForm.city}
-                    onChange={(e) => setCliForm({ ...cliForm, city: e.target.value })}
-                    placeholder="Rondonópolis — MT"
-                    className="w-full px-3.5 py-2.5 rounded-xl border"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">RESPONSÁVEL / CONTATO</label>
-                  <input
-                    type="text"
-                    value={cliForm.contactName}
-                    onChange={(e) => setCliForm({ ...cliForm, contactName: e.target.value })}
-                    placeholder="Nome do responsável"
-                    className="w-full px-3.5 py-2.5 rounded-xl border"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">TELEFONE / WHATSAPP</label>
-                  <input
-                    type="text"
-                    value={cliForm.phone}
-                    onChange={(e) => setCliForm({ ...cliForm, phone: e.target.value })}
-                    placeholder="(66) 99999-0000"
-                    className="w-full px-3.5 py-2.5 rounded-xl border"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">E-MAIL CORPORATIVO</label>
-                  <input
-                    type="email"
-                    value={cliForm.email}
-                    onChange={(e) => setCliForm({ ...cliForm, email: e.target.value })}
-                    placeholder="contato@empresa.com.br"
-                    className="w-full px-3.5 py-2.5 rounded-xl border"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-bold text-slate-700 uppercase">STATUS DO CLIENTE</label>
-                    <button
-                      type="button"
-                      onClick={() => setShowNewStatusField(!showNewStatusField)}
-                      className="text-teal-800 font-bold hover:underline text-[11px]"
-                    >
-                      {showNewStatusField ? 'Selecionar existente' : '+ Novo Status'}
-                    </button>
-                  </div>
-
-                  {!showNewStatusField ? (
-                    <select
-                      value={cliForm.status}
-                      onChange={(e) => setCliForm({ ...cliForm, status: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
-                    >
-                      {availableStatuses.map(st => (
-                        <option key={st} value={st}>{st}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={newStatusInput}
-                        onChange={(e) => setNewStatusInput(e.target.value)}
-                        placeholder="Nome do novo status..."
-                        className="w-full px-3 py-2 rounded-xl border font-bold"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (newStatusInput.trim()) {
-                            setAvailableStatuses([...availableStatuses, newStatusInput.trim()]);
-                            setCliForm({ ...cliForm, status: newStatusInput.trim() });
-                            setNewStatusInput('');
-                            setShowNewStatusField(false);
-                            showToast('Novo status adicionado!');
-                          }
-                        }}
-                        className="px-3 py-2 bg-emerald-800 text-white rounded-xl text-xs font-bold shrink-0"
-                      >
-                        Adicionar
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">LICENÇA / PROGRAMA PRINCIPAL CONTRATADO</label>
-                <input
-                  type="text"
-                  value={cliForm.mainProgram}
-                  onChange={(e) => setCliForm({ ...cliForm, mainProgram: e.target.value })}
-                  placeholder="Licenciamento Ambiental (LP / LI / LO)"
-                  className="w-full px-3.5 py-2.5 rounded-xl border"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t">
-                <button
-                  type="button"
-                  onClick={() => { setShowClientModal(false); setEditingClient(null); }}
-                  className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
-                >
-                  {editingClient ? 'Salvar Alterações' : 'Salvar Cliente no CRM'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL EXCLUIR CLIENTE */}
-      {deleteClientTarget && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
-            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <h3 className="text-base font-extrabold text-rose-700">Excluir Cliente?</h3>
-            <p className="text-xs text-slate-600">
-              Deseja realmente remover o cliente <strong>{deleteClientTarget.name}</strong> do CRM?
-            </p>
-            <div className="flex justify-center gap-2 pt-2">
-              <button 
-                onClick={() => setDeleteClientTarget(null)} 
-                className="px-4 py-2 rounded-xl border font-bold text-xs text-slate-600 hover:bg-slate-50 cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button 
-                onClick={confirmDeleteClient} 
-                className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer"
-              >
-                Sim, Excluir
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL CADASTRAR NOVO UTILIZADOR */}
-      {showUserRoleModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="text-base font-bold text-[#1B3B2B]">Cadastrar Novo Utilizador / Perfil</h3>
-            <form onSubmit={handleSaveNewUserRole} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold mb-1">Nome do Cargo / Função</label>
-                <input
-                  type="text"
-                  value={newRoleForm.name}
-                  onChange={(e) => setNewRoleForm({ ...newRoleForm, name: e.target.value })}
-                  placeholder="Ex: Analista Ambiental Júnior"
-                  className="w-full px-3 py-2 rounded-xl border font-bold"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Nome do Titular</label>
-                <input
-                  type="text"
-                  value={newRoleForm.holder}
-                  onChange={(e) => setNewRoleForm({ ...newRoleForm, holder: e.target.value })}
-                  placeholder="Ex: Carlos Silva"
-                  className="w-full px-3 py-2 rounded-xl border"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold mb-1">E-mail Corporativo de Acesso</label>
-                <input
-                  type="email"
-                  value={newRoleForm.email}
-                  onChange={(e) => setNewRoleForm({ ...newRoleForm, email: e.target.value })}
-                  placeholder="carlos@grupomartins.eng.br"
-                  className="w-full px-3 py-2 rounded-xl border"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Senha Inicial</label>
-                <input
-                  type="password"
-                  value={newRoleForm.password}
-                  onChange={(e) => setNewRoleForm({ ...newRoleForm, password: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Descrição</label>
-                <input
-                  type="text"
-                  value={newRoleForm.description}
-                  onChange={(e) => setNewRoleForm({ ...newRoleForm, description: e.target.value })}
-                  placeholder="Breve resumo das responsabilidades"
-                  className="w-full px-3 py-2 rounded-xl border"
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowUserRoleModal(false)} className="px-4 py-2 rounded-xl border font-bold">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold">Cadastrar Utilizador</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL CONFIGURAR PERMISSÕES */}
-      {editingRolePermissions && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b pb-3">
-              <div>
-                <h3 className="text-base font-extrabold text-[#1B3B2B]">Configurar Permissões (Flags)</h3>
-                <p className="text-xs text-slate-500">Perfil: <strong className="text-[#1B3B2B]">{editingRolePermissions.name}</strong> ({editingRolePermissions.holder})</p>
-              </div>
-              <button onClick={() => setEditingRolePermissions(null)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <p className="text-xs text-slate-600 bg-emerald-50 p-3 rounded-xl border border-emerald-200">
-                Altere abaixo as permissões em tempo real. Cada clique atualiza imediatamente o estado de acesso deste perfil.
-              </p>
-
-              <div className="border rounded-xl overflow-hidden">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-100 text-slate-700 font-bold uppercase border-b">
-                      <th className="p-3">Módulo do Sistema</th>
-                      <th className="p-3 text-center">Visualizar</th>
-                      <th className="p-3 text-center">Criar</th>
-                      <th className="p-3 text-center">Editar</th>
-                      <th className="p-3 text-center">Excluir</th>
-                      <th className="p-3 text-center">Aprovar</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {[
-                      { key: 'dashboard', label: 'Painel Executivo / KPIs' },
-                      { key: 'prolabore', label: 'Pró-Labore (Sócio)' },
-                      { key: 'lancamentos', label: 'Livro Caixa & Transações' },
-                      { key: 'dre', label: 'DRE Gerencial Mensal' },
-                      { key: 'contratos', label: 'Contratos Ambientais & SST' },
-                      { key: 'clientes', label: 'Cadastro de Clientes (CRM)' },
-                      { key: 'acessos', label: 'Árvore de Acessos & Perfis' }
-                    ].map(mod => {
-                      const perms = editingRolePermissions.permissions?.[mod.key] || { view: false, create: false, edit: false, delete: false, approve: false };
-                      return (
-                        <tr key={mod.key} className="hover:bg-slate-50">
-                          <td className="p-3 font-bold text-slate-800">{mod.label}</td>
-                          {['view', 'create', 'edit', 'delete', 'approve'].map(action => (
-                            <td key={action} className="p-3 text-center">
-                              <input
-                                type="checkbox"
-                                checked={Boolean(perms[action])}
-                                onChange={() => handlePermissionToggle(editingRolePermissions.id, mod.key, action)}
-                                className="w-4 h-4 accent-[#1B3B2B] cursor-pointer"
-                              />
-                            </td>
-                          ))}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-3 border-t">
-              <button
-                onClick={() => {
-                  showToast('Permissões salvas com sucesso!');
-                  setEditingRolePermissions(null);
-                }}
-                className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-bold text-xs hover:bg-[#2D5A43] cursor-pointer"
-              >
-                Concluir & Fechar
-              </button>
-            </div>
           </div>
         </div>
       )}
