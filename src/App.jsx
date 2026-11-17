@@ -466,10 +466,9 @@ export default function App() {
 
   const [cliSearch, setCliSearch] = useState('');
 
-  // Filtros, Ordenação Universal e Modais da aba de Condicionantes
+  // Filtros, Ordenação Universal e Modais da aba de Condicionantes (Removido o condDateFilter)
   const [condSearch, setCondSearch] = useState('');
   const [condStatusFilter, setCondStatusFilter] = useState('Todos');
-  const [condDateFilter, setCondDateFilter] = useState('');
   const [sortField, setSortField] = useState(null);
   const [sortDirection, setSortDirection] = useState('asc');
 
@@ -1447,9 +1446,8 @@ export default function App() {
                           (cond.license || '').toLowerCase().includes(condSearch.toLowerCase()) ||
                           (cond.responsible || '').toLowerCase().includes(condSearch.toLowerCase());
       const matchStatus = condStatusFilter === 'Todos' || cond.status === condStatusFilter;
-      const matchDate = !condDateFilter || cond.dueDate === condDateFilter;
 
-      return matchSearch && matchStatus && matchDate;
+      return matchSearch && matchStatus;
     });
 
     if (sortField) {
@@ -1466,7 +1464,7 @@ export default function App() {
     }
 
     return list;
-  }, [condicionantes, condSearch, condStatusFilter, condDateFilter, sortField, sortDirection]);
+  }, [condicionantes, condSearch, condStatusFilter, sortField, sortDirection]);
 
   const PIE_COLORS = ['#1B3B2B', '#2D5A43', '#3B7A57', '#557A46', '#7A9A8B'];
 
@@ -2497,19 +2495,6 @@ export default function App() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-1.5 bg-[#F8F3EF] px-3 py-1.5 rounded-xl border border-[#D5CFC7]">
-                    <span className="text-xs font-bold text-[#1B3B2B]">Vencimento:</span>
-                    <input
-                      type="date"
-                      value={condDateFilter}
-                      onChange={(e) => setCondDateFilter(e.target.value)}
-                      className="bg-white px-2 py-1 rounded-lg border text-xs font-bold"
-                    />
-                    {condDateFilter && (
-                      <button onClick={() => setCondDateFilter('')} className="text-rose-600 font-bold text-xs ml-1">Limpar</button>
-                    )}
-                  </div>
-
                   <select
                     value={condStatusFilter}
                     onChange={(e) => setCondStatusFilter(e.target.value)}
