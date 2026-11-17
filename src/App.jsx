@@ -466,7 +466,7 @@ export default function App() {
 
   const [cliSearch, setCliSearch] = useState('');
 
-  // Filtros, Ordenação e Modais da aba de Condicionantes
+  // Filtros, Ordenação Universal e Modais da aba de Condicionantes
   const [condSearch, setCondSearch] = useState('');
   const [condStatusFilter, setCondStatusFilter] = useState('Todos');
   const [condDateFilter, setCondDateFilter] = useState('');
@@ -1201,7 +1201,7 @@ export default function App() {
     setDeleteCondTarget(null);
   };
 
-  // Função para Ordenar Condicionantes ao Clicar nas Colunas
+  // Função para Ordenar Universal ao Clicar em Qualquer Coluna
   const handleSort = (field) => {
     if (sortField === field) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
@@ -1344,7 +1344,7 @@ export default function App() {
   };
 
   const filteredTransactions = useMemo(() => {
-    return transactions.filter(t => {
+    let list = transactions.filter(t => {
       const matchSearch = (t.entity || '').toLowerCase().includes(txSearch.toLowerCase()) || 
                           (t.description || '').toLowerCase().includes(txSearch.toLowerCase()) ||
                           (t.id || '').toLowerCase().includes(txSearch.toLowerCase());
@@ -1354,12 +1354,27 @@ export default function App() {
 
       return matchSearch && matchType && matchCategory && matchStatus;
     });
-  }, [transactions, txSearch, txTypeFilter, txCategoryFilter, txStatusFilter]);
+
+    if (sortField) {
+      list.sort((a, b) => {
+        let valA = a[sortField] || '';
+        let valB = b[sortField] || '';
+        if (typeof valA === 'string') valA = valA.toLowerCase();
+        if (typeof valB === 'string') valB = valB.toLowerCase();
+
+        if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+        if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return list;
+  }, [transactions, txSearch, txTypeFilter, txCategoryFilter, txStatusFilter, sortField, sortDirection]);
   
   const filteredContracts = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
 
-    return contracts.filter(c => {
+    let list = contracts.filter(c => {
       const matchSearch = (c.client || '').toLowerCase().includes(ctSearch.toLowerCase()) ||
         (c.service || '').toLowerCase().includes(ctSearch.toLowerCase()) ||
         (c.id || '').toLowerCase().includes(ctSearch.toLowerCase()) ||
@@ -1382,9 +1397,39 @@ export default function App() {
 
       return matchSearch && matchStatus && matchDueDate;
     });
-  }, [contracts, ctSearch, ctStatusFilter, ctDueDateFilter]);
 
-  const filteredClients = useMemo(() => clients.filter(cli => (cli.name || '').toLowerCase().includes(cliSearch.toLowerCase())), [clients, cliSearch]);
+    if (sortField) {
+      list.sort((a, b) => {
+        let valA = a[sortField] || '';
+        let valB = b[sortField] || '';
+        if (typeof valA === 'string') valA = valA.toLowerCase();
+        if (typeof valB === 'string') valB = valB.toLowerCase();
+
+        if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+        if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return list;
+  }, [contracts, ctSearch, ctStatusFilter, ctDueDateFilter, sortField, sortDirection]);
+
+  const filteredClients = useMemo(() => {
+    let list = clients.filter(cli => (cli.name || '').toLowerCase().includes(cliSearch.toLowerCase()));
+    if (sortField) {
+      list.sort((a, b) => {
+        let valA = a[sortField] || '';
+        let valB = b[sortField] || '';
+        if (typeof valA === 'string') valA = valA.toLowerCase();
+        if (typeof valB === 'string') valB = valB.toLowerCase();
+
+        if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+        if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return list;
+  }, [clients, cliSearch, sortField, sortDirection]);
 
   const filteredCondicionantes = useMemo(() => {
     let list = condicionantes.filter(cond => {
@@ -2021,15 +2066,25 @@ export default function App() {
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
-                        <th className="py-3.5 px-3">ID</th>
-                        <th className="py-3.5 px-3">Data</th>
-                        <th className="py-3.5 px-3">Tipo</th>
+                        <th onClick={() => handleSort('id')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center gap-1">ID {sortField === 'id' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
+                        <th onClick={() => handleSort('date')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center gap-1">Data {sortField === 'date' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
+                        <th onClick={() => handleSort('type')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center gap-1">Tipo {sortField === 'type' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
                         <th className="py-3.5 px-3">Plano de Contas</th>
                         <th className="py-3.5 px-3">Categoria Detalhada</th>
-                        <th className="py-3.5 px-3">Favorecido / Cliente</th>
+                        <th onClick={() => handleSort('entity')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center gap-1">Favorecido / Cliente {sortField === 'entity' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
                         <th className="py-3.5 px-3">Descrição</th>
                         <th className="py-3.5 px-3 text-center">Status</th>
-                        <th className="py-3.5 px-3 text-right">Valor</th>
+                        <th onClick={() => handleSort('amount')} className="py-3.5 px-3 text-right cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center justify-end gap-1">Valor {sortField === 'amount' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
                         <th className="py-3.5 px-3 text-center">Ações</th>
                       </tr>
                     </thead>
@@ -2190,12 +2245,12 @@ export default function App() {
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px]">
-                        <th className="py-3.5 px-3">Código</th>
-                        <th className="py-3.5 px-3">Cliente / Empreendimento</th>
-                        <th className="py-3.5 px-3">Escopo Técnico</th>
+                        <th onClick={() => handleSort('id')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">Código</th>
+                        <th onClick={() => handleSort('client')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">Cliente / Empreendimento</th>
+                        <th onClick={() => handleSort('service')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">Escopo Técnico</th>
                         <th className="py-3.5 px-3">Órgão</th>
                         <th className="py-3.5 px-3 text-center">Status</th>
-                        <th className="py-3.5 px-3 text-right">Valor Contrato</th>
+                        <th onClick={() => handleSort('contractValue')} className="py-3.5 px-3 text-right cursor-pointer hover:bg-[#2D5A43] transition select-none">Valor Contrato</th>
                         <th className="py-3.5 px-3 text-right">Já Recebido</th>
                         <th className="py-3.5 px-3 text-right">Saldo a Receber</th>
                         <th className="py-3.5 px-3 text-center">Gerenciar Parcelas</th>
@@ -2318,11 +2373,11 @@ export default function App() {
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
-                        <th className="py-3.5 px-3">ID</th>
-                        <th className="py-3.5 px-3">Razão Social / Empreendimento</th>
-                        <th className="py-3.5 px-3">Segmento Econômico</th>
+                        <th onClick={() => handleSort('id')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">ID</th>
+                        <th onClick={() => handleSort('name')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">Razão Social / Empreendimento</th>
+                        <th onClick={() => handleSort('segment')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">Segmento Econômico</th>
                         <th className="py-3.5 px-3">Responsável / Contato</th>
-                        <th className="py-3.5 px-3">Cidade</th>
+                        <th onClick={() => handleSort('city')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">Cidade</th>
                         <th className="py-3.5 px-3 text-center">Status</th>
                         <th className="py-3.5 px-3 text-center">Ações</th>
                       </tr>
