@@ -253,9 +253,6 @@ const GrupoMartinsLogo = ({ size = 'md', theme = 'cream', className = '' }) => {
   );
 };
 
-// ============================================================================
-// 2. CONSTANTES E PLANO DE CONTAS ESTRUTURADO PARA DRE (2026 a 2040)
-// ============================================================================
 const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const MONTH_NAMES_MAP = { '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez' };
 
@@ -333,9 +330,6 @@ const formatCurrency = (val) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 };
 
-// ============================================================================
-// 3. COMPONENTE PRINCIPAL
-// ============================================================================
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -353,6 +347,7 @@ export default function App() {
 
   const [editingRoleTarget, setEditingRoleTarget] = useState(null);
 
+  // Estados para gerenciar e cadastrar novos Segmentos e Status dinamicamente
   const [availableSegments, setAvailableSegments] = useState([
     'Agronegócio / Propriedade Rural',
     'Indústria / Agroindústria',
@@ -361,12 +356,17 @@ export default function App() {
     'Comércio / Serviços',
     'Saúde / Hospitalar'
   ]);
+  const [newSegmentInput, setNewSegmentInput] = useState('');
+  const [showNewSegmentField, setShowNewSegmentField] = useState(false);
+
   const [availableStatuses, setAvailableStatuses] = useState([
     'Ativo',
     'Em Prospecção',
     'Pendência Documental',
     'Inativo'
   ]);
+  const [newStatusInput, setNewStatusInput] = useState('');
+  const [showNewStatusField, setShowNewStatusField] = useState(false);
 
   const [accessRoles, setAccessRoles] = useState(INITIAL_ACCESS_ROLES);
   const [activeRoleId, setActiveRoleId] = useState('ROLE-01-PEDRO');
@@ -388,7 +388,6 @@ export default function App() {
     description: ''
   });
 
-  // Filtros
   const [txSearch, setTxSearch] = useState('');
   const [txTypeFilter, setTxTypeFilter] = useState('Todos');
   const [txCategoryFilter, setTxCategoryFilter] = useState('Todas');
@@ -1374,7 +1373,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* KPIS */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
                 <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-[#1B3B2B] shadow-sm">
                   <div className="text-xs font-bold text-slate-500 uppercase">Receita Bruta</div>
@@ -1406,7 +1404,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* GRÁFICOS */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
                   <h3 className="text-base font-extrabold text-[#1B3B2B] mb-4">Evolução Financeira Mensal (2026)</h3>
@@ -3026,10 +3023,10 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CADASTRAR / EDITAR CLIENTE (CRM) COM BUSCA DE CNPJ */}
+      {/* MODAL CADASTRAR / EDITAR CLIENTE (CRM) COM BUSCA CNPJ E ADIÇÃO DE SEGMENTO/STATUS */}
       {showClientModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B]">
+          <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
             <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
               <h3 className="text-base font-extrabold">{editingClient ? 'Editar Cliente / CRM' : 'Novo Cadastro de Cliente — CRM com Busca CNPJ'}</h3>
               <button onClick={() => { setShowClientModal(false); setEditingClient(null); }} className="text-white hover:text-emerald-300">
@@ -3089,17 +3086,55 @@ export default function App() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">SEGMENTO ECONÔMICO</label>
-                  <select
-                    value={cliForm.segment}
-                    onChange={(e) => setCliForm({ ...cliForm, segment: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
-                  >
-                    {availableSegments.map(seg => (
-                      <option key={seg} value={seg}>{seg}</option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-slate-700 uppercase">SEGMENTO ECONÔMICO</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowNewSegmentField(!showNewSegmentField)}
+                      className="text-teal-800 font-bold hover:underline text-[11px]"
+                    >
+                      {showNewSegmentField ? 'Selecionar existente' : '+ Novo Segmento'}
+                    </button>
+                  </div>
+
+                  {!showNewSegmentField ? (
+                    <select
+                      value={cliForm.segment}
+                      onChange={(e) => setCliForm({ ...cliForm, segment: e.target.value })}
+                      className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
+                    >
+                      {availableSegments.map(seg => (
+                        <option key={seg} value={seg}>{seg}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newSegmentInput}
+                        onChange={(e) => setNewSegmentInput(e.target.value)}
+                        placeholder="Nome do novo segmento..."
+                        className="w-full px-3 py-2 rounded-xl border font-bold"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (newSegmentInput.trim()) {
+                            setAvailableSegments([...availableSegments, newSegmentInput.trim()]);
+                            setCliForm({ ...cliForm, segment: newSegmentInput.trim() });
+                            setNewSegmentInput('');
+                            setShowNewSegmentField(false);
+                            showToast('Novo segmento adicionado!');
+                          }
+                        }}
+                        className="px-3 py-2 bg-emerald-800 text-white rounded-xl text-xs font-bold shrink-0"
+                      >
+                        Adicionar
+                      </button>
+                    </div>
+                  )}
                 </div>
+
                 <div>
                   <label className="block font-bold text-slate-700 uppercase mb-1">CIDADE / UF</label>
                   <input
@@ -3146,17 +3181,55 @@ export default function App() {
                     className="w-full px-3.5 py-2.5 rounded-xl border"
                   />
                 </div>
+
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">STATUS DO CLIENTE</label>
-                  <select
-                    value={cliForm.status}
-                    onChange={(e) => setCliForm({ ...cliForm, status: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
-                  >
-                    {availableStatuses.map(st => (
-                      <option key={st} value={st}>{st}</option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-slate-700 uppercase">STATUS DO CLIENTE</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowNewStatusField(!showNewStatusField)}
+                      className="text-teal-800 font-bold hover:underline text-[11px]"
+                    >
+                      {showNewStatusField ? 'Selecionar existente' : '+ Novo Status'}
+                    </button>
+                  </div>
+
+                  {!showNewStatusField ? (
+                    <select
+                      value={cliForm.status}
+                      onChange={(e) => setCliForm({ ...cliForm, status: e.target.value })}
+                      className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white"
+                    >
+                      {availableStatuses.map(st => (
+                        <option key={st} value={st}>{st}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newStatusInput}
+                        onChange={(e) => setNewStatusInput(e.target.value)}
+                        placeholder="Nome do novo status..."
+                        className="w-full px-3 py-2 rounded-xl border font-bold"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (newStatusInput.trim()) {
+                            setAvailableStatuses([...availableStatuses, newStatusInput.trim()]);
+                            setCliForm({ ...cliForm, status: newStatusInput.trim() });
+                            setNewStatusInput('');
+                            setShowNewStatusField(false);
+                            showToast('Novo status adicionado!');
+                          }
+                        }}
+                        className="px-3 py-2 bg-emerald-800 text-white rounded-xl text-xs font-bold shrink-0"
+                      >
+                        Adicionar
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
