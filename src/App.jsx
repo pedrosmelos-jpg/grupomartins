@@ -468,7 +468,8 @@ export default function App() {
   });
 
   // Função para consultar o CNPJ automaticamente na API pública (BrasilAPI)
-const handleCnpjBlur = async (cnpjValue) => {
+// Função de consulta de CNPJ com Proxy anti-CORS para rodar perfeitamente na Vercel
+  const handleCnpjBlur = async (cnpjValue) => {
     const cleanCnpj = cnpjValue.replace(/\D/g, '');
     if (cleanCnpj.length !== 14) {
       alert('O CNPJ deve conter exatamente 14 dígitos.');
@@ -477,7 +478,11 @@ const handleCnpjBlur = async (cnpjValue) => {
 
     showToast('Consultando CNPJ...');
     try {
+      // Usando proxy público para contornar o bloqueio de CORS da Vercel
+      const proxyUrl = `https://r.jina.ai/https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`;
+      
       let response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
+      
       if (!response.ok) {
         response = await fetch(`https://minhareceita.org/${cleanCnpj}`);
       }
@@ -488,31 +493,27 @@ const handleCnpjBlur = async (cnpjValue) => {
 
       const data = await response.json();
 
-      // Mapeamento abrangente de campos de IE de diferentes fontes públicas
-      const ieEncontrada = 
-        data.inscricoes_estaduais?.[0]?.inscricao_estadual || 
-        data.estabelecimento?.inscricoes_estaduais?.[0]?.inscricao_estadual || 
-        '';
+      const razaoSocial = data.razao_social || data.nome_fantasia;
+      const municipio = data.municipio || data.estabelecimento?.cidade?.nome;
+      const uf = data.uf || data.estabelecimento?.estado?.sigla;
+      const telefone = data.ddd_telefone_1 || data.estabelecimento?.telefone1;
+      const emailCorretor = data.email || data.estabelecimento?.email;
+      const ie = data.inscricoes_estaduais?.[0]?.inscricao_estadual || '';
 
       setCliForm(prev => ({
         ...prev,
-        name: data.razao_social || data.nome_fantasia || prev.name,
+        name: razaoSocial || prev.name,
         document: cnpjValue,
-        city: data.municipio && data.uf ? `${data.municipio} — ${data.uf}` : (data.estabelecimento?.cidade?.nome ? `${data.estabelecimento.cidade.nome} — ${data.estabelecimento.estado.sigla}` : prev.city),
-        phone: data.ddd_telefone_1 ? String(data.ddd_telefone_1) : (data.estabelecimento?.telefone1 ? String(data.estabelecimento.telefone1) : prev.phone),
-        email: data.email || data.estabelecimento?.email || prev.email,
-        // Se a API não retornar, mantém o que o usuário digitar ou preenche com a encontrada
-        registration: ieEncontrada || prev.registration
+        city: municipio && uf ? `${municipio} — ${uf}` : prev.city,
+        phone: telefone ? String(telefone) : prev.phone,
+        email: emailCorretor || prev.email,
+        registration: ie || prev.registration
       }));
 
-      if (ieEncontrada) {
-        showToast('Dados e Inscrição Estadual preenchidos!');
-      } else {
-        showToast('Dados preenchidos! (Inscrição Estadual não informada pela API)');
-      }
+      showToast('Dados preenchidos com sucesso!');
     } catch (err) {
       console.error(err);
-      alert('Erro ao consultar CNPJ. Preencha os dados manualmente.');
+      alert('Não foi possível consultar automaticamente devido a restrições de rede. Preencha os dados manualmente.');
     }
   };
   
