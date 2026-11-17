@@ -530,7 +530,6 @@ export default function App() {
         if (!roleRes.error && roleRes.data && roleRes.data.length > 0) {
           setAccessRoles(roleRes.data);
         } else if (supabase && (!roleRes.data || roleRes.data.length === 0)) {
-          // Inicializa o Supabase com o perfil padrão se estiver vazio
           await supabase.from('user_roles').upsert(INITIAL_ACCESS_ROLES);
         }
       } catch (err) {
@@ -1240,7 +1239,7 @@ export default function App() {
 
           <div className="mx-4 mt-4 p-3.5 rounded-xl bg-[#244B38] border border-[#3B7A57]/50 flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-[#F8F3EF] text-[#1B3B2B] font-extrabold flex items-center justify-center text-sm shrink-0 shadow">
-              PM
+              {currentRole.holder.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
             </div>
             <div className="overflow-hidden">
               <div className="text-[10px] text-emerald-300 font-semibold uppercase tracking-wider truncate flex items-center gap-1">
@@ -1248,10 +1247,10 @@ export default function App() {
                 {isCloudSynced ? 'Nuvem Sincronizada' : 'Conectando...'}
               </div>
               <div className="text-sm font-bold text-white truncate">
-                Pedro Melo
+                {currentRole.holder}
               </div>
               <div className="text-[11px] text-emerald-100/80 truncate">
-                Pró-Labore Pago: {formatCurrency(financialData.proLaborePago)}
+                {currentRole.name}
               </div>
             </div>
           </div>
@@ -1328,7 +1327,7 @@ export default function App() {
             <div className="flex items-center gap-2 bg-[#F8F3EF] px-3 py-1.5 rounded-xl border border-[#D5CFC7]">
               <KeyRound className="w-3.5 h-3.5 text-[#1B3B2B] shrink-0" />
               <span className="text-xs font-extrabold text-[#1B3B2B]">
-                Nível 1 — Master (Pedro Melo)
+                {currentRole.name} ({currentRole.holder})
               </span>
               <button
                 onClick={() => setAuthLoggedIn(false)}
