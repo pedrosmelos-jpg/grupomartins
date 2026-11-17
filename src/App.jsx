@@ -468,35 +468,54 @@ export default function App() {
   });
 
   // Função para consultar o CNPJ automaticamente na API pública (BrasilAPI)
-  const handleCnpjBlur = async (cnpjValue) => {
+const handleCnpjBlur = async (cnpjValue) => {
     const cleanCnpj = cnpjValue.replace(/\D/g, '');
-    if (cleanCnpj.length !== 14) return;
+    if (cleanCnpj.length !== 14) {
+      alert('O CNPJ deve conter exatamente 14 dígitos.');
+      return;
+    }
 
-    showToast('Consultando CNPJ na base oficial...');
+    showToast('Consultando CNPJ na base de dados...');
     try {
-      const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
+      // 1ª Tentativa: BrasilAPI
+      let response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
+      
       if (!response.ok) {
-        throw new Error('CNPJ não encontrado ou inválido.');
+        // 2ª Tentativa (Fallback): MinhaReceita (alternativa pública e rápida)
+        response = await fetch(`https://minhareceita.org/${cleanCnpj}`);
       }
+
+      if (!response.ok) {
+        throw new Error('CNPJ não encontrado nas bases oficiais.');
+      }
+
       const data = await response.json();
+
+      // Mapeamento compatível com ambas as APIs
+      const razaoSocial = data.razao_social || data.nome_fantasia;
+      const municipio = data.municipio || data.estabelecimento?.cidade?.nome;
+      const uf = data.uf || data.estabelecimento?.estado?.sigla;
+      const telefone = data.ddd_telefone_1 || data.estabelecimento?.telefone1;
+      const emailCorretor = data.email || data.estabelecimento?.email;
+      const ie = data.inscricoes_estaduais?.[0]?.inscricao_estadual || '';
 
       setCliForm(prev => ({
         ...prev,
-        name: data.razao_social || data.nome_fantasia || prev.name,
+        name: razaoSocial || prev.name,
         document: cnpjValue,
-        city: data.municipio && data.uf ? `${data.municipio} — ${data.uf}` : prev.city,
-        phone: data.ddd_telefone_1 ? `${data.ddd_telefone_1}` : prev.phone,
-        email: data.email || prev.email,
-        registration: data.inscricoes_estaduais?.[0]?.inscricao_estadual || prev.registration
+        city: municipio && uf ? `${municipio} — ${uf}` : prev.city,
+        phone: telefone ? String(telefone) : prev.phone,
+        email: emailCorretor || prev.email,
+        registration: ie || prev.registration
       }));
 
-      showToast('Dados preenchidos automaticamente via CNPJ!');
+      showToast('Dados preenchidos com sucesso!');
     } catch (err) {
       console.error(err);
-      alert('Não foi possível buscar os dados do CNPJ. Verifique o número digitado.');
+      alert('Serviço de consulta de CNPJ temporariamente instável ou CNPJ inválido. Você pode preencher os dados manualmente.');
     }
   };
-
+  
   // Sincronização Supabase
   useEffect(() => {
     const fetchAllData = async () => {
