@@ -2075,13 +2075,21 @@ export default function App() {
                         <th onClick={() => handleSort('type')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
                           <div className="flex items-center gap-1">Tipo {sortField === 'type' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                         </th>
-                        <th className="py-3.5 px-3">Plano de Contas</th>
-                        <th className="py-3.5 px-3">Categoria Detalhada</th>
+                        <th onClick={() => handleSort('planoContas')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center gap-1">Plano de Contas {sortField === 'planoContas' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
+                        <th onClick={() => handleSort('category')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center gap-1">Categoria Detalhada {sortField === 'category' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
                         <th onClick={() => handleSort('entity')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
                           <div className="flex items-center gap-1">Favorecido / Cliente {sortField === 'entity' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                         </th>
-                        <th className="py-3.5 px-3">Descrição</th>
-                        <th className="py-3.5 px-3 text-center">Status</th>
+                        <th onClick={() => handleSort('description')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center gap-1">Descrição {sortField === 'description' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
+                        <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
                         <th onClick={() => handleSort('amount')} className="py-3.5 px-3 text-right cursor-pointer hover:bg-[#2D5A43] transition select-none">
                           <div className="flex items-center justify-end gap-1">Valor {sortField === 'amount' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                         </th>
@@ -2245,12 +2253,24 @@ export default function App() {
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px]">
-                        <th onClick={() => handleSort('id')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">Código</th>
-                        <th onClick={() => handleSort('client')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">Cliente / Empreendimento</th>
-                        <th onClick={() => handleSort('service')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">Escopo Técnico</th>
-                        <th className="py-3.5 px-3">Órgão</th>
-                        <th className="py-3.5 px-3 text-center">Status</th>
-                        <th onClick={() => handleSort('contractValue')} className="py-3.5 px-3 text-right cursor-pointer hover:bg-[#2D5A43] transition select-none">Valor Contrato</th>
+                        <th onClick={() => handleSort('id')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center gap-1">Código {sortField === 'id' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
+                        <th onClick={() => handleSort('client')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center gap-1">Cliente / Empreendimento {sortField === 'client' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
+                        <th onClick={() => handleSort('service')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center gap-1">Escopo Técnico {sortField === 'service' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
+                        <th onClick={() => handleSort('agency')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center gap-1">Órgão {sortField === 'agency' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
+                        <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
+                        <th onClick={() => handleSort('contractValue')} className="py-3.5 px-3 text-right cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center justify-end gap-1">Valor Contrato {sortField === 'contractValue' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
                         <th className="py-3.5 px-3 text-right">Já Recebido</th>
                         <th className="py-3.5 px-3 text-right">Saldo a Receber</th>
                         <th className="py-3.5 px-3 text-center">Gerenciar Parcelas</th>
@@ -2373,12 +2393,24 @@ export default function App() {
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
-                        <th onClick={() => handleSort('id')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">ID</th>
-                        <th onClick={() => handleSort('name')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">Razão Social / Empreendimento</th>
-                        <th onClick={() => handleSort('segment')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">Segmento Econômico</th>
-                        <th className="py-3.5 px-3">Responsável / Contato</th>
-                        <th onClick={() => handleSort('city')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">Cidade</th>
-                        <th className="py-3.5 px-3 text-center">Status</th>
+                        <th onClick={() => handleSort('id')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center gap-1">ID {sortField === 'id' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
+                        <th onClick={() => handleSort('name')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center gap-1">Razão Social / Empreendimento {sortField === 'name' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
+                        <th onClick={() => handleSort('segment')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center gap-1">Segmento Econômico {sortField === 'segment' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
+                        <th onClick={() => handleSort('contactName')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center gap-1">Responsável / Contato {sortField === 'contactName' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
+                        <th onClick={() => handleSort('city')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center gap-1">Cidade {sortField === 'city' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
+                        <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
                         <th className="py-3.5 px-3 text-center">Ações</th>
                       </tr>
                     </thead>
@@ -2531,10 +2563,18 @@ export default function App() {
                             Vencimento Final {sortField === 'dueDate' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}
                           </div>
                         </th>
-                        <th className="py-3.5 px-3">Licença</th>
-                        <th className="py-3.5 px-3">Responsável - Empresa</th>
-                        <th className="py-3.5 px-3">Observação</th>
-                        <th className="py-3.5 px-3 text-center">Status</th>
+                        <th onClick={() => handleSort('license')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center gap-1">Licença {sortField === 'license' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
+                        <th onClick={() => handleSort('responsible')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center gap-1">Responsável - Empresa {sortField === 'responsible' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
+                        <th onClick={() => handleSort('observation')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center gap-1">Observação {sortField === 'observation' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
+                        <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        </th>
                         <th className="py-3.5 px-3 text-center">Ações</th>
                       </tr>
                     </thead>
