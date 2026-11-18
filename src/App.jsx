@@ -598,7 +598,7 @@ export default function App() {
     
     const getVal = (codigoConta, mesStr, anoNum) => {
       return transactions
-        .filter(t => t.status === 'Pago / Recebido' && (t.planoContas === codigoConta || (t.category || '').includes(codigoConta)))
+        .filter(t => t.status === 'Pago / Recebido' && (t.planocontas === codigoConta || t.planoContas === codigoConta || (t.category || '').includes(codigoConta)))
         .filter(t => {
           if (t.date) {
             const txAno = parseInt(t.date.split('-')[0], 10);
@@ -675,8 +675,8 @@ export default function App() {
     const saidasTotaisAnual = transactions.filter((t) => t.type === 'Saída').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
     const lucroLiquidoAnual = receitaBrutaAnual - saidasTotaisAnual;
     
-    const proLaboreTotalAnual = transactions.filter((t) => (t.category || t.planoContas || '').includes('Pró-Labore')).reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
-    const proLaborePago = transactions.filter((t) => (t.category || t.planoContas || '').includes('Pró-Labore') && t.status === 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    const proLaboreTotalAnual = transactions.filter((t) => (t.category || t.planocontas || t.planoContas || '').includes('Pró-Labore')).reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    const proLaborePago = transactions.filter((t) => (t.category || t.planocontas || t.planoContas || '').includes('Pró-Labore') && t.status === 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
 
     const entradasRealizadas = transactions.filter((t) => t.type === 'Entrada' && t.status === 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
     const saidasRealizadas = transactions.filter((t) => t.type === 'Saída' && t.status === 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
@@ -696,7 +696,7 @@ export default function App() {
     });
 
     const revenueByCategory = planoContasData.receitas.map((rev) => {
-      const value = transactions.filter(t => (t.planoContas === rev.codigo || t.category === rev.nome)).reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+      const value = transactions.filter(t => (t.planocontas === rev.codigo || t.planoContas === rev.codigo || t.category === rev.nome)).reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
       return { category: rev.nome, shortName: rev.nome.split(' — ')[1] || rev.nome, value, share: receitaBrutaAnual > 0 ? value / receitaBrutaAnual : 0 };
     }).sort((a, b) => b.value - a.value);
 
@@ -749,7 +749,20 @@ export default function App() {
 
     try {
       const txId = editingTx ? editingTx.id : `MT-${String(transactions.length + 15).padStart(3, '0')}`;
-      const txData = { id: txId, ...txForm, amount: numericAmount };
+      const txData = { 
+        id: txId, 
+        date: txForm.date,
+        month: txForm.month,
+        type: txForm.type,
+        planocontas: txForm.planocontas || txForm.planoContas,
+        category: txForm.category,
+        entity: txForm.entity,
+        contractid: txForm.contractId || txForm.contractid || '—',
+        description: txForm.description,
+        paymentmethod: txForm.paymentMethod || txForm.paymentmethod || 'PIX',
+        status: txForm.status,
+        amount: numericAmount 
+      };
 
       if (supabase) {
         const { error } = await supabase.from('transactions').upsert([txData]);
@@ -823,12 +836,12 @@ export default function App() {
         service: ctForm.service,
         agency: ctForm.agency,
         status: ctForm.status,
-        contractValue: contractVal,
-        receivedValue: installments.filter(i => i.status === 'Pago').reduce((acc, cur) => acc + Number(cur.amount), 0),
-        directCosts: directVal,
-        installmentsCount: String(nInstallments),
-        paymentMethod: ctForm.paymentMethod,
-        installmentsData: installments
+        contractvalue: contractVal,
+        receivedvalue: installments.filter(i => i.status === 'Pago').reduce((acc, cur) => acc + Number(cur.amount), 0),
+        directcosts: directVal,
+        installmentscount: String(nInstallments),
+        paymentmethod: ctForm.paymentMethod,
+        installmentsdata: installments
       };
 
       if (supabase) {
@@ -865,14 +878,14 @@ export default function App() {
     const contract = contracts.find(c => c.id === contractId);
     if (!contract) return;
 
-    const targetInst = contract.installmentsData.find(i => i.number === installmentNumber);
+    const targetInst = (contract.installmentsData || contract.installmentsdata).find(i => i.number === installmentNumber);
     if (!targetInst) return;
 
     const baseAmount = Number(targetInst.amount || 0);
     const interest = parseFloat(String(receiveForm.interestAmount).replace(',', '.')) || 0;
     const payDate = receiveForm.paymentDate || new Date().toISOString().split('T')[0];
 
-    const updatedInstallments = contract.installmentsData.map(inst => {
+    const updatedInstallments = (contract.installmentsData || contract.installmentsdata).map(inst => {
       if (inst.number === installmentNumber) {
         return { 
           ...inst, 
@@ -889,8 +902,8 @@ export default function App() {
 
     const updatedContract = {
       ...contract,
-      receivedValue: receivedSum,
-      installmentsData: updatedInstallments
+      receivedvalue: receivedSum,
+      installmentsdata: updatedInstallments
     };
 
     setContracts(prev => prev.map(c => c.id === contractId ? updatedContract : c));
@@ -910,12 +923,12 @@ export default function App() {
       date: payDate,
       month: monthStr,
       type: 'Entrada',
-      planoContas: '1.1.01',
+      planocontas: '1.1.01',
       category: 'Licenciamento Ambiental (LP / LI / LO)',
       entity: contract.client,
-      contractId: contractId,
-      description: `Parcela ${installmentNumber}/${contract.installmentsData.length} (${contract.paymentMethod}) — Contrato ${contractId}`,
-      paymentMethod: contract.paymentMethod,
+      contractid: contractId,
+      description: `Parcela ${installmentNumber}/${(contract.installmentsData || contract.installmentsdata).length} (${contract.paymentmethod || contract.paymentMethod}) — Contrato ${contractId}`,
+      paymentmethod: contract.paymentmethod || contract.paymentMethod,
       status: 'Pago / Recebido',
       amount: baseAmount
     };
@@ -928,12 +941,12 @@ export default function App() {
         date: payDate,
         month: monthStr,
         type: 'Entrada',
-        planoContas: '1.2.01',
+        planocontas: '1.2.01',
         category: 'Receitas Financeiras (Juros e Multas por Atraso)',
         entity: contract.client,
-        contractId: contractId,
+        contractid: contractId,
         description: `Juros / Multa Parcela ${installmentNumber} — Contrato ${contractId}`,
-        paymentMethod: contract.paymentMethod,
+        paymentmethod: contract.paymentmethod || contract.paymentMethod,
         status: 'Pago / Recebido',
         amount: interest
       };
@@ -958,10 +971,11 @@ export default function App() {
     const contract = contracts.find(c => c.id === contractId);
     if (!contract) return;
 
-    const descPrefix1 = `Parcela ${installmentNumber}/${contract.installmentsData.length}`;
+    const instList = contract.installmentsData || contract.installmentsdata || [];
+    const descPrefix1 = `Parcela ${installmentNumber}/${instList.length}`;
     const descPrefix2 = `Juros / Multa Parcela ${installmentNumber} — Contrato ${contractId}`;
 
-    const updatedInstallments = contract.installmentsData.map(inst => {
+    const updatedInstallments = instList.map(inst => {
       if (inst.number === installmentNumber) {
         return { 
           ...inst, 
@@ -978,8 +992,8 @@ export default function App() {
 
     const updatedContract = {
       ...contract,
-      receivedValue: receivedSum,
-      installmentsData: updatedInstallments
+      receivedvalue: receivedSum,
+      installmentsdata: updatedInstallments
     };
 
     setContracts(prev => prev.map(c => c.id === contractId ? updatedContract : c));
@@ -987,7 +1001,7 @@ export default function App() {
       await supabase.from('contracts').upsert([updatedContract]);
     }
 
-    const txsToRemove = transactions.filter(t => t.contractId === contractId && (t.description.includes(descPrefix1) || t.description.includes(descPrefix2)));
+    const txsToRemove = transactions.filter(t => (t.contractid === contractId || t.contractId === contractId) && (t.description.includes(descPrefix1) || t.description.includes(descPrefix2)));
     const txIdsToRemove = txsToRemove.map(t => t.id);
 
     setTransactions(prev => prev.filter(t => !txIdsToRemove.includes(t.id)));
@@ -1144,7 +1158,7 @@ export default function App() {
     setDeleteCondTarget(null);
   };
 
-  // Função para Ordenar Universal ao Clicar em Qualquer Coluna (100% Funcional)
+  // Função para Ordenar Universal ao Clicar em Qualquer Coluna
   const handleSort = (field) => {
     if (sortField === field) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
@@ -1164,7 +1178,7 @@ export default function App() {
       holder: newRoleForm.holder,
       email: newRoleForm.email,
       password: newRoleForm.password || 'martins2026',
-      badgeColor: 'bg-[#1B3B2B] text-white',
+      badgecolor: 'bg-[#1B3B2B] text-white',
       description: newRoleForm.description || 'Perfil personalizado de acesso.',
       permissions: JSON.parse(JSON.stringify(DEFAULT_PERMISSIONS))
     };
@@ -1292,7 +1306,7 @@ export default function App() {
                           (t.description || '').toLowerCase().includes(txSearch.toLowerCase()) ||
                           (t.id || '').toLowerCase().includes(txSearch.toLowerCase());
       const matchType = txTypeFilter === 'Todos' || t.type === txTypeFilter;
-      const matchCategory = txCategoryFilter === 'Todas' || t.category === txCategoryFilter || t.planoContas === txCategoryFilter;
+      const matchCategory = txCategoryFilter === 'Todas' || t.category === txCategoryFilter || t.planocontas === txCategoryFilter || t.planoContas === txCategoryFilter;
       const matchStatus = txStatusFilter === 'Todos' || t.status === txStatusFilter;
 
       return matchSearch && matchType && matchCategory && matchStatus;
@@ -1326,7 +1340,7 @@ export default function App() {
 
       let matchDueDate = true;
       if (ctDueDateFilter !== 'Todos') {
-        const insts = c.installmentsData || [];
+        const insts = c.installmentsData || c.installmentsdata || [];
         const pendingInsts = insts.filter(i => i.status !== 'Pago');
 
         if (ctDueDateFilter === 'Vencidos') {
@@ -1707,7 +1721,7 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {transactions.filter(t => (t.category || t.planoContas || '').includes('Pró-Labore')).map((tx) => (
+                      {transactions.filter(t => (t.category || t.planocontas || t.planoContas || '').includes('Pró-Labore')).map((tx) => (
                         <tr key={tx.id} className="hover:bg-[#F8F3EF]/50">
                           <td className="py-3 px-4 font-mono font-bold text-[#1B3B2B]">{tx.id}</td>
                           <td className="py-3 px-4">{tx.date}</td>
@@ -1942,7 +1956,7 @@ export default function App() {
                       });
                       setShowTxModal(true);
                     }}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43]"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
                   >
                     <Plus className="w-4 h-4" /> Incluir Lançamento
                   </button>
@@ -1956,7 +1970,7 @@ export default function App() {
                   <select
                     value={txTypeFilter}
                     onChange={(e) => setTxTypeFilter(e.target.value)}
-                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold"
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold cursor-pointer"
                   >
                     <option value="Todos">Tipo: Todos</option>
                     <option value="Entrada">Entrada</option>
@@ -1966,7 +1980,7 @@ export default function App() {
                   <select
                     value={txCategoryFilter}
                     onChange={(e) => setTxCategoryFilter(e.target.value)}
-                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold max-w-[260px] truncate"
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold max-w-[260px] truncate cursor-pointer"
                   >
                     <option value="Todas">Plano de Contas: Todas</option>
                     <optgroup label="Receitas (1.X)">
@@ -1980,7 +1994,7 @@ export default function App() {
                   <select
                     value={txStatusFilter}
                     onChange={(e) => setTxStatusFilter(e.target.value)}
-                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold"
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold cursor-pointer"
                   >
                     <option value="Todos">Status: Todos</option>
                     <option value="Pago / Recebido">Pago / Recebido</option>
@@ -1995,7 +2009,7 @@ export default function App() {
                         setTxStatusFilter('Todos');
                         setTxSearch('');
                       }}
-                      className="text-rose-600 font-bold hover:underline ml-auto"
+                      className="text-rose-600 font-bold hover:underline ml-auto cursor-pointer"
                     >
                       Limpar Filtros
                     </button>
@@ -2017,8 +2031,8 @@ export default function App() {
                         <th onClick={() => handleSort('type')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
                           <div className="flex items-center gap-1">Tipo {sortField === 'type' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                         </th>
-                        <th onClick={() => handleSort('planoContas')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center gap-1">Plano de Contas {sortField === 'planoContas' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        <th onClick={() => handleSort('planocontas')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center gap-1">Plano de Contas {sortField === 'planocontas' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                         </th>
                         <th onClick={() => handleSort('category')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
                           <div className="flex items-center gap-1">Categoria Detalhada {sortField === 'category' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
@@ -2053,12 +2067,12 @@ export default function App() {
                                 {tx.type}
                               </span>
                             </td>
-                            <td className="py-2.5 px-3 font-mono font-bold text-teal-900">{tx.planoContas || '1.1.01'}</td>
+                            <td className="py-2.5 px-3 font-mono font-bold text-teal-900">{tx.planocontas || tx.planoContas || '1.1.01'}</td>
                             <td className="py-2.5 px-3 text-slate-700">{tx.category}</td>
                             <td className="py-2.5 px-3 font-bold">{tx.entity}</td>
                             <td className="py-2.5 px-3">{tx.description}</td>
                             <td className="py-2.5 px-3 text-center">
-                              <button onClick={() => handleToggleStatus(tx.id)} className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${tx.status === 'Pago / Recebido' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                              <button onClick={() => handleToggleStatus(tx.id)} className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${tx.status === 'Pago / Recebido' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'} cursor-pointer`}>
                                 {tx.status}
                               </button>
                             </td>
@@ -2073,25 +2087,25 @@ export default function App() {
                                     date: tx.date,
                                     month: tx.month,
                                     type: tx.type,
-                                    planoContas: tx.planoContas || '1.1.01',
+                                    planoContas: tx.planocontas || tx.planoContas || '1.1.01',
                                     category: tx.category,
                                     entity: tx.entity,
-                                    contractId: tx.contractId || '—',
+                                    contractId: tx.contractid || tx.contractId || '—',
                                     description: tx.description,
-                                    paymentMethod: tx.paymentMethod || 'PIX',
+                                    paymentMethod: tx.paymentmethod || tx.paymentMethod || 'PIX',
                                     status: tx.status,
                                     amount: tx.amount
                                   });
                                   setShowTxModal(true);
                                 }}
-                                className="p-1 rounded text-teal-700 hover:bg-teal-50"
+                                className="p-1 rounded text-teal-700 hover:bg-teal-50 cursor-pointer"
                                 title="Editar Lançamento"
                               >
                                 <Edit3 className="w-4 h-4 inline" />
                               </button>
                               <button
                                 onClick={() => setDeleteTxTarget(tx)}
-                                className="p-1 rounded text-rose-600 hover:bg-rose-50"
+                                className="p-1 rounded text-rose-600 hover:bg-rose-50 cursor-pointer"
                                 title="Excluir Lançamento"
                               >
                                 <Trash2 className="w-4 h-4 inline" />
@@ -2147,7 +2161,7 @@ export default function App() {
                   <select
                     value={ctDueDateFilter}
                     onChange={(e) => setCtDueDateFilter(e.target.value)}
-                    className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white text-[#1B3B2B]"
+                    className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white text-[#1B3B2B] cursor-pointer"
                   >
                     <option value="Todos">Vencimento: Todos</option>
                     <option value="Vencidos">🔴 Vencidos</option>
@@ -2158,7 +2172,7 @@ export default function App() {
                   <select
                     value={ctStatusFilter}
                     onChange={(e) => setCtStatusFilter(e.target.value)}
-                    className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white"
+                    className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white cursor-pointer"
                   >
                     <option value="Todos">Status Técnico: Todos</option>
                     <option value="Em Elaboração Técnica">Em Elaboração Técnica</option>
@@ -2183,7 +2197,7 @@ export default function App() {
                       });
                       setShowContractModal(true);
                     }}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43]"
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
                   >
                     <Plus className="w-4 h-4" /> Novo Contrato Ambiental / SST
                   </button>
@@ -2210,8 +2224,8 @@ export default function App() {
                         <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
                           <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                         </th>
-                        <th onClick={() => handleSort('contractValue')} className="py-3.5 px-3 text-right cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center justify-end gap-1">Valor Contrato {sortField === 'contractValue' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                        <th onClick={() => handleSort('contractvalue')} className="py-3.5 px-3 text-right cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                          <div className="flex items-center justify-end gap-1">Valor Contrato {sortField === 'contractvalue' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                         </th>
                         <th className="py-3.5 px-3 text-right">Já Recebido</th>
                         <th className="py-3.5 px-3 text-right">Saldo a Receber</th>
@@ -2226,8 +2240,8 @@ export default function App() {
                         </tr>
                       ) : (
                         filteredContracts.map((ct) => {
-                          const val = Number(ct.contractValue || 0);
-                          const insts = ct.installmentsData || [];
+                          const val = Number(ct.contractvalue || ct.contractValue || 0);
+                          const insts = ct.installmentsData || ct.installmentsdata || [];
                           const rec = insts.filter(i => i.status === 'Pago').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
                           const saldo = val - rec;
                           return (
@@ -2261,12 +2275,12 @@ export default function App() {
                                       service: ct.service,
                                       agency: ct.agency,
                                       status: ct.status,
-                                      contractValue: ct.contractValue,
-                                      directCosts: ct.directCosts,
-                                      installmentsCount: ct.installmentsCount,
-                                      installmentDates: ct.installmentsData?.map(i => i.dueDate) || [`${selectedDreYear}-12-30`],
-                                      installmentAmounts: ct.installmentsData?.map(i => i.amount) || [''],
-                                      paymentMethod: ct.paymentMethod
+                                      contractValue: ct.contractvalue || ct.contractValue,
+                                      directCosts: ct.directcosts || ct.directCosts,
+                                      installmentsCount: ct.installmentscount || ct.installmentsCount,
+                                      installmentDates: (ct.installmentsData || ct.installmentsdata)?.map(i => i.dueDate) || [`${selectedDreYear}-12-30`],
+                                      installmentAmounts: (ct.installmentsData || ct.installmentsdata)?.map(i => i.amount) || [''],
+                                      paymentMethod: ct.paymentmethod || ct.paymentMethod
                                     });
                                     setShowContractModal(true);
                                   }}
@@ -2367,7 +2381,7 @@ export default function App() {
                             <td className="py-3 px-3 font-mono font-bold">{cli.id}</td>
                             <td className="py-3 px-3 font-bold">{cli.name}</td>
                             <td className="py-3 px-3">{cli.segment}</td>
-                            <td className="py-3 px-3">{cli.contactName || '—'}</td>
+                            <td className="py-3 px-3">{cli.contactName || cli.contactname || '—'}</td>
                             <td className="py-3 px-3">{cli.city}</td>
                             <td className="py-3 px-3 text-center">
                               <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
@@ -2384,10 +2398,10 @@ export default function App() {
                                     registration: cli.registration || '',
                                     segment: cli.segment || availableSegments[0],
                                     city: cli.city || 'Rondonópolis — MT',
-                                    contactName: cli.contactName || '',
+                                    contactName: cli.contactName || cli.contactname || '',
                                     phone: cli.phone || '',
                                     email: cli.email || '',
-                                    mainProgram: cli.mainProgram || 'Licenciamento Ambiental',
+                                    mainProgram: cli.mainProgram || cli.mainprogram || 'Licenciamento Ambiental',
                                     status: cli.status || availableStatuses[0]
                                   });
                                   setShowClientModal(true);
@@ -2433,7 +2447,7 @@ export default function App() {
                   <select
                     value={condStatusFilter}
                     onChange={(e) => setCondStatusFilter(e.target.value)}
-                    className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white text-[#1B3B2B]"
+                    className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white text-[#1B3B2B] cursor-pointer"
                   >
                     <option value="Todos">Filtrar por Status</option>
                     <option value="FINALIZADO">FINALIZADO</option>
@@ -2517,7 +2531,7 @@ export default function App() {
                           <tr key={cond.id} className="hover:bg-slate-50">
                             <td className="py-3 px-3 font-bold text-slate-900">{cond.client}</td>
                             <td className="py-3 px-3 text-slate-700 max-w-xs">{cond.service}</td>
-                            <td className="py-3 px-3 font-mono">{cond.dueDate}</td>
+                            <td className="py-3 px-3 font-mono">{cond.dueDate || cond.duedate}</td>
                             <td className="py-3 px-3 font-semibold">{cond.license}</td>
                             <td className="py-3 px-3 font-bold text-slate-700">{cond.responsible}</td>
                             <td className="py-3 px-3 text-slate-500 max-w-xs truncate">{cond.observation || '—'}</td>
@@ -2537,7 +2551,7 @@ export default function App() {
                                   setCondForm({
                                     client: cond.client,
                                     service: cond.service,
-                                    dueDate: cond.dueDate,
+                                    dueDate: cond.dueDate || cond.duedate,
                                     license: cond.license,
                                     responsible: cond.responsible,
                                     observation: cond.observation,
@@ -2577,7 +2591,7 @@ export default function App() {
                 </div>
                 <button
                   onClick={() => setShowUserRoleModal(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43]"
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
                 >
                   <UserPlus className="w-4 h-4" /> Cadastrar Novo Utilizador
                 </button>
@@ -2792,13 +2806,274 @@ export default function App() {
         </main>
       </div>
 
+      {/* MODAL CADASTRAR / EDITAR LANÇAMENTO */}
+      {showTxModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
+            <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
+              <h3 className="text-base font-extrabold">{editingTx ? 'Editar Lançamento' : 'Novo Lançamento no Livro Caixa'}</h3>
+              <button onClick={() => { setShowTxModal(false); setEditingTx(null); }} className="text-white hover:text-emerald-300 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveTransaction} className="p-6 space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">TIPO</label>
+                  <select
+                    value={txForm.type}
+                    onChange={(e) => setTxForm({ ...txForm, type: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
+                  >
+                    <option value="Entrada">Entrada</option>
+                    <option value="Saída">Saída</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">DATA</label>
+                  <input
+                    type="date"
+                    value={txForm.date}
+                    onChange={(e) => {
+                      const dt = e.target.value;
+                      const mNum = dt.split('-')[1];
+                      const mNames = { '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez' };
+                      setTxForm({ ...txForm, date: dt, month: mNames[mNum] || 'Nov' });
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">PLANO DE CONTAS</label>
+                <select
+                  value={txForm.planocontas || txForm.planoContas}
+                  onChange={(e) => {
+                    const code = e.target.value;
+                    const allC = [...planoContasData.receitas, ...planoContasData.despesas];
+                    const found = allC.find(c => c.codigo === code);
+                    setTxForm({ ...txForm, planoContas: code, planocontas: code, category: found ? found.nome : txForm.category });
+                  }}
+                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
+                >
+                  <optgroup label="Receitas (1.X)">
+                    {planoContasData.receitas.map(r => <option key={r.codigo} value={r.codigo}>{r.nome}</option>)}
+                  </optgroup>
+                  <optgroup label="Despesas (2.X)">
+                    {planoContasData.despesas.map(d => <option key={d.codigo} value={d.codigo}>{d.nome}</option>)}
+                  </optgroup>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">FAVORECIDO / CLIENTE</label>
+                <input
+                  type="text"
+                  list="client-list-tx"
+                  value={txForm.entity}
+                  onChange={(e) => setTxForm({ ...txForm, entity: e.target.value })}
+                  placeholder="Nome do cliente ou fornecedor..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold"
+                  required
+                />
+                <datalist id="client-list-tx">
+                  {clients.map(cli => <option key={cli.id} value={cli.name} />)}
+                </datalist>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">VALOR (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={txForm.amount}
+                    onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })}
+                    placeholder="0.00"
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-black text-[#1B3B2B]"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">STATUS</label>
+                  <select
+                    value={txForm.status}
+                    onChange={(e) => setTxForm({ ...txForm, status: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
+                  >
+                    <option value="Pago / Recebido">Pago / Recebido</option>
+                    <option value="Pendente">Pendente</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">DESCRIÇÃO</label>
+                <input
+                  type="text"
+                  value={txForm.description}
+                  onChange={(e) => setTxForm({ ...txForm, description: e.target.value })}
+                  placeholder="Detalhes do lançamento..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => { setShowTxModal(false); setEditingTx(null); }}
+                  className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
+                >
+                  Salvar Lançamento
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CADASTRAR / EDITAR CLIENTE */}
+      {showClientModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
+            <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
+              <h3 className="text-base font-extrabold">{editingClient ? 'Editar Cliente' : 'Novo Cadastro de Cliente'}</h3>
+              <button onClick={() => { setShowClientModal(false); setEditingClient(null); }} className="text-white hover:text-emerald-300 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveClient} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">CNPJ (Busca Automática)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={cliForm.document}
+                    onChange={(e) => setCliForm({ ...cliForm, document: e.target.value })}
+                    onBlur={(e) => handleCnpjBlur(e.target.value)}
+                    placeholder="Digite o CNPJ (apenas números)..."
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">RAZÃO SOCIAL / NOME</label>
+                <input
+                  type="text"
+                  value={cliForm.name}
+                  onChange={(e) => setCliForm({ ...cliForm, name: e.target.value })}
+                  placeholder="Nome do cliente ou empresa..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-slate-800"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">SEGMENTO</label>
+                  <select
+                    value={cliForm.segment}
+                    onChange={(e) => setCliForm({ ...cliForm, segment: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
+                  >
+                    {availableSegments.map(seg => <option key={seg} value={seg}>{seg}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">STATUS</label>
+                  <select
+                    value={cliForm.status}
+                    onChange={(e) => setCliForm({ ...cliForm, status: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
+                  >
+                    {availableStatuses.map(st => <option key={st} value={st}>{st}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">RESPONSÁVEL / CONTATO</label>
+                  <input
+                    type="text"
+                    value={cliForm.contactName || cliForm.contactname || ''}
+                    onChange={(e) => setCliForm({ ...cliForm, contactName: e.target.value, contactname: e.target.value })}
+                    placeholder="Nome do contato..."
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">TELEFONE</label>
+                  <input
+                    type="text"
+                    value={cliForm.phone}
+                    onChange={(e) => setCliForm({ ...cliForm, phone: e.target.value })}
+                    placeholder="(66) 99999-9999"
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">E-MAIL</label>
+                  <input
+                    type="email"
+                    value={cliForm.email}
+                    onChange={(e) => setCliForm({ ...cliForm, email: e.target.value })}
+                    placeholder="email@empresa.com"
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">CIDADE</label>
+                  <input
+                    type="text"
+                    value={cliForm.city}
+                    onChange={(e) => setCliForm({ ...cliForm, city: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => { setShowClientModal(false); setEditingClient(null); }}
+                  className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
+                >
+                  Salvar Cliente
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* MODAL CADASTRAR / EDITAR CONDICIONANTE */}
       {showCondModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
             <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
               <h3 className="text-base font-extrabold">{editingCond ? 'Editar Condicionante Ambiental' : 'Novo Cadastro de Condicionante Ambiental'}</h3>
-              <button onClick={() => { setShowCondModal(false); setEditingCond(null); }} className="text-white hover:text-emerald-300">
+              <button onClick={() => { setShowCondModal(false); setEditingCond(null); }} className="text-white hover:text-emerald-300 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -2849,7 +3124,7 @@ export default function App() {
                   <select
                     value={condForm.status}
                     onChange={(e) => setCondForm({ ...condForm, status: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B]"
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
                   >
                     <option value="FINALIZADO">FINALIZADO</option>
                     <option value="ATENDIDO">ATENDIDO</option>
@@ -2912,42 +3187,13 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL EXCLUIR CONDICIONANTE */}
-      {deleteCondTarget && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
-            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <h3 className="text-base font-extrabold text-rose-700">Excluir Condicionante?</h3>
-            <p className="text-xs text-slate-600">
-              Deseja realmente remover a condicionante de <strong>{deleteCondTarget.client}</strong>?
-            </p>
-            <div className="flex justify-center gap-2 pt-2">
-              <button 
-                onClick={() => setDeleteCondTarget(null)} 
-                className="px-4 py-2 rounded-xl border font-bold text-xs text-slate-600 hover:bg-slate-50 cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button 
-                onClick={confirmDeleteCondicionante} 
-                className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer"
-              >
-                Sim, Excluir
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* MODAL CADASTRAR NOVO UTILIZADOR */}
       {showUserRoleModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="text-base font-extrabold text-[#1B3B2B]">Cadastrar Novo Utilizador</h3>
-              <button onClick={() => setShowUserRoleModal(false)} className="text-slate-500 hover:text-slate-700">
+              <button onClick={() => setShowUserRoleModal(false)} className="text-slate-500 hover:text-slate-700 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -3022,7 +3268,7 @@ export default function App() {
                 <h3 className="text-base font-extrabold text-[#1B3B2B]">Configurar Permissões Granulares</h3>
                 <p className="text-xs text-slate-500">Perfil: <strong>{editingRolePermissions.name} ({editingRolePermissions.holder})</strong></p>
               </div>
-              <button onClick={() => setEditingRolePermissions(null)} className="text-slate-500 hover:text-slate-700">
+              <button onClick={() => setEditingRolePermissions(null)} className="text-slate-500 hover:text-slate-700 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -3056,95 +3302,6 @@ export default function App() {
                 Concluir & Salvar
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL EDITAR PERFIL / SENHA / EXCLUIR */}
-      {editingRoleTarget && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="text-base font-extrabold text-[#1B3B2B]">Editar Perfil e Senha</h3>
-              <button onClick={() => setEditingRoleTarget(null)} className="text-slate-500 hover:text-slate-700">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleSaveRoleEdit} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold mb-1">Cargo / Nível</label>
-                <input
-                  type="text"
-                  value={editingRoleTarget.level}
-                  onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, level: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border font-bold"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Nome do Departamento / Função</label>
-                <input
-                  type="text"
-                  value={editingRoleTarget.name}
-                  onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, name: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border font-bold"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Titular / Responsável</label>
-                <input
-                  type="text"
-                  value={editingRoleTarget.holder}
-                  onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, holder: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold mb-1">E-mail Corporativo</label>
-                <input
-                  type="email"
-                  value={editingRoleTarget.email}
-                  onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, email: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Nova Senha de Acesso</label>
-                <input
-                  type="text"
-                  value={editingRoleTarget.password || ''}
-                  onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, password: e.target.value })}
-                  placeholder="Digite a nova senha..."
-                  className="w-full px-3 py-2 rounded-xl border font-bold text-teal-900 bg-emerald-50"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Descrição / Alçadas</label>
-                <textarea
-                  value={editingRoleTarget.description}
-                  onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, description: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border h-16 resize-none"
-                  required
-                />
-              </div>
-              <div className="flex items-center justify-between pt-3 border-t">
-                <button
-                  type="button"
-                  onClick={() => handleDeleteRole(editingRoleTarget.id)}
-                  className="px-4 py-2 rounded-xl bg-rose-100 text-rose-700 font-bold hover:bg-rose-200 cursor-pointer"
-                >
-                  Excluir Perfil
-                </button>
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => setEditingRoleTarget(null)} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
-                  <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar Alterações</button>
-                </div>
-              </div>
-            </form>
           </div>
         </div>
       )}
