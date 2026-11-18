@@ -329,69 +329,6 @@ const INITIAL_ACCESS_ROLES = [
   }
 ];
 
-const INITIAL_CONDICIONANTES = [
-  {
-    id: 'COND-01',
-    client: 'SIRLEIDE PASSOS - RADIADORES',
-    service: 'EM 90 DIAS - LIGAÇÃO DA CAIXA A REDE DE ESGOTO E TAMPONAMENTO DO SUMIDOURO',
-    dueDate: '2026-10-07',
-    license: 'LO: 106/2026',
-    responsible: 'SIRLEIDE',
-    observation: 'CONDICIONANTE ATENDIDA POR OFÍCIO E ENVIO DE FATURA DE ÁGUA VIA EMAIL',
-    status: 'FINALIZADO'
-  },
-  {
-    id: 'COND-02',
-    client: 'ULTRACAR FUNILARIA',
-    service: 'A CADA 6 MESES - ANÁLISE FÍSICO QUÍMICA DA ÚLTIMA CAIXA SAO',
-    dueDate: '2027-01-05',
-    license: 'LO: 164/2026',
-    responsible: 'JHONY',
-    observation: 'SEM CONDICIONANTE A PRAZO PARA ENTREGAR - APENAS ENTREGAR NA RENOVAÇÃO',
-    status: 'ATENDIDO'
-  },
-  {
-    id: 'COND-03',
-    client: 'MECANICA-CENTROCAR',
-    service: 'A CADA 4 MESES - LIMPEZA DE TODAS AS CAIXAS SAO; A CADA 6 MESES - ANÁLISE FÍSICO QUÍMICA',
-    dueDate: '2027-03-20',
-    license: 'LO: 154/2026',
-    responsible: 'LUCIANO',
-    observation: 'SEM CONDICIONANTE A PRAZO PARA ENTREGAR',
-    status: 'EM ANDAMENTO'
-  },
-  {
-    id: 'COND-04',
-    client: 'MECANICA-CENTROCAR',
-    service: 'A CADA 4 MESES - LIMPEZA DE TODAS AS CAIXAS SAO',
-    dueDate: '2027-01-12',
-    license: 'LO: 177/2026',
-    responsible: 'ANTONINO',
-    observation: 'SEM CONDICIONANTE...',
-    status: 'A VENCER'
-  },
-  {
-    id: 'COND-05',
-    client: 'LIMPA JÁ - ANTONIO',
-    service: 'A CADA 4 MESES - LIMPEZA DE TODAS AS CAIXAS SAO; A CADA 6 MESES - ANÁLISE',
-    dueDate: '2027-03-09',
-    license: 'LO: 178/2026',
-    responsible: 'JUNINHO - ELIANE',
-    observation: 'SEM CONDICIONANTE...',
-    status: 'ATENDIDO'
-  },
-  {
-    id: 'COND-06',
-    client: 'JUNINHO AUTO CENTER',
-    service: 'A CADA 4 MESES - LIMPEZA DE TODAS AS CAIXAS SAO',
-    dueDate: '2027-04-16',
-    license: 'LO: 180/2026',
-    responsible: 'RONALDO',
-    observation: 'SEM CONDICIONANTE...',
-    status: 'A VENCER'
-  }
-];
-
 const formatCurrency = (val) => {
   if (val === undefined || val === null || isNaN(val)) return 'R$ 0,00';
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -405,7 +342,7 @@ export default function App() {
   const [transactions, setTransactions] = useState([]);
   const [contracts, setContracts] = useState([]);
   const [clients, setClients] = useState([]);
-  const [condicionantes, setCondicionantes] = useState(INITIAL_CONDICIONANTES);
+  const [condicionantes, setCondicionantes] = useState([]);
 
   const [selectedDreYear, setSelectedDreYear] = useState(2026);
 
@@ -466,7 +403,7 @@ export default function App() {
 
   const [cliSearch, setCliSearch] = useState('');
 
-  // Filtros, Ordenação Universal e Modais da aba de Condicionantes (Removido o condDateFilter)
+  // Filtros, Ordenação Universal e Modais da aba de Condicionantes
   const [condSearch, setCondSearch] = useState('');
   const [condStatusFilter, setCondStatusFilter] = useState('Todos');
   const [sortField, setSortField] = useState(null);
@@ -620,10 +557,8 @@ export default function App() {
         } else if (supabase && (!roleRes.data || roleRes.data.length === 0)) {
           await supabase.from('user_roles').upsert(INITIAL_ACCESS_ROLES);
         }
-        if (!condRes.error && condRes.data && condRes.data.length > 0) {
+        if (!condRes.error && condRes.data) {
           setCondicionantes(condRes.data);
-        } else if (supabase && (!condRes.data || condRes.data.length === 0)) {
-          await supabase.from('condicionantes').upsert(INITIAL_CONDICIONANTES);
         }
       } catch (err) {
         console.error('Supabase sync error:', err);
