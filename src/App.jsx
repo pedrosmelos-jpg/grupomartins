@@ -319,7 +319,6 @@ const INITIAL_ACCESS_ROLES = [
     holder: 'Pedro Melo',
     email: 'pedrosmelos@gmail.com',
     password: 'Martins2027@',
-    badgeColor: 'bg-[#1B3B2B] text-emerald-300',
     description: 'Acesso total e liberação máxima a todos os módulos estratégicos, aprovação de saques de Pró-Labore, DRE Gerencial, contratos e governança do sistema.',
     permissions: {
       dashboard: { view: true, create: true, edit: true, delete: true, approve: true },
@@ -457,6 +456,7 @@ export default function App() {
     month: 'Nov',
     type: 'Entrada',
     planoContas: INITIAL_PLANO_CONTAS.receitas[0].codigo,
+    planocontas: INITIAL_PLANO_CONTAS.receitas[0].codigo,
     category: INITIAL_PLANO_CONTAS.receitas[0].nome,
     entity: '',
     contractId: '—',
@@ -519,6 +519,9 @@ export default function App() {
     if (editingAgencyOriginal) {
       updatedList = availableAgencies.map(a => a === editingAgencyOriginal ? clean : a);
       setContracts(prev => prev.map(c => c.agency === editingAgencyOriginal ? { ...c, agency: clean } : c));
+      if (supabase) {
+        await supabase.from('contracts').update({ agency: clean }).eq('agency', editingAgencyOriginal);
+      }
     } else {
       if (availableAgencies.includes(clean)) {
         alert('Este órgão já está cadastrado.');
@@ -556,6 +559,9 @@ export default function App() {
     if (editingSegmentOriginal) {
       updatedList = availableSegments.map(s => s === editingSegmentOriginal ? clean : s);
       setClients(prev => prev.map(c => c.segment === editingSegmentOriginal ? { ...c, segment: clean } : c));
+      if (supabase) {
+        await supabase.from('clients').update({ segment: clean }).eq('segment', editingSegmentOriginal);
+      }
     } else {
       if (availableSegments.includes(clean)) {
         alert('Este segmento já está cadastrado.');
@@ -593,6 +599,9 @@ export default function App() {
     if (editingStatusOriginal) {
       updatedList = availableStatuses.map(s => s === editingStatusOriginal ? clean : s);
       setClients(prev => prev.map(c => c.status === editingStatusOriginal ? { ...c, status: clean } : c));
+      if (supabase) {
+        await supabase.from('clients').update({ status: clean }).eq('status', editingStatusOriginal);
+      }
     } else {
       if (availableStatuses.includes(clean)) {
         alert('Este status já está cadastrado.');
@@ -711,11 +720,8 @@ export default function App() {
     const applyRealtimeChange = (setter) => (payload) => {
       const { eventType, new: newRow, old: oldRow } = payload;
       setter((prev) => {
-        if (eventType === 'INSERT') {
-          const exists = prev.some((item) => item.id === newRow.id);
-          return exists ? prev.map((item) => (item.id === newRow.id ? newRow : item)) : [...prev, newRow];
-        }
-        if (eventType === 'UPDATE') {
+        if (eventType === 'INSERT' || eventType === 'UPDATE') {
+          if (!newRow || !newRow.id) return prev;
           const exists = prev.some((item) => item.id === newRow.id);
           return exists ? prev.map((item) => (item.id === newRow.id ? newRow : item)) : [...prev, newRow];
         }
@@ -726,7 +732,6 @@ export default function App() {
         }
         return prev;
       });
-      fetchAllData();
     };
 
     const channel = supabase
@@ -1563,8 +1568,13 @@ export default function App() {
 
     if (sortField) {
       list.sort((a, b) => {
-        let valA = a[sortField] || '';
-        let valB = b[sortField] || '';
+        if (sortField === 'amount') {
+          const numA = Number(a.amount || 0);
+          const numB = Number(b.amount || 0);
+          return sortDirection === 'asc' ? numA - numB : numB - numA;
+        }
+        let valA = a[sortField] || a[sortField?.toLowerCase()] || '';
+        let valB = b[sortField] || b[sortField?.toLowerCase()] || '';
         if (typeof valA === 'string') valA = valA.toLowerCase();
         if (typeof valB === 'string') valB = valB.toLowerCase();
 
@@ -1607,8 +1617,13 @@ export default function App() {
 
     if (sortField) {
       list.sort((a, b) => {
-        let valA = a[sortField] || '';
-        let valB = b[sortField] || '';
+        if (sortField === 'contractvalue') {
+          const numA = Number(a.contractvalue || a.contractValue || 0);
+          const numB = Number(b.contractvalue || b.contractValue || 0);
+          return sortDirection === 'asc' ? numA - numB : numB - numA;
+        }
+        let valA = a[sortField] || a[sortField?.toLowerCase()] || '';
+        let valB = b[sortField] || b[sortField?.toLowerCase()] || '';
         if (typeof valA === 'string') valA = valA.toLowerCase();
         if (typeof valB === 'string') valB = valB.toLowerCase();
 
@@ -1625,8 +1640,8 @@ export default function App() {
     let list = clients.filter(cli => (cli.name || '').toLowerCase().includes(cliSearch.toLowerCase()));
     if (sortField) {
       list.sort((a, b) => {
-        let valA = a[sortField] || '';
-        let valB = b[sortField] || '';
+        let valA = a[sortField] || a[sortField?.toLowerCase()] || '';
+        let valB = b[sortField] || b[sortField?.toLowerCase()] || '';
         if (typeof valA === 'string') valA = valA.toLowerCase();
         if (typeof valB === 'string') valB = valB.toLowerCase();
 
@@ -1796,6 +1811,7 @@ export default function App() {
                     month: 'Nov',
                     type: 'Entrada',
                     planoContas: planoContasData.receitas[0].codigo,
+                    planocontas: planoContasData.receitas[0].codigo,
                     category: planoContasData.receitas[0].nome,
                     entity: '',
                     contractId: '—',
@@ -2207,6 +2223,7 @@ export default function App() {
                               month: 'Nov',
                               type: 'Entrada',
                               planoContas: planoContasData.receitas[0].codigo,
+                              planocontas: planoContasData.receitas[0].codigo,
                               category: planoContasData.receitas[0].nome,
                               entity: '',
                               contractId: '—',
@@ -2345,12 +2362,14 @@ export default function App() {
                                   {hasPermission('lancamentos', 'edit') && (
                                     <button
                                       onClick={() => {
+                                        const code = tx.planocontas || tx.planoContas || '1.1.01';
                                         setEditingTx(tx);
                                         setTxForm({
                                           date: tx.date,
                                           month: tx.month,
                                           type: tx.type,
-                                          planoContas: tx.planocontas || tx.planoContas || '1.1.01',
+                                          planoContas: code,
+                                          planocontas: code,
                                           category: tx.category,
                                           entity: tx.entity,
                                           contractId: tx.contractid || tx.contractId || '—',
@@ -2640,8 +2659,8 @@ export default function App() {
                             <th onClick={() => handleSort('segment')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
                               <div className="flex items-center gap-1">Segmento Econômico {sortField === 'segment' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
-                            <th onClick={() => handleSort('contactName')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Responsável / Contato {sortField === 'contactName' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            <th onClick={() => handleSort('contactname')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center gap-1">Responsável / Contato {sortField === 'contactname' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
                             <th onClick={() => handleSort('city')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
                               <div className="flex items-center gap-1">Cidade {sortField === 'city' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
@@ -3203,7 +3222,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 2. MODAL NOVO / EDITAR CONTRATO AMBIENTAL / SST (COM CADASTRO DE ÓRGÃO E OBSERVAÇÃO) */}
+      {/* 2. MODAL NOVO / EDITAR CONTRATO AMBIENTAL / SST */}
       {showContractModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[92vh] overflow-y-auto">
@@ -3244,7 +3263,6 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* CAMPO DE ÓRGÃO / SETOR COM GERENCIADOR DE CADASTRO, EDIÇÃO E EXCLUSÃO */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="block font-bold text-slate-700 uppercase">ÓRGÃO / SETOR</label>
@@ -3405,7 +3423,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* CAMPO DE OBSERVAÇÃO DO CONTRATO */}
               <div>
                 <label className="block font-bold text-slate-700 uppercase mb-1">OBSERVAÇÃO</label>
                 <textarea
@@ -3737,7 +3754,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 9. MODAL CADASTRAR / EDITAR CLIENTE (COM GERENCIADOR DE SEGMENTO E STATUS) */}
+      {/* 9. MODAL CADASTRAR / EDITAR CLIENTE */}
       {showClientModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[92vh] overflow-y-auto">
