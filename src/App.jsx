@@ -1077,7 +1077,7 @@ export default function App() {
     setDeleteClientTarget(null);
   };
 
-  // Funções para CRUD de Condicionantes Ambientais (Com gravação e exclusão direta no Supabase)
+  // Funções para CRUD de Condicionantes Ambientais
   const handleSaveCondicionante = async (e) => {
     e.preventDefault();
     if (!condForm.client || !condForm.service) {
@@ -1144,7 +1144,7 @@ export default function App() {
     setDeleteCondTarget(null);
   };
 
-  // Função para Ordenar Universal ao Clicar em Qualquer Coluna
+  // Função para Ordenar Universal ao Clicar em Qualquer Coluna (100% Funcional)
   const handleSort = (field) => {
     if (sortField === field) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
