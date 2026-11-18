@@ -533,7 +533,7 @@ export default function App() {
     }
   };
 
-  // Sincronização Supabase (Com escuta Realtime otimizada para Condicionantes)
+  // Sincronização Supabase
   useEffect(() => {
     const fetchAllData = async () => {
       if (!supabase) return;
@@ -2935,6 +2935,125 @@ export default function App() {
                 className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer"
               >
                 Sim, Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CADASTRAR NOVO UTILIZADOR */}
+      {showUserRoleModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-base font-extrabold text-[#1B3B2B]">Cadastrar Novo Utilizador</h3>
+              <button onClick={() => setShowUserRoleModal(false)} className="text-slate-500 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveNewUserRole} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold mb-1">Nome do Perfil / Departamento</label>
+                <input
+                  type="text"
+                  value={newRoleForm.name}
+                  onChange={(e) => setNewRoleForm({ ...newRoleForm, name: e.target.value })}
+                  placeholder="Ex: Financeiro, Técnico..."
+                  className="w-full px-3 py-2 rounded-xl border font-bold"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">Nome do Titular / Responsável</label>
+                <input
+                  type="text"
+                  value={newRoleForm.holder}
+                  onChange={(e) => setNewRoleForm({ ...newRoleForm, holder: e.target.value })}
+                  placeholder="Nome completo..."
+                  className="w-full px-3 py-2 rounded-xl border"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">E-mail Corporativo de Acesso</label>
+                <input
+                  type="email"
+                  value={newRoleForm.email}
+                  onChange={(e) => setNewRoleForm({ ...newRoleForm, email: e.target.value })}
+                  placeholder="email@grupomartins.eng.br"
+                  className="w-full px-3 py-2 rounded-xl border"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">Senha Inicial</label>
+                <input
+                  type="text"
+                  value={newRoleForm.password}
+                  onChange={(e) => setNewRoleForm({ ...newRoleForm, password: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border font-bold text-teal-900 bg-emerald-50"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">Descrição das Alçadas</label>
+                <textarea
+                  value={newRoleForm.description}
+                  onChange={(e) => setNewRoleForm({ ...newRoleForm, description: e.target.value })}
+                  placeholder="Explique o escopo de acesso..."
+                  className="w-full px-3 py-2 rounded-xl border h-16 resize-none"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <button type="button" onClick={() => setShowUserRoleModal(false)} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar Utilizador</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CONFIGURAR PERMISSÕES (FLAGS) */}
+      {editingRolePermissions && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-[#1B3B2B]">Configurar Permissões Granulares</h3>
+                <p className="text-xs text-slate-500">Perfil: <strong>{editingRolePermissions.name} ({editingRolePermissions.holder})</strong></p>
+              </div>
+              <button onClick={() => setEditingRolePermissions(null)} className="text-slate-500 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              {Object.keys(editingRolePermissions.permissions || {}).map((modKey) => {
+                const modPerms = editingRolePermissions.permissions[modKey];
+                return (
+                  <div key={modKey} className="p-3 rounded-xl border bg-slate-50 flex flex-wrap items-center justify-between gap-3">
+                    <span className="font-extrabold text-[#1B3B2B] uppercase w-32">{modKey}</span>
+                    <div className="flex flex-wrap items-center gap-4">
+                      {Object.keys(modPerms).map((actKey) => (
+                        <label key={actKey} className="flex items-center gap-1.5 cursor-pointer font-medium select-none">
+                          <input
+                            type="checkbox"
+                            checked={modPerms[actKey]}
+                            onChange={() => handlePermissionToggle(editingRolePermissions.id, modKey, actKey)}
+                            className="w-4 h-4 rounded text-[#1B3B2B] focus:ring-[#1B3B2B] cursor-pointer"
+                          />
+                          <span className="capitalize">{actKey}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex justify-end pt-3 border-t">
+              <button onClick={() => setEditingRolePermissions(null)} className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">
+                Concluir & Salvar
               </button>
             </div>
           </div>
