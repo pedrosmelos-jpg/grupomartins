@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   LayoutDashboard,
   ArrowUpDown,
@@ -11,34 +11,16 @@ import {
   Filter,
   Download,
   CheckCircle2,
-  Clock,
-  AlertTriangle,
-  TrendingUp,
-  TrendingDown,
-  Wallet,
-  Building2,
-  Printer,
   RotateCcw,
   Trash2,
   Edit3,
   X,
-  ChevronRight,
-  ShieldCheck,
   Leaf,
-  Award,
-  DollarSign,
-  FileText,
   Calendar,
-  CreditCard,
-  Eye,
   Menu,
   Users,
   Network,
   Lock,
-  Unlock,
-  Phone,
-  Mail,
-  MapPin,
   KeyRound,
   UserPlus,
   Cloud,
@@ -294,6 +276,22 @@ const INITIAL_PARAMETERS = {
   cidadeSede: 'Rondonópolis — MT'
 };
 
+const INITIAL_SEGMENTS = [
+  'Agronegócio / Propriedade Rural',
+  'Indústria / Agroindústria',
+  'Construtora / Loteamento',
+  'Transporte / Logística',
+  'Comércio / Serviços',
+  'Saúde / Hospitalar'
+];
+
+const INITIAL_STATUSES = [
+  'Ativo',
+  'Em Prospecção',
+  'Pendência Documental',
+  'Inativo'
+];
+
 const DEFAULT_PERMISSIONS = {
   dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
   prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
@@ -351,21 +349,16 @@ export default function App() {
 
   const [editingRoleTarget, setEditingRoleTarget] = useState(null);
 
-  const [availableSegments] = useState([
-    'Agronegócio / Propriedade Rural',
-    'Indústria / Agroindústria',
-    'Construtora / Loteamento',
-    'Transporte / Logística',
-    'Comércio / Serviços',
-    'Saúde / Hospitalar'
-  ]);
+  // Estados para Cadastro, Edição e Exclusão de Segmentos e Status do CRM
+  const [availableSegments, setAvailableSegments] = useState(INITIAL_SEGMENTS);
+  const [showSegmentManager, setShowSegmentManager] = useState(false);
+  const [segmentInput, setSegmentInput] = useState('');
+  const [editingSegmentOriginal, setEditingSegmentOriginal] = useState(null);
 
-  const [availableStatuses] = useState([
-    'Ativo',
-    'Em Prospecção',
-    'Pendência Documental',
-    'Inativo'
-  ]);
+  const [availableStatuses, setAvailableStatuses] = useState(INITIAL_STATUSES);
+  const [showStatusManager, setShowStatusManager] = useState(false);
+  const [statusInput, setStatusInput] = useState('');
+  const [editingStatusOriginal, setEditingStatusOriginal] = useState(null);
 
   const [accessRoles, setAccessRoles] = useState(INITIAL_ACCESS_ROLES);
   const [activeRoleId, setActiveRoleId] = useState('ROLE-01-PEDRO');
@@ -398,7 +391,6 @@ export default function App() {
 
   const [cliSearch, setCliSearch] = useState('');
 
-  // Filtros, Ordenação Universal e Modais da aba de Condicionantes
   const [condSearch, setCondSearch] = useState('');
   const [condStatusFilter, setCondStatusFilter] = useState('Todos');
   const [sortField, setSortField] = useState(null);
@@ -450,8 +442,8 @@ export default function App() {
     date: '2026-11-10',
     month: 'Nov',
     type: 'Entrada',
-    planoContas: planoContasData.receitas[0].codigo,
-    category: planoContasData.receitas[0].nome,
+    planoContas: INITIAL_PLANO_CONTAS.receitas[0].codigo,
+    category: INITIAL_PLANO_CONTAS.receitas[0].nome,
     entity: '',
     contractId: '—',
     description: '',
@@ -468,7 +460,7 @@ export default function App() {
     contractValue: '',
     directCosts: '',
     installmentsCount: '1',
-    installmentDates: [`${selectedDreYear}-12-30`, '', '', '', '', '', '', '', '', '', '', ''],
+    installmentDates: [`2026-12-30`, '', '', '', '', '', '', '', '', '', '', ''],
     installmentAmounts: ['', '', '', '', '', '', '', '', '', '', '', ''],
     paymentMethod: 'PIX'
   });
@@ -477,14 +469,106 @@ export default function App() {
     name: '',
     document: '',
     registration: '',
-    segment: 'Agronegócio / Propriedade Rural',
+    segment: INITIAL_SEGMENTS[0],
     city: 'Rondonópolis — MT',
     contactName: '',
     phone: '',
     email: '',
     mainProgram: 'Licenciamento Ambiental (LP / LI / LO)',
-    status: 'Ativo'
+    status: INITIAL_STATUSES[0]
   });
+
+  // Salva configurações globais (Segmentos, Status, Plano de Contas, Parâmetros) no Supabase em Tempo Real
+  const syncSettingsToCloud = async (newSegments, newStatuses, newPlano, newParams) => {
+    if (!supabase) return;
+    const payload = {
+      id: 'GLOBAL',
+      segments: newSegments || availableSegments,
+      statuses: newStatuses || availableStatuses,
+      plano_contas: newPlano || planoContasData,
+      params: newParams || params
+    };
+    try {
+      await supabase.from('erp_settings').upsert([payload]);
+    } catch (err) {
+      console.error('Erro ao sincronizar configurações:', err);
+    }
+  };
+
+  // Funções de Gerenciamento de Segmentos do CRM
+  const handleSaveSegment = async () => {
+    const clean = segmentInput.trim();
+    if (!clean) return;
+    let updatedList;
+    if (editingSegmentOriginal) {
+      updatedList = availableSegments.map(s => s === editingSegmentOriginal ? clean : s);
+      // Atualiza clientes que tinham o segmento antigo
+      setClients(prev => prev.map(c => c.segment === editingSegmentOriginal ? { ...c, segment: clean } : c));
+    } else {
+      if (availableSegments.includes(clean)) {
+        alert('Este segmento já está cadastrado.');
+        return;
+      }
+      updatedList = [...availableSegments, clean];
+    }
+    setAvailableSegments(updatedList);
+    setCliForm(prev => ({ ...prev, segment: clean }));
+    setSegmentInput('');
+    setEditingSegmentOriginal(null);
+    await syncSettingsToCloud(updatedList, availableStatuses, planoContasData, params);
+    showToast(editingSegmentOriginal ? 'Segmento atualizado!' : 'Novo segmento adicionado!');
+  };
+
+  const handleDeleteSegment = async (segToDelete) => {
+    if (availableSegments.length <= 1) {
+      alert('Mantenha pelo menos 1 segmento disponível.');
+      return;
+    }
+    const updatedList = availableSegments.filter(s => s !== segToDelete);
+    setAvailableSegments(updatedList);
+    if (cliForm.segment === segToDelete) {
+      setCliForm(prev => ({ ...prev, segment: updatedList[0] }));
+    }
+    await syncSettingsToCloud(updatedList, availableStatuses, planoContasData, params);
+    showToast('Segmento removido!');
+  };
+
+  // Funções de Gerenciamento de Status do CRM
+  const handleSaveStatus = async () => {
+    const clean = statusInput.trim();
+    if (!clean) return;
+    let updatedList;
+    if (editingStatusOriginal) {
+      updatedList = availableStatuses.map(s => s === editingStatusOriginal ? clean : s);
+      setClients(prev => prev.map(c => c.status === editingStatusOriginal ? { ...c, status: clean } : c));
+    } else {
+      if (availableStatuses.includes(clean)) {
+        alert('Este status já está cadastrado.');
+        return;
+      }
+      updatedList = [...availableStatuses, clean];
+    }
+    setAvailableStatuses(updatedList);
+    setCliForm(prev => ({ ...prev, status: clean }));
+    setStatusInput('');
+    setEditingStatusOriginal(null);
+    await syncSettingsToCloud(availableSegments, updatedList, planoContasData, params);
+    showToast(editingStatusOriginal ? 'Status atualizado!' : 'Novo status adicionado!');
+  };
+
+  const handleDeleteStatus = async (stToDelete) => {
+    if (availableStatuses.length <= 1) {
+      alert('Mantenha pelo menos 1 status disponível.');
+      return;
+    }
+    const updatedList = availableStatuses.filter(s => s !== stToDelete);
+    setAvailableStatuses(updatedList);
+    if (cliForm.status === stToDelete) {
+      setCliForm(prev => ({ ...prev, status: updatedList[0] }));
+    }
+    await syncSettingsToCloud(availableSegments, updatedList, planoContasData, params);
+    showToast('Status removido!');
+  };
 
   const handleCnpjBlur = async (cnpjValue) => {
     const cleanCnpj = cnpjValue.replace(/\D/g, '');
@@ -528,48 +612,87 @@ export default function App() {
     }
   };
 
-  // Sincronização Supabase
-  useEffect(() => {
-    const fetchAllData = async () => {
-      if (!supabase) return;
-      try {
-        const [txRes, ctRes, cliRes, roleRes, condRes] = await Promise.all([
-          supabase.from('transactions').select('*'),
-          supabase.from('contracts').select('*'),
-          supabase.from('clients').select('*'),
-          supabase.from('user_roles').select('*'),
-          supabase.from('condicionantes').select('*')
-        ]);
+  // Busca inicial completa do Supabase
+  const fetchAllData = useCallback(async () => {
+    if (!supabase) return;
+    try {
+      const [txRes, ctRes, cliRes, roleRes, condRes, settingsRes] = await Promise.all([
+        supabase.from('transactions').select('*'),
+        supabase.from('contracts').select('*'),
+        supabase.from('clients').select('*'),
+        supabase.from('user_roles').select('*'),
+        supabase.from('condicionantes').select('*'),
+        supabase.from('erp_settings').select('*').eq('id', 'GLOBAL').maybeSingle()
+      ]);
 
-        if (!txRes.error && txRes.data) {
-          setTransactions(txRes.data);
-          setIsCloudSynced(true);
-        }
-        if (!ctRes.error && ctRes.data) setContracts(ctRes.data);
-        if (!cliRes.error && cliRes.data) setClients(cliRes.data);
-        if (!roleRes.error && roleRes.data && roleRes.data.length > 0) {
-          setAccessRoles(roleRes.data);
-        } else if (supabase && (!roleRes.data || roleRes.data.length === 0)) {
-          await supabase.from('user_roles').upsert(INITIAL_ACCESS_ROLES);
-        }
-        if (!condRes.error && condRes.data) {
-          setCondicionantes(condRes.data);
-        }
-      } catch (err) {
-        console.error('Supabase sync error:', err);
+      if (!txRes.error && txRes.data) {
+        setTransactions(txRes.data);
+        setIsCloudSynced(true);
       }
-    };
+      if (!ctRes.error && ctRes.data) setContracts(ctRes.data);
+      if (!cliRes.error && cliRes.data) setClients(cliRes.data);
+      if (!roleRes.error && roleRes.data && roleRes.data.length > 0) {
+        setAccessRoles(roleRes.data);
+      } else if (supabase && (!roleRes.data || roleRes.data.length === 0)) {
+        await supabase.from('user_roles').upsert(INITIAL_ACCESS_ROLES);
+      }
+      if (!condRes.error && condRes.data) {
+        setCondicionantes(condRes.data);
+      }
+      if (!settingsRes.error && settingsRes.data) {
+        if (settingsRes.data.segments?.length) setAvailableSegments(settingsRes.data.segments);
+        if (settingsRes.data.statuses?.length) setAvailableStatuses(settingsRes.data.statuses);
+        if (settingsRes.data.plano_contas) setPlanoContasData(settingsRes.data.plano_contas);
+        if (settingsRes.data.params) setParams(settingsRes.data.params);
+      }
+    } catch (err) {
+      console.error('Supabase sync error:', err);
+    }
+  }, []);
 
+  // Sincronização em Tempo Real Instantânea (aplica INSERT, UPDATE e DELETE direto no state + revalida)
+  useEffect(() => {
     fetchAllData();
     if (!supabase) return;
 
+    const applyRealtimeChange = (setter) => (payload) => {
+      const { eventType, new: newRow, old: oldRow } = payload;
+      setter((prev) => {
+        if (eventType === 'INSERT') {
+          const exists = prev.some((item) => item.id === newRow.id);
+          return exists ? prev.map((item) => (item.id === newRow.id ? newRow : item)) : [...prev, newRow];
+        }
+        if (eventType === 'UPDATE') {
+          const exists = prev.some((item) => item.id === newRow.id);
+          return exists ? prev.map((item) => (item.id === newRow.id ? newRow : item)) : [...prev, newRow];
+        }
+        if (eventType === 'DELETE') {
+          const deletedId = oldRow?.id;
+          if (!deletedId) return prev;
+          return prev.filter((item) => item.id !== deletedId);
+        }
+        return prev;
+      });
+      // Revalida em background para garantir consistência absoluta
+      fetchAllData();
+    };
+
     const channel = supabase
-      .channel('realtime-erp-sync-global')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchAllData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'contracts' }, fetchAllData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, fetchAllData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_roles' }, fetchAllData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'condicionantes' }, fetchAllData)
+      .channel(`realtime-erp-${Date.now()}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, applyRealtimeChange(setTransactions))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contracts' }, applyRealtimeChange(setContracts))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, applyRealtimeChange(setClients))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_roles' }, applyRealtimeChange(setAccessRoles))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'condicionantes' }, applyRealtimeChange(setCondicionantes))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'erp_settings' }, (payload) => {
+        const data = payload.new;
+        if (data) {
+          if (data.segments?.length) setAvailableSegments(data.segments);
+          if (data.statuses?.length) setAvailableStatuses(data.statuses);
+          if (data.plano_contas) setPlanoContasData(data.plano_contas);
+          if (data.params) setParams(data.params);
+        }
+      })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') setIsCloudSynced(true);
       });
@@ -577,7 +700,7 @@ export default function App() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [fetchAllData]);
 
   const currentRole = useMemo(() => {
     return accessRoles.find((r) => r.id === activeRoleId) || accessRoles[0];
@@ -743,7 +866,7 @@ export default function App() {
     }
 
     try {
-      const txId = editingTx ? editingTx.id : `MT-${String(transactions.length + 15).padStart(3, '0')}`;
+      const txId = editingTx ? editingTx.id : `MT-${Date.now().toString().slice(-5)}`;
       const txData = { 
         id: txId, 
         date: txForm.date,
@@ -770,11 +893,7 @@ export default function App() {
 
       setTransactions(prev => {
         const exists = prev.some(t => t.id === txId);
-        if (exists) {
-          return prev.map(t => t.id === txId ? txData : t);
-        } else {
-          return [...prev, txData];
-        }
+        return exists ? prev.map(t => t.id === txId ? txData : t) : [...prev, txData];
       });
 
       showToast('Lançamento salvo na nuvem com sucesso!');
@@ -805,7 +924,7 @@ export default function App() {
     if (!ctForm.client || contractVal <= 0) return;
 
     try {
-      const contractId = editingContract ? editingContract.id : `CT-${selectedDreYear}-${String(contracts.length + 1).padStart(2, '0')}`;
+      const contractId = editingContract ? editingContract.id : `CT-${selectedDreYear}-${Date.now().toString().slice(-4)}`;
       
       let installments = [];
       const defaultInstVal = contractVal / nInstallments;
@@ -850,11 +969,7 @@ export default function App() {
 
       setContracts(prev => {
         const exists = prev.some(c => c.id === contractId);
-        if (exists) {
-          return prev.map(c => c.id === contractId ? contractData : c);
-        } else {
-          return [...prev, contractData];
-        }
+        return exists ? prev.map(c => c.id === contractId ? contractData : c) : [...prev, contractData];
       });
 
       showToast('Contrato salvo permanentemente na nuvem!');
@@ -912,7 +1027,7 @@ export default function App() {
 
     const newTransactionsList = [];
 
-    const tId1 = `MT-${String(transactions.length + 15).padStart(3, '0')}`;
+    const tId1 = `MT-${Date.now().toString().slice(-5)}`;
     const txPrincipal = {
       id: tId1,
       date: payDate,
@@ -930,7 +1045,7 @@ export default function App() {
     newTransactionsList.push(txPrincipal);
 
     if (interest > 0) {
-      const tId2 = `MT-${String(transactions.length + 16).padStart(3, '0')}`;
+      const tId2 = `MT-${(Date.now() + 1).toString().slice(-5)}`;
       const txJuros = {
         id: tId2,
         date: payDate,
@@ -1031,8 +1146,20 @@ export default function App() {
     }
 
     try {
-      const clientId = editingClient ? editingClient.id : `CLI-${String(clients.length + 1).padStart(3, '0')}`;
-      const clientData = { id: clientId, ...cliForm };
+      const clientId = editingClient ? editingClient.id : `CLI-${Date.now().toString().slice(-4)}`;
+      const clientData = {
+        id: clientId,
+        name: cliForm.name,
+        document: cliForm.document || '',
+        registration: cliForm.registration || '',
+        segment: cliForm.segment,
+        city: cliForm.city,
+        contactname: cliForm.contactName || cliForm.contactname || '',
+        phone: cliForm.phone || '',
+        email: cliForm.email || '',
+        mainprogram: cliForm.mainProgram || cliForm.mainprogram || 'Licenciamento Ambiental (LP / LI / LO)',
+        status: cliForm.status
+      };
 
       if (supabase) {
         const { error } = await supabase.from('clients').upsert([clientData]);
@@ -1045,11 +1172,7 @@ export default function App() {
 
       setClients(prev => {
         const exists = prev.some(c => c.id === clientId);
-        if (exists) {
-          return prev.map(c => c.id === clientId ? clientData : c);
-        } else {
-          return [...prev, clientData];
-        }
+        return exists ? prev.map(c => c.id === clientId ? clientData : c) : [...prev, clientData];
       });
 
       setShowClientModal(false);
@@ -1086,7 +1209,6 @@ export default function App() {
     setDeleteClientTarget(null);
   };
 
-  // Funções para CRUD de Condicionantes Ambientais
   const handleSaveCondicionante = async (e) => {
     e.preventDefault();
     if (!condForm.client || !condForm.service) {
@@ -1096,15 +1218,20 @@ export default function App() {
 
     try {
       const condId = editingCond ? editingCond.id : `COND-${Date.now().toString().slice(-4)}`;
-      const condData = { id: condId, ...condForm };
+      const condData = {
+        id: condId,
+        client: condForm.client,
+        service: condForm.service,
+        duedate: condForm.dueDate || condForm.duedate,
+        license: condForm.license,
+        responsible: condForm.responsible,
+        observation: condForm.observation,
+        status: condForm.status
+      };
 
       setCondicionantes(prev => {
         const exists = prev.some(c => c.id === condId);
-        if (exists) {
-          return prev.map(c => c.id === condId ? condData : c);
-        } else {
-          return [...prev, condData];
-        }
+        return exists ? prev.map(c => c.id === condId ? condData : c) : [...prev, condData];
       });
 
       if (supabase) {
@@ -1395,8 +1522,8 @@ export default function App() {
 
     if (sortField) {
       list.sort((a, b) => {
-        let valA = a[sortField] || '';
-        let valB = b[sortField] || '';
+        let valA = a[sortField] || a[sortField?.toLowerCase()] || '';
+        let valB = b[sortField] || b[sortField?.toLowerCase()] || '';
         if (typeof valA === 'string') valA = valA.toLowerCase();
         if (typeof valB === 'string') valB = valB.toLowerCase();
 
@@ -1446,7 +1573,7 @@ export default function App() {
             <div className="overflow-hidden">
               <div className="text-[10px] text-emerald-300 font-semibold uppercase tracking-wider truncate flex items-center gap-1">
                 {isCloudSynced ? <Cloud className="w-3 h-3 text-emerald-400" /> : <CloudRain className="w-3 h-3 text-amber-400" />}
-                {isCloudSynced ? 'Nuvem Sincronizada' : 'Conectando...'}
+                {isCloudSynced ? 'Nuvem Tempo Real Ativa' : 'Conectando...'}
               </div>
               <div className="text-sm font-bold text-white truncate">
                 {currentRole.holder}
@@ -1498,7 +1625,7 @@ export default function App() {
 
         <div className="p-4 border-t border-[#2D5A43]">
           <div className="text-[11px] text-center text-emerald-200/70">
-            Grupo Martins ERP v3.7 • Supabase
+            Grupo Martins ERP v3.8 • Realtime Sync
           </div>
         </div>
       </aside>
@@ -2493,11 +2620,11 @@ export default function App() {
                           </div>
                         </th>
                         <th 
-                          onClick={() => handleSort('dueDate')} 
+                          onClick={() => handleSort('duedate')} 
                           className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none"
                         >
                           <div className="flex items-center gap-1.5">
-                            Vencimento Final {sortField === 'dueDate' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}
+                            Vencimento Final {sortField === 'duedate' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}
                           </div>
                         </th>
                         <th onClick={() => handleSort('license')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
@@ -2658,7 +2785,11 @@ export default function App() {
                     <input
                       type="number"
                       value={params.saldoInicialCaixa}
-                      onChange={(e) => setParams({ ...params, saldoInicialCaixa: Number(e.target.value) })}
+                      onChange={(e) => {
+                        const updated = { ...params, saldoInicialCaixa: Number(e.target.value) };
+                        setParams(updated);
+                        syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated);
+                      }}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
                     />
                   </div>
@@ -2669,7 +2800,11 @@ export default function App() {
                     <input
                       type="number"
                       value={params.metaMensalReceita}
-                      onChange={(e) => setParams({ ...params, metaMensalReceita: Number(e.target.value) })}
+                      onChange={(e) => {
+                        const updated = { ...params, metaMensalReceita: Number(e.target.value) };
+                        setParams(updated);
+                        syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated);
+                      }}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
                     />
                   </div>
@@ -2680,7 +2815,11 @@ export default function App() {
                     <input
                       type="number"
                       value={params.proLaboreAlvoMensal}
-                      onChange={(e) => setParams({ ...params, proLaboreAlvoMensal: Number(e.target.value) })}
+                      onChange={(e) => {
+                        const updated = { ...params, proLaboreAlvoMensal: Number(e.target.value) };
+                        setParams(updated);
+                        syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated);
+                      }}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
                     />
                   </div>
@@ -2691,7 +2830,11 @@ export default function App() {
                     <input
                       type="text"
                       value={params.socioDiretor}
-                      onChange={(e) => setParams({ ...params, socioDiretor: e.target.value })}
+                      onChange={(e) => {
+                        const updated = { ...params, socioDiretor: e.target.value };
+                        setParams(updated);
+                        syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated);
+                      }}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
                     />
                   </div>
@@ -2738,10 +2881,12 @@ export default function App() {
                             <button
                               onClick={() => {
                                 if (window.confirm(`Deseja excluir a conta ${rev.codigo}?`)) {
-                                  setPlanoContasData({
+                                  const updated = {
                                     ...planoContasData,
                                     receitas: planoContasData.receitas.filter(r => r.codigo !== rev.codigo)
-                                  });
+                                  };
+                                  setPlanoContasData(updated);
+                                  syncSettingsToCloud(availableSegments, availableStatuses, updated, params);
                                   showToast('Conta removida do plano de contas!');
                                 }
                               }}
@@ -2776,10 +2921,12 @@ export default function App() {
                             <button
                               onClick={() => {
                                 if (window.confirm(`Deseja excluir a conta ${desp.codigo}?`)) {
-                                  setPlanoContasData({
+                                  const updated = {
                                     ...planoContasData,
                                     despesas: planoContasData.despesas.filter(d => d.codigo !== desp.codigo)
-                                  });
+                                  };
+                                  setPlanoContasData(updated);
+                                  syncSettingsToCloud(availableSegments, availableStatuses, updated, params);
                                   showToast('Conta removida do plano de contas!');
                                 }
                               }}
@@ -2827,9 +2974,11 @@ export default function App() {
                 updatedList = [...list, { codigo: planoForm.codigo, nome: planoForm.nome }];
               }
 
-              setPlanoContasData({ ...planoContasData, [targetListKey]: updatedList });
+              const updatedPlano = { ...planoContasData, [targetListKey]: updatedList };
+              setPlanoContasData(updatedPlano);
+              syncSettingsToCloud(availableSegments, availableStatuses, updatedPlano, params);
               setShowPlanoModal(false);
-              showToast('Plano de Contas salvo com sucesso!');
+              showToast('Plano de Contas salvo e sincronizado!');
             }} className="space-y-3 text-xs">
               <div>
                 <label className="block font-bold mb-1">Tipo de Conta</label>
@@ -2979,7 +3128,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Datas e valores personalizados das parcelas */}
               <div className="space-y-2 pt-2 border-t border-slate-100">
                 <label className="block font-bold text-[#1B3B2B] uppercase">Vencimentos e Valores das Parcelas</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
@@ -3334,20 +3482,20 @@ export default function App() {
         </div>
       )}
 
-      {/* 9. MODAL CADASTRAR / EDITAR CLIENTE */}
+      {/* 9. MODAL CADASTRAR / EDITAR CLIENTE (COM GERENCIADOR DE SEGMENTO E STATUS) */}
       {showClientModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[92vh] overflow-y-auto">
             <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
               <h3 className="text-base font-extrabold">{editingClient ? 'Editar Cliente' : 'Novo Cadastro de Cliente'}</h3>
-              <button onClick={() => { setShowClientModal(false); setEditingClient(null); }} className="text-white hover:text-emerald-300 cursor-pointer">
+              <button onClick={() => { setShowClientModal(false); setEditingClient(null); setShowSegmentManager(false); setShowStatusManager(false); }} className="text-white hover:text-emerald-300 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSaveClient} className="p-6 space-y-4 text-xs">
               <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">CNPJ (Busca Automática ao sair do campo)</label>
+                <label className="block font-bold text-slate-700 uppercase mb-1">CNPJ (BUSCA AUTOMÁTICA AO SAIR DO CAMPO)</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -3373,8 +3521,22 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">SEGMENTO</label>
+                {/* CAMPO DE SEGMENTO COM BOTÃO DE CADASTRO/EDIÇÃO */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-slate-700 uppercase">SEGMENTO</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSegmentManager(!showSegmentManager);
+                        setSegmentInput('');
+                        setEditingSegmentOriginal(null);
+                      }}
+                      className="text-[11px] font-extrabold text-[#1B3B2B] hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> {showSegmentManager ? 'Fechar Opções' : 'Cadastrar / Editar'}
+                    </button>
+                  </div>
                   <select
                     value={cliForm.segment}
                     onChange={(e) => setCliForm({ ...cliForm, segment: e.target.value })}
@@ -3382,9 +3544,76 @@ export default function App() {
                   >
                     {availableSegments.map(seg => <option key={seg} value={seg}>{seg}</option>)}
                   </select>
+
+                  {showSegmentManager && (
+                    <div className="p-3 rounded-xl border border-[#B7DFC5] bg-[#F4F9F5] space-y-2.5">
+                      <div className="text-[10px] font-extrabold uppercase text-[#1B3B2B]">
+                        {editingSegmentOriginal ? `Editando: ${editingSegmentOriginal}` : 'Novo Segmento Econômico'}
+                      </div>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="text"
+                          value={segmentInput}
+                          onChange={(e) => setSegmentInput(e.target.value)}
+                          placeholder="Digite o segmento..."
+                          className="flex-1 px-2.5 py-1.5 rounded-lg border bg-white text-xs font-semibold"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleSaveSegment}
+                          className="px-3 py-1.5 rounded-lg bg-[#1B3B2B] text-white font-bold text-xs hover:bg-[#2D5A43] cursor-pointer"
+                        >
+                          {editingSegmentOriginal ? 'Salvar' : 'Adicionar'}
+                        </button>
+                      </div>
+                      <div className="max-h-28 overflow-y-auto space-y-1 pt-1 border-t border-emerald-200/60">
+                        {availableSegments.map((seg) => (
+                          <div key={seg} className="flex items-center justify-between text-[11px] bg-white px-2.5 py-1 rounded border border-slate-200">
+                            <span className="truncate font-medium pr-2">{seg}</span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingSegmentOriginal(seg);
+                                  setSegmentInput(seg);
+                                }}
+                                className="p-0.5 text-teal-700 hover:bg-teal-50 rounded cursor-pointer"
+                                title="Editar Segmento"
+                              >
+                                <Edit3 className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteSegment(seg)}
+                                className="p-0.5 text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                                title="Excluir Segmento"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">STATUS</label>
+
+                {/* CAMPO DE STATUS COM BOTÃO DE CADASTRO/EDIÇÃO */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-slate-700 uppercase">STATUS</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowStatusManager(!showStatusManager);
+                        setStatusInput('');
+                        setEditingStatusOriginal(null);
+                      }}
+                      className="text-[11px] font-extrabold text-[#1B3B2B] hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> {showStatusManager ? 'Fechar Opções' : 'Cadastrar / Editar'}
+                    </button>
+                  </div>
                   <select
                     value={cliForm.status}
                     onChange={(e) => setCliForm({ ...cliForm, status: e.target.value })}
@@ -3392,6 +3621,58 @@ export default function App() {
                   >
                     {availableStatuses.map(st => <option key={st} value={st}>{st}</option>)}
                   </select>
+
+                  {showStatusManager && (
+                    <div className="p-3 rounded-xl border border-[#B7DFC5] bg-[#F4F9F5] space-y-2.5">
+                      <div className="text-[10px] font-extrabold uppercase text-[#1B3B2B]">
+                        {editingStatusOriginal ? `Editando: ${editingStatusOriginal}` : 'Novo Status de Cliente'}
+                      </div>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="text"
+                          value={statusInput}
+                          onChange={(e) => setStatusInput(e.target.value)}
+                          placeholder="Digite o status..."
+                          className="flex-1 px-2.5 py-1.5 rounded-lg border bg-white text-xs font-semibold"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleSaveStatus}
+                          className="px-3 py-1.5 rounded-lg bg-[#1B3B2B] text-white font-bold text-xs hover:bg-[#2D5A43] cursor-pointer"
+                        >
+                          {editingStatusOriginal ? 'Salvar' : 'Adicionar'}
+                        </button>
+                      </div>
+                      <div className="max-h-28 overflow-y-auto space-y-1 pt-1 border-t border-emerald-200/60">
+                        {availableStatuses.map((st) => (
+                          <div key={st} className="flex items-center justify-between text-[11px] bg-white px-2.5 py-1 rounded border border-slate-200">
+                            <span className="truncate font-medium pr-2">{st}</span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingStatusOriginal(st);
+                                  setStatusInput(st);
+                                }}
+                                className="p-0.5 text-teal-700 hover:bg-teal-50 rounded cursor-pointer"
+                                title="Editar Status"
+                              >
+                                <Edit3 className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteStatus(st)}
+                                className="p-0.5 text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                                title="Excluir Status"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -3443,7 +3724,7 @@ export default function App() {
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <button
                   type="button"
-                  onClick={() => { setShowClientModal(false); setEditingClient(null); }}
+                  onClick={() => { setShowClientModal(false); setEditingClient(null); setShowSegmentManager(false); setShowStatusManager(false); }}
                   className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancelar
