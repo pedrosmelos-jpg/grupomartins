@@ -1289,40 +1289,54 @@ export default function App() {
     }
   };
 
-  const handleSaveNewUserRole = async (e) => {
+const handleSaveNewUserRole = async (e) => {
     e.preventDefault();
-    if (!newRoleForm.name || !newRoleForm.holder || !newRoleForm.email) return;
+    if (!newRoleForm.name || !newRoleForm.holder || !newRoleForm.email) {
+      alert('Preencha Nome do Perfil, Titular e E-mail.');
+      return;
+    }
+
     const newRole = {
       id: `ROLE-${Date.now()}`,
-      level: newRoleForm.level,
-      name: newRoleForm.name,
-      holder: newRoleForm.holder,
-      email: newRoleForm.email,
+      level: newRoleForm.level || 'Nível Especial — Colaborador',
+      name: newRoleForm.name.trim(),
+      holder: newRoleForm.holder.trim(),
+      email: newRoleForm.email.trim().toLowerCase(),
       password: newRoleForm.password || 'martins2026',
-      badgecolor: 'bg-[#1B3B2B] text-white',
       description: newRoleForm.description || 'Perfil personalizado de acesso.',
       permissions: JSON.parse(JSON.stringify(DEFAULT_PERMISSIONS))
     };
 
-    setAccessRoles([...accessRoles, newRole]);
-    if (supabase) {
-      await supabase.from('user_roles').upsert([newRole]);
-    }
+    try {
+      if (supabase) {
+        const { error } = await supabase.from('user_roles').upsert([newRole]);
+        if (error) {
+          console.error('Erro Supabase ao salvar utilizador:', error);
+          alert('Erro ao salvar utilizador na nuvem: ' + error.message);
+          return;
+        }
+      }
 
-    setShowUserRoleModal(false);
-    setNewRoleForm({
-      level: 'Nível Especial — Colaborador',
-      name: '',
-      holder: '',
-      email: '',
-      password: 'martins2026',
-      description: ''
-    });
-    showToast('Novo utilizador cadastrado e salvo na nuvem!');
+      setAccessRoles((prev) => [...prev, newRole]);
+      setShowUserRoleModal(false);
+      setNewRoleForm({
+        level: 'Nível Especial — Colaborador',
+        name: '',
+        holder: '',
+        email: '',
+        password: 'martins2026',
+        description: ''
+      });
+      showToast('Novo utilizador cadastrado e salvo na nuvem!');
+    } catch (err) {
+      console.error('Erro inesperado:', err);
+      alert('Erro ao processar o cadastro do utilizador.');
+    }
   };
 
   const handlePermissionToggle = async (roleId, moduleKey, actionKey) => {
-    const updatedRoles = accessRoles.map(role => {
+    let targetUpdated = null;
+    const updatedRoles = accessRoles.map((role) => {
       if (role.id === roleId) {
         const currentVal = role.permissions?.[moduleKey]?.[actionKey] || false;
         const updatedRole = {
@@ -1330,11 +1344,12 @@ export default function App() {
           permissions: {
             ...role.permissions,
             [moduleKey]: {
-              ...role.permissions[moduleKey],
+              ...(role.permissions?.[moduleKey] || {}),
               [actionKey]: !currentVal
             }
           }
         };
+        targetUpdated = updatedRole;
         if (editingRolePermissions && editingRolePermissions.id === roleId) {
           setEditingRolePermissions(updatedRole);
         }
@@ -1344,9 +1359,15 @@ export default function App() {
     });
 
     setAccessRoles(updatedRoles);
-    const targetRole = updatedRoles.find(r => r.id === roleId);
-    if (supabase && targetRole) {
-      await supabase.from('user_roles').upsert([targetRole]);
+    if (supabase && targetUpdated) {
+      const { id, level, name, holder, email, password, description, permissions } = targetUpdated;
+      const { error } = await supabase
+        .from('user_roles')
+        .upsert([{ id, level, name, holder, email, password, description, permissions }]);
+      if (error) {
+        console.error('Erro ao salvar permissão:', error);
+        alert('Erro ao salvar permissão na nuvem: ' + error.message);
+      }
     }
   };
 
@@ -1354,14 +1375,23 @@ export default function App() {
     e.preventDefault();
     if (!editingRoleTarget) return;
 
-    setAccessRoles(prev => prev.map(r => r.id === editingRoleTarget.id ? editingRoleTarget : r));
+    const { id, level, name, holder, email, password, description, permissions } = editingRoleTarget;
+    const cleanRole = { id, level, name, holder, email: email.trim().toLowerCase(), password, description, permissions };
+
     if (supabase) {
-      await supabase.from('user_roles').upsert([editingRoleTarget]);
+      const { error } = await supabase.from('user_roles').upsert([cleanRole]);
+      if (error) {
+        console.error('Erro ao editar perfil:', error);
+        alert('Erro ao atualizar perfil na nuvem: ' + error.message);
+        return;
+      }
     }
+
+    setAccessRoles((prev) => prev.map((r) => (r.id === cleanRole.id ? { ...r, ...cleanRole } : r)));
     showToast('Perfil e senha atualizados na nuvem!');
     setEditingRoleTarget(null);
   };
-
+  
   const handleDeleteRole = async (roleId) => {
     if (accessRoles.length <= 1) {
       alert('Você não pode excluir o último perfil ativo do sistema.');
