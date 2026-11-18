@@ -478,7 +478,7 @@ export default function App() {
     status: INITIAL_STATUSES[0]
   });
 
-  // Salva configurações globais (Segmentos, Status, Plano de Contas, Parâmetros) no Supabase em Tempo Real
+  // Salva configurações globais no Supabase em Tempo Real
   const syncSettingsToCloud = async (newSegments, newStatuses, newPlano, newParams) => {
     if (!supabase) return;
     const payload = {
@@ -502,7 +502,6 @@ export default function App() {
     let updatedList;
     if (editingSegmentOriginal) {
       updatedList = availableSegments.map(s => s === editingSegmentOriginal ? clean : s);
-      // Atualiza clientes que tinham o segmento antigo
       setClients(prev => prev.map(c => c.segment === editingSegmentOriginal ? { ...c, segment: clean } : c));
     } else {
       if (availableSegments.includes(clean)) {
@@ -650,7 +649,7 @@ export default function App() {
     }
   }, []);
 
-  // Sincronização em Tempo Real Instantânea (aplica INSERT, UPDATE e DELETE direto no state + revalida)
+  // Sincronização em Tempo Real Instantânea
   useEffect(() => {
     fetchAllData();
     if (!supabase) return;
@@ -673,7 +672,6 @@ export default function App() {
         }
         return prev;
       });
-      // Revalida em background para garantir consistência absoluta
       fetchAllData();
     };
 
@@ -706,10 +704,53 @@ export default function App() {
     return accessRoles.find((r) => r.id === activeRoleId) || accessRoles[0];
   }, [accessRoles, activeRoleId]);
 
-  const hasPermission = (moduleKey, actionKey = 'view') => {
-    if (!currentRole || !currentRole.permissions || !currentRole.permissions[moduleKey]) return true;
+  // Verifica se é o administrador Master principal (Pedro Melo) para nunca trancar a Árvore de Acessos dele próprio
+  const isRootMaster = useMemo(() => {
+    if (!currentRole) return false;
+    return (
+      currentRole.id === 'ROLE-01-PEDRO' ||
+      (currentRole.email && currentRole.email.toLowerCase() === 'pedrosmelos@gmail.com')
+    );
+  }, [currentRole]);
+
+  // Verificação rigorosa das permissões (Flags)
+  const hasPermission = useCallback((moduleKey, actionKey = 'view') => {
+    if (!currentRole) return false;
+    // Garante que o Master principal sempre possa acessar a Árvore de Acessos para administrar o sistema
+    if (isRootMaster && moduleKey === 'acessos') return true;
+    if (!currentRole.permissions || !currentRole.permissions[moduleKey]) return false;
     return Boolean(currentRole.permissions[moduleKey][actionKey]);
-  };
+  }, [currentRole, isRootMaster]);
+
+  const navItems = useMemo(() => [
+    { id: 'dashboard', label: 'Painel Executivo', icon: LayoutDashboard, badge: 'KPIs', permKey: 'dashboard' },
+    { id: 'prolabore', label: 'Pró-Labore (Maikon Martins)', icon: UserCheck, badge: 'Sócio', permKey: 'prolabore' },
+    { id: 'lancamentos', label: 'Livro Caixa & Lançamentos', icon: ArrowUpDown, badge: transactions.length, permKey: 'lancamentos' },
+    { id: 'dre', label: 'DRE Gerencial Mensal', icon: FileSpreadsheet, badge: 'AV%', permKey: 'dre' },
+    { id: 'contratos', label: 'Contratos Ambientais & SST', icon: Briefcase, badge: contracts.length, permKey: 'contratos' },
+    { id: 'clientes', label: 'Cadastro de Clientes (CRM)', icon: Users, badge: clients.length, permKey: 'clientes' },
+    { id: 'condicionantes', label: 'Controle de Condicionantes', icon: Leaf, badge: condicionantes.length, permKey: 'condicionantes' },
+    { id: 'acessos', label: 'Árvore de Acessos & Perfis', icon: Network, badge: `${accessRoles.length} Nível`, permKey: 'acessos' },
+    { id: 'config', label: 'Plano de Contas & Metas', icon: Settings, permKey: 'dashboard' }
+  ], [transactions.length, contracts.length, clients.length, condicionantes.length, accessRoles.length]);
+
+  // Se o utilizador estiver numa aba que perdeu a permissão "view", redireciona imediatamente para a primeira aba liberada
+  useEffect(() => {
+    const currentNav = navItems.find((item) => item.id === activeTab);
+    if (currentNav && !hasPermission(currentNav.permKey, 'view')) {
+      const firstAllowed = navItems.find((item) => hasPermission(item.permKey, 'view'));
+      if (firstAllowed) {
+        setActiveTab(firstAllowed.id);
+      }
+    }
+  }, [activeTab, navItems, hasPermission]);
+
+  const currentTabPermKey = useMemo(() => {
+    const found = navItems.find((item) => item.id === activeTab);
+    return found ? found.permKey : 'dashboard';
+  }, [activeTab, navItems]);
+
+  const isCurrentTabAllowed = hasPermission(currentTabPermKey, 'view');
 
   const dreGerencialData = useMemo(() => {
     const monthsFull = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -848,6 +889,10 @@ export default function App() {
   }, [transactions, contracts, params, planoContasData]);
 
   const handleToggleStatus = async (id) => {
+    if (!hasPermission('lancamentos', 'approve') && !hasPermission('lancamentos', 'edit')) {
+      showToast('Sem permissão para alterar o status de lançamentos.');
+      return;
+    }
     const item = transactions.find(t => t.id === id);
     if (!item) return;
     const nextStatus = item.status === 'Pago / Recebido' ? 'Pendente' : 'Pago / Recebido';
@@ -1289,7 +1334,7 @@ export default function App() {
     }
   };
 
-const handleSaveNewUserRole = async (e) => {
+  const handleSaveNewUserRole = async (e) => {
     e.preventDefault();
     if (!newRoleForm.name || !newRoleForm.holder || !newRoleForm.email) {
       alert('Preencha Nome do Perfil, Titular e E-mail.');
@@ -1391,7 +1436,7 @@ const handleSaveNewUserRole = async (e) => {
     showToast('Perfil e senha atualizados na nuvem!');
     setEditingRoleTarget(null);
   };
-  
+
   const handleDeleteRole = async (roleId) => {
     if (accessRoles.length <= 1) {
       alert('Você não pode excluir o último perfil ativo do sistema.');
@@ -1568,18 +1613,6 @@ const handleSaveNewUserRole = async (e) => {
 
   const PIE_COLORS = ['#1B3B2B', '#2D5A43', '#3B7A57', '#557A46', '#7A9A8B'];
 
-  const navItems = [
-    { id: 'dashboard', label: 'Painel Executivo', icon: LayoutDashboard, badge: 'KPIs', permKey: 'dashboard' },
-    { id: 'prolabore', label: 'Pró-Labore (Maikon Martins)', icon: UserCheck, badge: 'Sócio', permKey: 'prolabore' },
-    { id: 'lancamentos', label: 'Livro Caixa & Lançamentos', icon: ArrowUpDown, badge: transactions.length, permKey: 'lancamentos' },
-    { id: 'dre', label: 'DRE Gerencial Mensal', icon: FileSpreadsheet, badge: 'AV%', permKey: 'dre' },
-    { id: 'contratos', label: 'Contratos Ambientais & SST', icon: Briefcase, badge: contracts.length, permKey: 'contratos' },
-    { id: 'clientes', label: 'Cadastro de Clientes (CRM)', icon: Users, badge: clients.length, permKey: 'clientes' },
-    { id: 'condicionantes', label: 'Controle de Condicionantes', icon: Leaf, badge: condicionantes.length, permKey: 'condicionantes' },
-    { id: 'acessos', label: 'Árvore de Acessos & Perfis', icon: Network, badge: `${accessRoles.length} Nível`, permKey: 'acessos' },
-    { id: 'config', label: 'Plano de Contas & Metas', icon: Settings, permKey: 'dashboard' }
-  ];
-
   return (
     <div className="min-h-screen flex bg-[#F4F7F5] text-slate-800 font-sans">
       {toastMessage && (
@@ -1618,24 +1651,29 @@ const handleSaveNewUserRole = async (e) => {
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
-              const allowed = hasPermission(item.permKey, 'view') || item.id === 'acessos';
+              // Corrigido: Agora respeita estritamente a flag "view" de cada módulo (inclusive "acessos")
+              const allowed = hasPermission(item.permKey, 'view');
               return (
                 <button
                   key={item.id}
                   onClick={() => {
                     if (!allowed) {
-                      showToast(`Módulo bloqueado para o perfil "${currentRole.name}".`);
+                      showToast(`Módulo "${item.label}" bloqueado para o perfil "${currentRole.name}".`);
                       return;
                     }
                     setActiveTab(item.id);
                     setMobileMenuOpen(false);
                   }}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all ${
-                    isActive ? 'bg-[#F8F3EF] text-[#1B3B2B] font-bold shadow-md' : allowed ? 'text-emerald-100/85 hover:bg-[#244B38] hover:text-white' : 'text-emerald-200/40 cursor-not-allowed'
+                    isActive && allowed
+                      ? 'bg-[#F8F3EF] text-[#1B3B2B] font-bold shadow-md'
+                      : allowed
+                      ? 'text-emerald-100/85 hover:bg-[#244B38] hover:text-white cursor-pointer'
+                      : 'text-emerald-200/40 cursor-not-allowed'
                   }`}
                 >
                   <div className="flex items-center gap-2.5 truncate">
-                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#1B3B2B]' : allowed ? 'text-emerald-300' : 'text-emerald-600'}`} />
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive && allowed ? 'text-[#1B3B2B]' : allowed ? 'text-emerald-300' : 'text-emerald-600'}`} />
                     <span className="truncate">{item.label}</span>
                   </div>
                   {!allowed ? (
@@ -1655,7 +1693,7 @@ const handleSaveNewUserRole = async (e) => {
 
         <div className="p-4 border-t border-[#2D5A43]">
           <div className="text-[11px] text-center text-emerald-200/70">
-            Grupo Martins ERP v3.8 • Realtime Sync
+            Grupo Martins ERP v3.9 • Realtime Sync
           </div>
         </div>
       </aside>
@@ -1725,1254 +1763,1306 @@ const handleSaveNewUserRole = async (e) => {
         </header>
 
         <main className="p-4 lg:p-8 space-y-6 max-w-[1600px] w-full mx-auto">
-          {activeTab === 'dashboard' && (
-            <div className="space-y-6">
-              <div className="bg-gradient-to-r from-[#1B3B2B] via-[#244B38] to-[#2D5A43] rounded-2xl p-5 text-white shadow-lg flex flex-col lg:flex-row items-center justify-between gap-6">
-                <div className="flex flex-col sm:flex-row items-center gap-5">
-                  <GrupoMartinsLogo size="compact" theme="cream" />
-                  <div className="text-center sm:text-left">
-                    <div className="text-xs uppercase tracking-widest text-emerald-300 font-semibold">
-                      Sistema Integrado Supabase
-                    </div>
-                    <h2 className="text-xl sm:text-2xl font-extrabold mt-0.5">
-                      Painel Executivo Anual — Exercício 2026
-                    </h2>
-                    <p className="text-xs sm:text-sm text-emerald-100/90 mt-1">
-                      Sócio-Diretor Responsável: <strong>{params.socioDiretor}</strong>
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center justify-center gap-3 bg-[#132A1F]/80 px-4 py-3 rounded-xl border border-emerald-500/30">
-                  <div className="text-right">
-                    <div className="text-[11px] text-emerald-300 uppercase font-semibold">
-                      Saldo em Caixa
-                    </div>
-                    <div className="text-xl font-black text-white">
-                      {formatCurrency(financialData.saldoAtualCaixa)}
-                    </div>
-                  </div>
-                  <div className="h-9 w-[1px] bg-emerald-600/40 mx-1" />
-                  <div className="text-right">
-                    <div className="text-[11px] text-amber-300 uppercase font-semibold">
-                      Pró-Labore Pago
-                    </div>
-                    <div className="text-xl font-black text-amber-300">
-                      {formatCurrency(financialData.proLaborePago)}
-                    </div>
-                  </div>
-                </div>
+          {!isCurrentTabAllowed ? (
+            <div className="bg-white rounded-2xl p-12 border border-slate-200 shadow-sm text-center space-y-4 max-w-lg mx-auto my-12">
+              <div className="w-14 h-14 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
+                <Lock className="w-7 h-7" />
               </div>
+              <h2 className="text-lg font-extrabold text-[#1B3B2B]">Acesso Restrito</h2>
+              <p className="text-xs text-slate-600">
+                O perfil <strong>{currentRole.name} ({currentRole.holder})</strong> não possui a permissão de visualização (<strong>View</strong>) ativa para este módulo. Solicite a liberação ao administrador Master.
+              </p>
+            </div>
+          ) : (
+            <>
+              {activeTab === 'dashboard' && (
+                <div className="space-y-6">
+                  <div className="bg-gradient-to-r from-[#1B3B2B] via-[#244B38] to-[#2D5A43] rounded-2xl p-5 text-white shadow-lg flex flex-col lg:flex-row items-center justify-between gap-6">
+                    <div className="flex flex-col sm:flex-row items-center gap-5">
+                      <GrupoMartinsLogo size="compact" theme="cream" />
+                      <div className="text-center sm:text-left">
+                        <div className="text-xs uppercase tracking-widest text-emerald-300 font-semibold">
+                          Sistema Integrado Supabase
+                        </div>
+                        <h2 className="text-xl sm:text-2xl font-extrabold mt-0.5">
+                          Painel Executivo Anual — Exercício 2026
+                        </h2>
+                        <p className="text-xs sm:text-sm text-emerald-100/90 mt-1">
+                          Sócio-Diretor Responsável: <strong>{params.socioDiretor}</strong>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-center gap-3 bg-[#132A1F]/80 px-4 py-3 rounded-xl border border-emerald-500/30">
+                      <div className="text-right">
+                        <div className="text-[11px] text-emerald-300 uppercase font-semibold">
+                          Saldo em Caixa
+                        </div>
+                        <div className="text-xl font-black text-white">
+                          {formatCurrency(financialData.saldoAtualCaixa)}
+                        </div>
+                      </div>
+                      <div className="h-9 w-[1px] bg-emerald-600/40 mx-1" />
+                      <div className="text-right">
+                        <div className="text-[11px] text-amber-300 uppercase font-semibold">
+                          Pró-Labore Pago
+                        </div>
+                        <div className="text-xl font-black text-amber-300">
+                          {formatCurrency(financialData.proLaborePago)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-                <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-[#1B3B2B] shadow-sm">
-                  <div className="text-xs font-bold text-slate-500 uppercase">Receita Bruta</div>
-                  <div className="text-lg font-black text-[#1B3B2B] mt-2">{formatCurrency(financialData.receitaBrutaAnual)}</div>
-                </div>
-                <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-rose-700 shadow-sm">
-                  <div className="text-xs font-bold text-slate-500 uppercase">Saídas Totais</div>
-                  <div className="text-lg font-black text-rose-700 mt-2">{formatCurrency(financialData.saidasTotaisAnual)}</div>
-                </div>
-                <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-emerald-600 shadow-sm">
-                  <div className="text-xs font-bold text-slate-500 uppercase">Lucro Líquido</div>
-                  <div className="text-lg font-black text-emerald-700 mt-2">{formatCurrency(financialData.lucroLiquidoAnual)}</div>
-                </div>
-                <div onClick={() => setActiveTab('prolabore')} className="bg-[#F8F3EF] rounded-2xl p-4 border border-[#D5CFC7] border-t-4 border-t-[#2D5A43] shadow-sm cursor-pointer hover:shadow-md transition">
-                  <div className="text-xs font-bold text-[#1B3B2B] uppercase">Pró-Labore</div>
-                  <div className="text-lg font-black text-[#1B3B2B] mt-2">{formatCurrency(financialData.proLaboreTotalAnual)}</div>
-                </div>
-                <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-teal-700 shadow-sm">
-                  <div className="text-xs font-bold text-slate-500 uppercase">Caixa Atual</div>
-                  <div className="text-lg font-black text-teal-800 mt-2">{formatCurrency(financialData.saldoAtualCaixa)}</div>
-                </div>
-                <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-amber-500 shadow-sm">
-                  <div className="text-xs font-bold text-slate-500 uppercase">A Receber</div>
-                  <div className="text-lg font-black text-amber-600 mt-2">{formatCurrency(financialData.contasAReceber)}</div>
-                </div>
-                <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-orange-600 shadow-sm">
-                  <div className="text-xs font-bold text-slate-500 uppercase">A Pagar</div>
-                  <div className="text-lg font-black text-orange-700 mt-2">{formatCurrency(financialData.contasAPagar)}</div>
-                </div>
-              </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-[#1B3B2B] shadow-sm">
+                      <div className="text-xs font-bold text-slate-500 uppercase">Receita Bruta</div>
+                      <div className="text-lg font-black text-[#1B3B2B] mt-2">{formatCurrency(financialData.receitaBrutaAnual)}</div>
+                    </div>
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-rose-700 shadow-sm">
+                      <div className="text-xs font-bold text-slate-500 uppercase">Saídas Totais</div>
+                      <div className="text-lg font-black text-rose-700 mt-2">{formatCurrency(financialData.saidasTotaisAnual)}</div>
+                    </div>
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-emerald-600 shadow-sm">
+                      <div className="text-xs font-bold text-slate-500 uppercase">Lucro Líquido</div>
+                      <div className="text-lg font-black text-emerald-700 mt-2">{formatCurrency(financialData.lucroLiquidoAnual)}</div>
+                    </div>
+                    <div
+                      onClick={() => {
+                        if (hasPermission('prolabore', 'view')) setActiveTab('prolabore');
+                        else showToast('Módulo Pró-Labore bloqueado para seu perfil.');
+                      }}
+                      className="bg-[#F8F3EF] rounded-2xl p-4 border border-[#D5CFC7] border-t-4 border-t-[#2D5A43] shadow-sm cursor-pointer hover:shadow-md transition"
+                    >
+                      <div className="text-xs font-bold text-[#1B3B2B] uppercase">Pró-Labore</div>
+                      <div className="text-lg font-black text-[#1B3B2B] mt-2">{formatCurrency(financialData.proLaboreTotalAnual)}</div>
+                    </div>
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-teal-700 shadow-sm">
+                      <div className="text-xs font-bold text-slate-500 uppercase">Caixa Atual</div>
+                      <div className="text-lg font-black text-teal-800 mt-2">{formatCurrency(financialData.saldoAtualCaixa)}</div>
+                    </div>
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-amber-500 shadow-sm">
+                      <div className="text-xs font-bold text-slate-500 uppercase">A Receber</div>
+                      <div className="text-lg font-black text-amber-600 mt-2">{formatCurrency(financialData.contasAReceber)}</div>
+                    </div>
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-orange-600 shadow-sm">
+                      <div className="text-xs font-bold text-slate-500 uppercase">A Pagar</div>
+                      <div className="text-lg font-black text-orange-700 mt-2">{formatCurrency(financialData.contasAPagar)}</div>
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                  <h3 className="text-base font-extrabold text-[#1B3B2B] mb-4">Evolução Financeira Mensal (2026)</h3>
-                  <div className="h-80 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={financialData.monthlySeries}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                        <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                        <YAxis tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(value) => formatCurrency(value)} />
-                        <Legend wrapperStyle={{ fontSize: '12px' }} />
-                        <Bar dataKey="entradas" name="Receita Bruta" fill="#1B3B2B" radius={[6, 6, 0, 0]} />
-                        <Bar dataKey="saidas" name="Saídas" fill="#C53030" radius={[6, 6, 0, 0]} />
-                        <Line type="monotone" dataKey="resultadoLiquido" name="Lucro Líquido" stroke="#3B7A57" strokeWidth={3} />
-                      </ComposedChart>
-                    </ResponsiveContainer>
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                      <h3 className="text-base font-extrabold text-[#1B3B2B] mb-4">Evolução Financeira Mensal (2026)</h3>
+                      <div className="h-80 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <ComposedChart data={financialData.monthlySeries}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                            <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                            <YAxis tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
+                            <Tooltip formatter={(value) => formatCurrency(value)} />
+                            <Legend wrapperStyle={{ fontSize: '12px' }} />
+                            <Bar dataKey="entradas" name="Receita Bruta" fill="#1B3B2B" radius={[6, 6, 0, 0]} />
+                            <Bar dataKey="saidas" name="Saídas" fill="#C53030" radius={[6, 6, 0, 0]} />
+                            <Line type="monotone" dataKey="resultadoLiquido" name="Lucro Líquido" stroke="#3B7A57" strokeWidth={3} />
+                          </ComposedChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+                      <h3 className="text-base font-extrabold text-[#1B3B2B]">Faturamento por Área</h3>
+                      <div className="h-56 w-full my-2">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={financialData.revenueByCategory} dataKey="value" nameKey="shortName" cx="50%" cy="50%" innerRadius={48} outerRadius={80} paddingAngle={3}>
+                              {financialData.revenueByCategory.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(value) => formatCurrency(value)} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="space-y-2">
+                        {financialData.revenueByCategory.map((item) => (
+                          <div key={item.category} className="flex items-center justify-between text-xs border-b border-slate-100 pb-1.5">
+                            <span className="text-slate-700 font-medium truncate">{item.category}</span>
+                            <span className="font-bold text-[#1B3B2B]">{formatCurrency(item.value)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
+              )}
 
-                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
-                  <h3 className="text-base font-extrabold text-[#1B3B2B]">Faturamento por Área</h3>
-                  <div className="h-56 w-full my-2">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={financialData.revenueByCategory} dataKey="value" nameKey="shortName" cx="50%" cy="50%" innerRadius={48} outerRadius={80} paddingAngle={3}>
-                          {financialData.revenueByCategory.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+              {activeTab === 'prolabore' && (
+                <div className="space-y-6">
+                  <div className="bg-[#F8F3EF] border-2 border-[#1B3B2B] rounded-2xl p-6 shadow-md flex flex-col lg:flex-row items-center justify-between gap-6">
+                    <div className="flex flex-col sm:flex-row items-center gap-5">
+                      <GrupoMartinsLogo size="md" />
+                      <div>
+                        <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-[#1B3B2B] text-[#F8F3EF] uppercase">
+                          Conta Corrente Societária • Pró-Labore
+                        </span>
+                        <h2 className="text-2xl font-black text-[#1B3B2B] mt-2">Sócio-Diretor: {params.socioDiretor}</h2>
+                        <p className="text-sm text-slate-600 mt-0.5">Controle individualizado de retiradas e emissão de recibos oficiais.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 bg-[#1B3B2B] text-white">
+                      <h3 className="text-sm font-bold uppercase">Histórico de Saques de Pró-Labore (2026)</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs sm:text-sm">
+                        <thead>
+                          <tr className="bg-slate-100 text-slate-600 border-b border-slate-200 font-bold uppercase text-xs">
+                            <th className="py-3.5 px-4">Código</th>
+                            <th className="py-3.5 px-4">Data</th>
+                            <th className="py-3.5 px-4">Competência</th>
+                            <th className="py-3.5 px-4">Descrição</th>
+                            <th className="py-3.5 px-4 text-center">Status</th>
+                            <th className="py-3.5 px-4 text-right">Valor</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {transactions.filter(t => (t.category || t.planocontas || t.planoContas || '').includes('Pró-Labore')).map((tx) => (
+                            <tr key={tx.id} className="hover:bg-[#F8F3EF]/50">
+                              <td className="py-3 px-4 font-mono font-bold text-[#1B3B2B]">{tx.id}</td>
+                              <td className="py-3 px-4">{tx.date}</td>
+                              <td className="py-3 px-4 font-bold">{tx.month}/2026</td>
+                              <td className="py-3 px-4">{tx.description}</td>
+                              <td className="py-3 px-4 text-center">
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${tx.status === 'Pago / Recebido' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                                  {tx.status}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right font-extrabold text-[#1B3B2B]">{formatCurrency(tx.amount)}</td>
+                            </tr>
                           ))}
-                        </Pie>
-                        <Tooltip formatter={(value) => formatCurrency(value)} />
-                      </PieChart>
-                    </ResponsiveContainer>
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    {financialData.revenueByCategory.map((item) => (
-                      <div key={item.category} className="flex items-center justify-between text-xs border-b border-slate-100 pb-1.5">
-                        <span className="text-slate-700 font-medium truncate">{item.category}</span>
-                        <span className="font-bold text-[#1B3B2B]">{formatCurrency(item.value)}</span>
+                </div>
+              )}
+
+              {activeTab === 'dre' && (
+                <div className="space-y-6">
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-base font-extrabold text-[#1B3B2B]">DRE Gerencial Consolidada (Exercício {selectedDreYear})</h3>
+                      <p className="text-xs text-slate-500">Selecione o ano desejado (2026 a 2040) para visualizar a projeção e os lançamentos oficiais.</p>
+                    </div>
+                    
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-2 bg-[#F8F3EF] px-3 py-1.5 rounded-xl border border-[#D5CFC7]">
+                        <Calendar className="w-4 h-4 text-[#1B3B2B]" />
+                        <span className="text-xs font-extrabold text-[#1B3B2B]">Exercício:</span>
+                        <select
+                          value={selectedDreYear}
+                          onChange={(e) => setSelectedDreYear(Number(e.target.value))}
+                          className="bg-white px-2.5 py-1 rounded-lg border font-bold text-xs text-[#1B3B2B] cursor-pointer"
+                        >
+                          {ANOS_DRE.map(ano => (
+                            <option key={ano} value={ano}>{ano}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <button
+                        onClick={exportDREToExcel}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] shadow cursor-pointer"
+                      >
+                        <Download className="w-4 h-4" /> Exportar Planilha ({selectedDreYear})
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-[11px] whitespace-nowrap">
+                        <thead>
+                          <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
+                            <th className="py-3 px-3 min-w-[280px]">ESTRUTURA DRE — GRUPO MARTINS (R$)</th>
+                            {dreGerencialData.monthsFull.map(m => (
+                              <th key={m} className="py-3 px-2 text-right">{m}/{String(selectedDreYear).slice(2)}</th>
+                            ))}
+                            <th className="py-3 px-3 text-right bg-[#132A1F]">ACUMULADO {selectedDreYear}</th>
+                            <th className="py-3 px-3 text-center bg-[#132A1F]">AV %</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-medium">
+                          <tr className="bg-slate-100 font-extrabold text-[#1B3B2B]">
+                            <td className="py-2.5 px-3">1. RECEITA OPERACIONAL BRUTA</td>
+                            {dreGerencialData.monthsFull.map(m => {
+                              const val = dreGerencialData.sumRowsMonth(dreGerencialData.receitasRows, m);
+                              return <td key={m} className="py-2.5 px-2 text-right">{formatCurrency(val)}</td>;
+                            })}
+                            <td className="py-2.5 px-3 text-right">{formatCurrency(dreGerencialData.receitaBrutaTotalAnual)}</td>
+                            <td className="py-2.5 px-3 text-center">100,0%</td>
+                          </tr>
+                          {dreGerencialData.receitasRows.map(r => (
+                            <tr key={r.codigo} className="hover:bg-slate-50 text-slate-700">
+                              <td className="py-2 px-4 pl-6"><i>(+) {r.nome}</i></td>
+                              {dreGerencialData.monthsFull.map(m => (
+                                <td key={m} className="py-2 px-2 text-right">{formatCurrency(r.mensalValues[m] || 0)}</td>
+                              ))}
+                              <td className="py-2 px-3 text-right font-bold">{formatCurrency(r.totalAnual)}</td>
+                              <td className="py-2 px-3 text-center text-slate-500">
+                                {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((r.totalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
+                              </td>
+                            </tr>
+                          ))}
+
+                          <tr className="bg-rose-50 text-rose-900 font-bold">
+                            <td className="py-2.5 px-3">2. (-) DEDUÇÕES E IMPOSTOS SOBRE FATURAMENTO</td>
+                            {dreGerencialData.monthsFull.map(m => {
+                              const val = dreGerencialData.sumRowsMonth(dreGerencialData.impostosRows, m);
+                              return <td key={m} className="py-2.5 px-2 text-right text-rose-700">{formatCurrency(val)}</td>;
+                            })}
+                            <td className="py-2.5 px-3 text-right text-rose-700">{formatCurrency(dreGerencialData.impostoTotalAnual)}</td>
+                            <td className="py-2.5 px-3 text-center text-rose-700">
+                              {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((dreGerencialData.impostoTotalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
+                            </td>
+                          </tr>
+                          {dreGerencialData.impostosRows.map(r => (
+                            <tr key={r.codigo} className="hover:bg-slate-50 text-slate-700">
+                              <td className="py-2 px-4 pl-6"><i>(-) {r.nome}</i></td>
+                              {dreGerencialData.monthsFull.map(m => (
+                                <td key={m} className="py-2 px-2 text-right">{formatCurrency(r.mensalValues[m] || 0)}</td>
+                              ))}
+                              <td className="py-2 px-3 text-right font-bold">{formatCurrency(r.totalAnual)}</td>
+                              <td className="py-2 px-3 text-center text-slate-500">—</td>
+                            </tr>
+                          ))}
+
+                          <tr className="bg-slate-100 font-extrabold text-[#1B3B2B]">
+                            <td className="py-2.5 px-3">3. (=) RECEITA OPERACIONAL LÍQUIDA</td>
+                            {dreGerencialData.monthsFull.map(m => {
+                              const rec = dreGerencialData.sumRowsMonth(dreGerencialData.receitasRows, m);
+                              const imp = dreGerencialData.sumRowsMonth(dreGerencialData.impostosRows, m);
+                              return <td key={m} className="py-2.5 px-2 text-right">{formatCurrency(rec - imp)}</td>;
+                            })}
+                            <td className="py-2.5 px-3 text-right">{formatCurrency(dreGerencialData.receitaLiquidaTotalAnual)}</td>
+                            <td className="py-2.5 px-3 text-center">
+                              {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((dreGerencialData.receitaLiquidaTotalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
+                            </td>
+                          </tr>
+
+                          <tr className="bg-rose-50 text-rose-900 font-bold">
+                            <td className="py-2.5 px-3">4. (-) CUSTOS DIRETOS DE PROJETOS E CAMPO (CSP)</td>
+                            {dreGerencialData.monthsFull.map(m => {
+                              const val = dreGerencialData.sumRowsMonth(dreGerencialData.custosDiretosRows, m);
+                              return <td key={m} className="py-2.5 px-2 text-right text-rose-700">{formatCurrency(val)}</td>;
+                            })}
+                            <td className="py-2.5 px-3 text-right text-rose-700">{formatCurrency(dreGerencialData.custosDiretosTotalAnual)}</td>
+                            <td className="py-2.5 px-3 text-center text-rose-700">
+                              {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((dreGerencialData.custosDiretosTotalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
+                            </td>
+                          </tr>
+                          {dreGerencialData.custosDiretosRows.map(r => (
+                            <tr key={r.codigo} className="hover:bg-slate-50 text-slate-700">
+                              <td className="py-2 px-4 pl-6"><i>(-) {r.nome}</i></td>
+                              {dreGerencialData.monthsFull.map(m => (
+                                <td key={m} className="py-2 px-2 text-right">{formatCurrency(r.mensalValues[m] || 0)}</td>
+                              ))}
+                              <td className="py-2 px-3 text-right font-bold">{formatCurrency(r.totalAnual)}</td>
+                              <td className="py-2 px-3 text-center text-slate-500">—</td>
+                            </tr>
+                          ))}
+
+                          <tr className="bg-emerald-50 text-emerald-900 font-extrabold">
+                            <td className="py-2.5 px-3">(=) LUCRO BRUTO</td>
+                            {dreGerencialData.monthsFull.map(m => {
+                              const rec = dreGerencialData.sumRowsMonth(dreGerencialData.receitasRows, m);
+                              const imp = dreGerencialData.sumRowsMonth(dreGerencialData.impostosRows, m);
+                              const cus = dreGerencialData.sumRowsMonth(dreGerencialData.custosDiretosRows, m);
+                              return <td key={m} className="py-2.5 px-2 text-right">{formatCurrency(rec - imp - cus)}</td>;
+                            })}
+                            <td className="py-2.5 px-3 text-right">{formatCurrency(dreGerencialData.lucroBrutoTotalAnual)}</td>
+                            <td className="py-2.5 px-3 text-center">
+                              {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((dreGerencialData.lucroBrutoTotalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
+                            </td>
+                          </tr>
+
+                          <tr className="bg-rose-50 text-rose-900 font-bold">
+                            <td className="py-2.5 px-3">5. (-) DESPESAS OPERACIONAIS, COMERCIAIS E PRÓ-LABORE</td>
+                            {dreGerencialData.monthsFull.map(m => {
+                              const val = dreGerencialData.sumRowsMonth(dreGerencialData.despesasOpRows, m);
+                              return <td key={m} className="py-2.5 px-2 text-right text-rose-700">{formatCurrency(val)}</td>;
+                            })}
+                            <td className="py-2.5 px-3 text-right text-rose-700">{formatCurrency(dreGerencialData.despesasOpTotalAnual)}</td>
+                            <td className="py-2.5 px-3 text-center text-rose-700">
+                              {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((dreGerencialData.despesasOpTotalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
+                            </td>
+                          </tr>
+                          {dreGerencialData.despesasOpRows.map(r => (
+                            <tr key={r.codigo} className="hover:bg-slate-50 text-slate-700">
+                              <td className="py-2 px-4 pl-6"><i>{r.codigo.startsWith('2.4.01') ? '★ (-) ' : '(-) '} {r.nome}</i></td>
+                              {dreGerencialData.monthsFull.map(m => (
+                                <td key={m} className="py-2 px-2 text-right">{formatCurrency(r.mensalValues[m] || 0)}</td>
+                              ))}
+                              <td className="py-2 px-3 text-right font-bold">{formatCurrency(r.totalAnual)}</td>
+                              <td className="py-2 px-3 text-center text-slate-500">—</td>
+                            </tr>
+                          ))}
+
+                          <tr className="bg-[#1B3B2B] text-white font-black text-sm">
+                            <td className="py-3 px-3">6. (=) LUCRO LÍQUIDO DO EXERCÍCIO (APÓS PRÓ-LABORE)</td>
+                            {dreGerencialData.monthsFull.map(m => {
+                              const rec = dreGerencialData.sumRowsMonth(dreGerencialData.receitasRows, m);
+                              const imp = dreGerencialData.sumRowsMonth(dreGerencialData.impostosRows, m);
+                              const cus = dreGerencialData.sumRowsMonth(dreGerencialData.custosDiretosRows, m);
+                              const des = dreGerencialData.sumRowsMonth(dreGerencialData.despesasOpRows, m);
+                              return <td key={m} className="py-3 px-2 text-right text-emerald-300">{formatCurrency(rec - imp - cus - des)}</td>;
+                            })}
+                            <td className="py-3 px-3 text-right text-emerald-300">{formatCurrency(dreGerencialData.lucroLiquidoTotalAnual)}</td>
+                            <td className="py-3 px-3 text-center text-emerald-300">
+                              {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((dreGerencialData.lucroLiquidoTotalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'lancamentos' && (
+                <div className="space-y-5">
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="relative flex-1 min-w-[220px]">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                        <input
+                          type="text"
+                          value={txSearch}
+                          onChange={(e) => setTxSearch(e.target.value)}
+                          placeholder="Pesquisar por favorecido, ID ou descrição..."
+                          className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
+                        />
+                      </div>
+                      {hasPermission('lancamentos', 'create') && (
+                        <button
+                          onClick={() => {
+                            setEditingTx(null);
+                            setTxForm({
+                              date: '2026-11-10',
+                              month: 'Nov',
+                              type: 'Entrada',
+                              planoContas: planoContasData.receitas[0].codigo,
+                              category: planoContasData.receitas[0].nome,
+                              entity: '',
+                              contractId: '—',
+                              description: '',
+                              paymentMethod: 'PIX',
+                              status: 'Pago / Recebido',
+                              amount: ''
+                            });
+                            setShowTxModal(true);
+                          }}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4" /> Incluir Lançamento
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100 text-xs">
+                      <span className="font-bold text-slate-600 flex items-center gap-1">
+                        <Filter className="w-3.5 h-3.5 text-[#1B3B2B]" /> Filtrar colunas:
+                      </span>
+                      
+                      <select
+                        value={txTypeFilter}
+                        onChange={(e) => setTxTypeFilter(e.target.value)}
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold cursor-pointer"
+                      >
+                        <option value="Todos">Tipo: Todos</option>
+                        <option value="Entrada">Entrada</option>
+                        <option value="Saída">Saída</option>
+                      </select>
+
+                      <select
+                        value={txCategoryFilter}
+                        onChange={(e) => setTxCategoryFilter(e.target.value)}
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold max-w-[260px] truncate cursor-pointer"
+                      >
+                        <option value="Todas">Plano de Contas: Todas</option>
+                        <optgroup label="Receitas (1.X)">
+                          {planoContasData.receitas.map(r => <option key={r.codigo} value={r.codigo}>{r.nome}</option>)}
+                        </optgroup>
+                        <optgroup label="Despesas (2.X)">
+                          {planoContasData.despesas.map(d => <option key={d.codigo} value={d.codigo}>{d.nome}</option>)}
+                        </optgroup>
+                      </select>
+
+                      <select
+                        value={txStatusFilter}
+                        onChange={(e) => setTxStatusFilter(e.target.value)}
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold cursor-pointer"
+                      >
+                        <option value="Todos">Status: Todos</option>
+                        <option value="Pago / Recebido">Pago / Recebido</option>
+                        <option value="Pendente">Pendente</option>
+                      </select>
+
+                      {(txTypeFilter !== 'Todos' || txCategoryFilter !== 'Todas' || txStatusFilter !== 'Todos' || txSearch !== '') && (
+                        <button
+                          onClick={() => {
+                            setTxTypeFilter('Todos');
+                            setTxCategoryFilter('Todas');
+                            setTxStatusFilter('Todos');
+                            setTxSearch('');
+                          }}
+                          className="text-rose-600 font-bold hover:underline ml-auto cursor-pointer"
+                        >
+                          Limpar Filtros
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
+                            <th onClick={() => handleSort('id')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center gap-1">ID {sortField === 'id' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th onClick={() => handleSort('date')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center gap-1">Data {sortField === 'date' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th onClick={() => handleSort('type')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center gap-1">Tipo {sortField === 'type' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th onClick={() => handleSort('planocontas')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center gap-1">Plano de Contas {sortField === 'planocontas' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th onClick={() => handleSort('category')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center gap-1">Categoria Detalhada {sortField === 'category' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th onClick={() => handleSort('entity')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center gap-1">Favorecido / Cliente {sortField === 'entity' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th onClick={() => handleSort('description')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center gap-1">Descrição {sortField === 'description' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th onClick={() => handleSort('amount')} className="py-3.5 px-3 text-right cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center justify-end gap-1">Valor {sortField === 'amount' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th className="py-3.5 px-3 text-center">Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {filteredTransactions.length === 0 ? (
+                            <tr>
+                              <td colSpan="10" className="py-8 text-center text-slate-400">Nenhum lançamento encontrado com os filtros atuais.</td>
+                            </tr>
+                          ) : (
+                            filteredTransactions.map((tx) => (
+                              <tr key={tx.id} className="hover:bg-slate-50">
+                                <td className="py-2.5 px-3 font-mono font-bold">{tx.id}</td>
+                                <td className="py-2.5 px-3">{tx.date}</td>
+                                <td className="py-2.5 px-3">
+                                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${tx.type === 'Entrada' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                                    {tx.type}
+                                  </span>
+                                </td>
+                                <td className="py-2.5 px-3 font-mono font-bold text-teal-900">{tx.planocontas || tx.planoContas || '1.1.01'}</td>
+                                <td className="py-2.5 px-3 text-slate-700">{tx.category}</td>
+                                <td className="py-2.5 px-3 font-bold">{tx.entity}</td>
+                                <td className="py-2.5 px-3">{tx.description}</td>
+                                <td className="py-2.5 px-3 text-center">
+                                  <button onClick={() => handleToggleStatus(tx.id)} className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${tx.status === 'Pago / Recebido' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'} cursor-pointer`}>
+                                    {tx.status}
+                                  </button>
+                                </td>
+                                <td className={`py-2.5 px-3 text-right font-extrabold ${tx.type === 'Entrada' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                  {formatCurrency(tx.amount)}
+                                </td>
+                                <td className="py-2.5 px-3 text-center space-x-2">
+                                  {hasPermission('lancamentos', 'edit') && (
+                                    <button
+                                      onClick={() => {
+                                        setEditingTx(tx);
+                                        setTxForm({
+                                          date: tx.date,
+                                          month: tx.month,
+                                          type: tx.type,
+                                          planoContas: tx.planocontas || tx.planoContas || '1.1.01',
+                                          category: tx.category,
+                                          entity: tx.entity,
+                                          contractId: tx.contractid || tx.contractId || '—',
+                                          description: tx.description,
+                                          paymentMethod: tx.paymentmethod || tx.paymentMethod || 'PIX',
+                                          status: tx.status,
+                                          amount: tx.amount
+                                        });
+                                        setShowTxModal(true);
+                                      }}
+                                      className="p-1 rounded text-teal-700 hover:bg-teal-50 cursor-pointer"
+                                      title="Editar Lançamento"
+                                    >
+                                      <Edit3 className="w-4 h-4 inline" />
+                                    </button>
+                                  )}
+                                  {hasPermission('lancamentos', 'delete') && (
+                                    <button
+                                      onClick={() => setDeleteTxTarget(tx)}
+                                      className="p-1 rounded text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                      title="Excluir Lançamento"
+                                    >
+                                      <Trash2 className="w-4 h-4 inline" />
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'contratos' && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">VALOR TOTAL CONTRATADO ({contracts.length} CONTRATOS)</div>
+                      <div className="text-2xl font-black text-[#1B3B2B] mt-2">{formatCurrency(financialData.totalContratado)}</div>
+                      <div className="text-xs text-slate-500 mt-1">Carteira Ambiental SEMA-MT & SST</div>
+                    </div>
+                    <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">TOTAL JÁ RECEBIDO DOS CONTRATOS</div>
+                      <div className="text-2xl font-black text-emerald-700 mt-2">{formatCurrency(financialData.totalRecebidoContratos)}</div>
+                      <div className="text-xs text-emerald-600 mt-1">Parcelas quitadas via baixa</div>
+                    </div>
+                    <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">SALDO A FATURAR / RECEBER</div>
+                      <div className="text-2xl font-black text-amber-600 mt-2">{formatCurrency(financialData.saldoAFaturar)}</div>
+                      <div className="text-xs text-slate-500 mt-1">Parcelas pendentes de recebimento</div>
+                    </div>
+                    <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">MARGEM TÉCNICA MÉDIA DOS PROJETOS</div>
+                      <div className="text-2xl font-black text-[#1B3B2B] mt-2">{financialData.margemMedia.toFixed(1).replace('.', ',')}%</div>
+                      <div className="text-xs text-slate-500 mt-1">Após custos laboratoriais, drone e taxas</div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
+                    <div className="relative flex-1 min-w-[280px]">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                      <input
+                        type="text"
+                        value={ctSearch}
+                        onChange={(e) => setCtSearch(e.target.value)}
+                        placeholder="Buscar por cliente, fazenda, SEMA-MT, eSocial ou código..."
+                        className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
+                      />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <select
+                        value={ctDueDateFilter}
+                        onChange={(e) => setCtDueDateFilter(e.target.value)}
+                        className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white text-[#1B3B2B] cursor-pointer"
+                      >
+                        <option value="Todos">Vencimento: Todos</option>
+                        <option value="Vencidos">🔴 Vencidos</option>
+                        <option value="Hoje">🟡 Vencendo Hoje</option>
+                        <option value="AVencer">🟢 A Vencer</option>
+                      </select>
+
+                      <select
+                        value={ctStatusFilter}
+                        onChange={(e) => setCtStatusFilter(e.target.value)}
+                        className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white cursor-pointer"
+                      >
+                        <option value="Todos">Status Técnico: Todos</option>
+                        <option value="Em Elaboração Técnica">Em Elaboração Técnica</option>
+                        <option value="Protocolado / SEMA">Protocolado / SEMA</option>
+                        <option value="Em Andamento">Em Andamento</option>
+                        <option value="Concluído / Licença Emitida">Concluído / Licença Emitida</option>
+                      </select>
+                      {hasPermission('contratos', 'create') && (
+                        <button
+                          onClick={() => {
+                            setEditingContract(null);
+                            setCtForm({
+                              client: '',
+                              service: '',
+                              agency: 'SEMA-MT',
+                              status: 'Em Elaboração Técnica',
+                              contractValue: '',
+                              directCosts: '',
+                              installmentsCount: '1',
+                              installmentDates: [`${selectedDreYear}-12-30`, '', '', '', '', '', '', '', '', '', '', ''],
+                              installmentAmounts: ['', '', '', '', '', '', '', '', '', '', '', ''],
+                              paymentMethod: 'PIX'
+                            });
+                            setShowContractModal(true);
+                          }}
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4" /> Novo Contrato Ambiental / SST
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px]">
+                            <th onClick={() => handleSort('id')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center gap-1">Código {sortField === 'id' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th onClick={() => handleSort('client')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center gap-1">Cliente / Empreendimento {sortField === 'client' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th onClick={() => handleSort('service')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center gap-1">Escopo Técnico {sortField === 'service' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th onClick={() => handleSort('agency')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center gap-1">Órgão {sortField === 'agency' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th onClick={() => handleSort('contractvalue')} className="py-3.5 px-3 text-right cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center justify-end gap-1">Valor Contrato {sortField === 'contractvalue' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th className="py-3.5 px-3 text-right">Já Recebido</th>
+                            <th className="py-3.5 px-3 text-right">Saldo a Receber</th>
+                            <th className="py-3.5 px-3 text-center">Gerenciar Parcelas</th>
+                            <th className="py-3.5 px-3 text-center">Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {filteredContracts.length === 0 ? (
+                            <tr>
+                              <td colSpan="10" className="py-8 text-center text-slate-400">Nenhum contrato cadastrado com os filtros selecionados.</td>
+                            </tr>
+                          ) : (
+                            filteredContracts.map((ct) => {
+                              const val = Number(ct.contractvalue || ct.contractValue || 0);
+                              const insts = ct.installmentsData || ct.installmentsdata || [];
+                              const rec = insts.filter(i => i.status === 'Pago').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+                              const saldo = val - rec;
+                              return (
+                                <tr key={ct.id} className="hover:bg-slate-50">
+                                  <td className="py-3 px-3 font-mono font-bold text-[#1B3B2B]">{ct.id}</td>
+                                  <td className="py-3 px-3 font-bold text-slate-900">{ct.client}</td>
+                                  <td className="py-3 px-3 text-slate-700">{ct.service}</td>
+                                  <td className="py-3 px-3 font-semibold text-slate-600">{ct.agency || 'SEMA-MT'}</td>
+                                  <td className="py-3 px-3 text-center">
+                                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                                      {ct.status}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-3 text-right font-bold text-[#1B3B2B]">{formatCurrency(val)}</td>
+                                  <td className="py-3 px-3 text-right text-emerald-700 font-semibold">{formatCurrency(rec)}</td>
+                                  <td className="py-3 px-3 text-right text-amber-600 font-semibold">{formatCurrency(saldo)}</td>
+                                  <td className="py-3 px-3 text-center">
+                                    <button
+                                      onClick={() => setViewingContractInstallments(ct)}
+                                      className="px-3 py-1 rounded-lg bg-teal-800 text-white font-bold text-[10px] hover:bg-teal-900 cursor-pointer"
+                                    >
+                                      Ver Parcelas ({insts.filter(i => i.status === 'Pago').length}/{insts.length})
+                                    </button>
+                                  </td>
+                                  <td className="py-3 px-3 text-center space-x-2">
+                                    {hasPermission('contratos', 'edit') && (
+                                      <button
+                                        onClick={() => {
+                                          setEditingContract(ct);
+                                          setCtForm({
+                                            client: ct.client,
+                                            service: ct.service,
+                                            agency: ct.agency,
+                                            status: ct.status,
+                                            contractValue: ct.contractvalue || ct.contractValue,
+                                            directCosts: ct.directcosts || ct.directCosts,
+                                            installmentsCount: ct.installmentscount || ct.installmentsCount || '1',
+                                            installmentDates: (ct.installmentsData || ct.installmentsdata)?.map(i => i.dueDate) || [`${selectedDreYear}-12-30`],
+                                            installmentAmounts: (ct.installmentsData || ct.installmentsdata)?.map(i => i.amount) || [''],
+                                            paymentMethod: ct.paymentmethod || ct.paymentMethod || 'PIX'
+                                          });
+                                          setShowContractModal(true);
+                                        }}
+                                        className="p-1.5 rounded-lg text-teal-700 hover:bg-teal-50 cursor-pointer"
+                                        title="Editar Contrato"
+                                      >
+                                        <Edit3 className="w-4 h-4 inline" />
+                                      </button>
+                                    )}
+                                    {hasPermission('contratos', 'delete') && (
+                                      <button
+                                        onClick={() => setDeleteContractTarget(ct)}
+                                        className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                        title="Excluir Contrato"
+                                      >
+                                        <Trash2 className="w-4 h-4 inline" />
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'clientes' && (
+                <div className="space-y-6">
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div className="relative flex-1 max-w-md">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                      <input
+                        type="text"
+                        value={cliSearch}
+                        onChange={(e) => setCliSearch(e.target.value)}
+                        placeholder="Buscar clientes..."
+                        className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
+                      />
+                    </div>
+                    {hasPermission('clientes', 'create') && (
+                      <button
+                        onClick={() => {
+                          setEditingClient(null);
+                          setCliForm({
+                            name: '',
+                            document: '',
+                            registration: '',
+                            segment: availableSegments[0],
+                            city: 'Rondonópolis — MT',
+                            contactName: '',
+                            phone: '',
+                            email: '',
+                            mainProgram: 'Licenciamento Ambiental (LP / LI / LO)',
+                            status: availableStatuses[0]
+                          });
+                          setShowClientModal(true);
+                        }}
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#1B3B2B] text-white cursor-pointer"
+                      >
+                        <UserPlus className="w-4 h-4" /> Cadastrar Cliente
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
+                            <th onClick={() => handleSort('id')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center gap-1">ID {sortField === 'id' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th onClick={() => handleSort('name')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center gap-1">Razão Social / Empreendimento {sortField === 'name' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th onClick={() => handleSort('segment')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center gap-1">Segmento Econômico {sortField === 'segment' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th onClick={() => handleSort('contactName')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center gap-1">Responsável / Contato {sortField === 'contactName' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th onClick={() => handleSort('city')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center gap-1">Cidade {sortField === 'city' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th className="py-3.5 px-3 text-center">Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {filteredClients.length === 0 ? (
+                            <tr>
+                              <td colSpan="7" className="py-8 text-center text-slate-400">Nenhum cliente cadastrado.</td>
+                            </tr>
+                          ) : (
+                            filteredClients.map((cli) => (
+                              <tr key={cli.id} className="hover:bg-slate-50">
+                                <td className="py-3 px-3 font-mono font-bold">{cli.id}</td>
+                                <td className="py-3 px-3 font-bold">{cli.name}</td>
+                                <td className="py-3 px-3">{cli.segment}</td>
+                                <td className="py-3 px-3">{cli.contactName || cli.contactname || '—'}</td>
+                                <td className="py-3 px-3">{cli.city}</td>
+                                <td className="py-3 px-3 text-center">
+                                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                                    {cli.status}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3 text-center space-x-2">
+                                  {hasPermission('clientes', 'edit') && (
+                                    <button
+                                      onClick={() => {
+                                        setEditingClient(cli);
+                                        setCliForm({
+                                          name: cli.name,
+                                          document: cli.document || '',
+                                          registration: cli.registration || '',
+                                          segment: cli.segment || availableSegments[0],
+                                          city: cli.city || 'Rondonópolis — MT',
+                                          contactName: cli.contactName || cli.contactname || '',
+                                          phone: cli.phone || '',
+                                          email: cli.email || '',
+                                          mainProgram: cli.mainProgram || cli.mainprogram || 'Licenciamento Ambiental',
+                                          status: cli.status || availableStatuses[0]
+                                        });
+                                        setShowClientModal(true);
+                                      }}
+                                      className="p-1.5 rounded-lg text-teal-700 hover:bg-teal-50 cursor-pointer"
+                                      title="Editar Cliente"
+                                    >
+                                      <Edit3 className="w-4 h-4 inline" />
+                                    </button>
+                                  )}
+                                  {hasPermission('clientes', 'delete') && (
+                                    <button
+                                      onClick={() => setDeleteClientTarget(cli)}
+                                      className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                      title="Excluir Cliente"
+                                    >
+                                      <Trash2 className="w-4 h-4 inline" />
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'condicionantes' && (
+                <div className="space-y-6">
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
+                    <div className="relative flex-1 min-w-[240px]">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                      <input
+                        type="text"
+                        value={condSearch}
+                        onChange={(e) => setCondSearch(e.target.value)}
+                        placeholder="Buscar por cliente, condicionante, licença ou responsável..."
+                        className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <select
+                        value={condStatusFilter}
+                        onChange={(e) => setCondStatusFilter(e.target.value)}
+                        className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white text-[#1B3B2B] cursor-pointer"
+                      >
+                        <option value="Todos">Filtrar por Status</option>
+                        <option value="FINALIZADO">FINALIZADO</option>
+                        <option value="ATENDIDO">ATENDIDO</option>
+                        <option value="EM ANDAMENTO">EM ANDAMENTO</option>
+                        <option value="A VENCER">A VENCER</option>
+                      </select>
+
+                      {hasPermission('condicionantes', 'create') && (
+                        <button
+                          onClick={() => {
+                            setEditingCond(null);
+                            setCondForm({
+                              client: '',
+                              service: '',
+                              dueDate: new Date().toISOString().split('T')[0],
+                              license: '',
+                              responsible: '',
+                              observation: '',
+                              status: 'EM ANDAMENTO'
+                            });
+                            setShowCondModal(true);
+                          }}
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4" /> Nova Condicionante
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px]">
+                            <th 
+                              onClick={() => handleSort('client')} 
+                              className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none"
+                            >
+                              <div className="flex items-center gap-1.5">
+                                Nome do Cliente {sortField === 'client' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}
+                              </div>
+                            </th>
+                            <th 
+                              onClick={() => handleSort('service')} 
+                              className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none"
+                            >
+                              <div className="flex items-center gap-1.5">
+                                Condicionantes / Serviço {sortField === 'service' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}
+                              </div>
+                            </th>
+                            <th 
+                              onClick={() => handleSort('duedate')} 
+                              className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none"
+                            >
+                              <div className="flex items-center gap-1.5">
+                                Vencimento Final {sortField === 'duedate' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}
+                              </div>
+                            </th>
+                            <th onClick={() => handleSort('license')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center gap-1">Licença {sortField === 'license' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th onClick={() => handleSort('responsible')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center gap-1">Responsável - Empresa {sortField === 'responsible' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th onClick={() => handleSort('observation')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center gap-1">Observação {sortField === 'observation' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
+                            <th className="py-3.5 px-3 text-center">Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {filteredCondicionantes.length === 0 ? (
+                            <tr>
+                              <td colSpan="8" className="py-8 text-center text-slate-400">Nenhuma condicionante encontrada.</td>
+                            </tr>
+                          ) : (
+                            filteredCondicionantes.map((cond) => (
+                              <tr key={cond.id} className="hover:bg-slate-50">
+                                <td className="py-3 px-3 font-bold text-slate-900">{cond.client}</td>
+                                <td className="py-3 px-3 text-slate-700 max-w-xs">{cond.service}</td>
+                                <td className="py-3 px-3 font-mono">{cond.dueDate || cond.duedate}</td>
+                                <td className="py-3 px-3 font-semibold">{cond.license}</td>
+                                <td className="py-3 px-3 font-bold text-slate-700">{cond.responsible}</td>
+                                <td className="py-3 px-3 text-slate-500 max-w-xs truncate">{cond.observation || '—'}</td>
+                                <td className="py-3 px-3 text-center">
+                                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
+                                    cond.status === 'FINALIZADO' ? 'bg-emerald-700 text-white' :
+                                    cond.status === 'ATENDIDO' ? 'bg-emerald-600 text-white' :
+                                    cond.status === 'EM ANDAMENTO' ? 'bg-amber-500 text-white' : 'bg-amber-600 text-white'
+                                  }`}>
+                                    {cond.status}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3 text-center space-x-1">
+                                  {hasPermission('condicionantes', 'edit') && (
+                                    <button
+                                      onClick={() => {
+                                        setEditingCond(cond);
+                                        setCondForm({
+                                          client: cond.client,
+                                          service: cond.service,
+                                          dueDate: cond.dueDate || cond.duedate,
+                                          license: cond.license,
+                                          responsible: cond.responsible,
+                                          observation: cond.observation,
+                                          status: cond.status
+                                        });
+                                        setShowCondModal(true);
+                                      }}
+                                      className="p-1.5 rounded-lg text-teal-700 hover:bg-teal-50 cursor-pointer"
+                                      title="Editar Condicionante"
+                                    >
+                                      <Edit3 className="w-4 h-4 inline" />
+                                    </button>
+                                  )}
+                                  {hasPermission('condicionantes', 'delete') && (
+                                    <button
+                                      onClick={() => setDeleteCondTarget(cond)}
+                                      className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                      title="Excluir Condicionante"
+                                    >
+                                      <Trash2 className="w-4 h-4 inline" />
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'acessos' && (
+                <div className="space-y-6">
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                      <h3 className="text-base font-extrabold text-[#1B3B2B]">Árvore de Acessos & Perfis</h3>
+                      <p className="text-xs text-slate-500">Gerencie colaboradores, edite senhas e configure permissões granulares por módulo.</p>
+                    </div>
+                    {hasPermission('acessos', 'create') && (
+                      <button
+                        onClick={() => setShowUserRoleModal(true)}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
+                      >
+                        <UserPlus className="w-4 h-4" /> Cadastrar Novo Utilizador
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {accessRoles.map((role) => (
+                      <div key={role.id} className="p-5 rounded-2xl border border-slate-200 bg-white shadow-sm space-y-3 flex flex-col justify-between">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#1B3B2B] text-emerald-300 uppercase">
+                              {role.level}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              {hasPermission('acessos', 'edit') && (
+                                <button
+                                  onClick={() => setEditingRoleTarget(role)}
+                                  className="p-1.5 rounded-lg text-teal-800 hover:bg-teal-50 cursor-pointer"
+                                  title="Editar Perfil e Senha"
+                                >
+                                  <Edit3 className="w-4 h-4" />
+                                </button>
+                              )}
+                              {hasPermission('acessos', 'delete') && (
+                                <button
+                                  onClick={() => handleDeleteRole(role.id)}
+                                  className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                  title="Excluir Perfil"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <h4 className="font-extrabold text-[#1B3B2B] text-sm">{role.name}</h4>
+                          <div className="text-xs font-bold text-slate-700">👤 {role.holder}</div>
+                          <div className="text-xs text-slate-500">✉️ {role.email}</div>
+                          <p className="text-[11px] text-slate-600 border-t pt-2 mt-2">{role.description}</p>
+                        </div>
+
+                        <div className="space-y-2 pt-2 border-t border-slate-100">
+                          {hasPermission('acessos', 'edit') && (
+                            <button
+                              onClick={() => setEditingRolePermissions(role)}
+                              className="w-full py-1.5 rounded-xl text-xs font-bold bg-emerald-800 text-white hover:bg-emerald-900 flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <Sliders className="w-3.5 h-3.5" /> Configurar Permissões (Flags)
+                            </button>
+                          )}
+                          <span className="w-full py-1.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800 flex items-center justify-center gap-1">
+                            <Check className="w-3.5 h-3.5" /> Sincronizado na Nuvem
+                          </span>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
-              </div>
-            </div>
-          )}
+              )}
 
-          {activeTab === 'prolabore' && (
-            <div className="space-y-6">
-              <div className="bg-[#F8F3EF] border-2 border-[#1B3B2B] rounded-2xl p-6 shadow-md flex flex-col lg:flex-row items-center justify-between gap-6">
-                <div className="flex flex-col sm:flex-row items-center gap-5">
-                  <GrupoMartinsLogo size="md" />
-                  <div>
-                    <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-[#1B3B2B] text-[#F8F3EF] uppercase">
-                      Conta Corrente Societária • Pró-Labore
-                    </span>
-                    <h2 className="text-2xl font-black text-[#1B3B2B] mt-2">Sócio-Diretor: {params.socioDiretor}</h2>
-                    <p className="text-sm text-slate-600 mt-0.5">Controle individualizado de retiradas e emissão de recibos oficiais.</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 bg-[#1B3B2B] text-white">
-                  <h3 className="text-sm font-bold uppercase">Histórico de Saques de Pró-Labore (2026)</h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs sm:text-sm">
-                    <thead>
-                      <tr className="bg-slate-100 text-slate-600 border-b border-slate-200 font-bold uppercase text-xs">
-                        <th className="py-3.5 px-4">Código</th>
-                        <th className="py-3.5 px-4">Data</th>
-                        <th className="py-3.5 px-4">Competência</th>
-                        <th className="py-3.5 px-4">Descrição</th>
-                        <th className="py-3.5 px-4 text-center">Status</th>
-                        <th className="py-3.5 px-4 text-right">Valor</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {transactions.filter(t => (t.category || t.planocontas || t.planoContas || '').includes('Pró-Labore')).map((tx) => (
-                        <tr key={tx.id} className="hover:bg-[#F8F3EF]/50">
-                          <td className="py-3 px-4 font-mono font-bold text-[#1B3B2B]">{tx.id}</td>
-                          <td className="py-3 px-4">{tx.date}</td>
-                          <td className="py-3 px-4 font-bold">{tx.month}/2026</td>
-                          <td className="py-3 px-4">{tx.description}</td>
-                          <td className="py-3 px-4 text-center">
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${tx.status === 'Pago / Recebido' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                              {tx.status}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-right font-extrabold text-[#1B3B2B]">{formatCurrency(tx.amount)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'dre' && (
-            <div className="space-y-6">
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-base font-extrabold text-[#1B3B2B]">DRE Gerencial Consolidada (Exercício {selectedDreYear})</h3>
-                  <p className="text-xs text-slate-500">Selecione o ano desejado (2026 a 2040) para visualizar a projeção e os lançamentos oficiais.</p>
-                </div>
-                
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-2 bg-[#F8F3EF] px-3 py-1.5 rounded-xl border border-[#D5CFC7]">
-                    <Calendar className="w-4 h-4 text-[#1B3B2B]" />
-                    <span className="text-xs font-extrabold text-[#1B3B2B]">Exercício:</span>
-                    <select
-                      value={selectedDreYear}
-                      onChange={(e) => setSelectedDreYear(Number(e.target.value))}
-                      className="bg-white px-2.5 py-1 rounded-lg border font-bold text-xs text-[#1B3B2B] cursor-pointer"
-                    >
-                      {ANOS_DRE.map(ano => (
-                        <option key={ano} value={ano}>{ano}</option>
-                      ))}
-                    </select>
+              {activeTab === 'config' && (
+                <div className="space-y-6">
+                  <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+                    <div>
+                      <h2 className="text-base font-extrabold text-[#1B3B2B]">
+                        Parâmetros Financeiros e Metas — Grupo Martins ({selectedDreYear})
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Ajuste o Saldo Inicial de Caixa, Meta de Faturamento e Pró-Labore Alvo do Sócio-Diretor Maikon Martins.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+                      <div>
+                        <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-1.5">
+                          SALDO INICIAL DE CAIXA (R$)
+                        </label>
+                        <input
+                          type="number"
+                          value={params.saldoInicialCaixa}
+                          onChange={(e) => {
+                            const updated = { ...params, saldoInicialCaixa: Number(e.target.value) };
+                            setParams(updated);
+                            syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated);
+                          }}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-1.5">
+                          META MENSAL DE RECEITA (R$)
+                        </label>
+                        <input
+                          type="number"
+                          value={params.metaMensalReceita}
+                          onChange={(e) => {
+                            const updated = { ...params, metaMensalReceita: Number(e.target.value) };
+                            setParams(updated);
+                            syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated);
+                          }}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-1.5">
+                          PRÓ-LABORE MENSAL ALVO (R$)
+                        </label>
+                        <input
+                          type="number"
+                          value={params.proLaboreAlvoMensal}
+                          onChange={(e) => {
+                            const updated = { ...params, proLaboreAlvoMensal: Number(e.target.value) };
+                            setParams(updated);
+                            syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated);
+                          }}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-1.5">
+                          SÓCIO-DIRETOR RESPONSÁVEL
+                        </label>
+                        <input
+                          type="text"
+                          value={params.socioDiretor}
+                          onChange={(e) => {
+                            const updated = { ...params, socioDiretor: e.target.value };
+                            setParams(updated);
+                            syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated);
+                          }}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
+                        />
+                      </div>
+                    </div>
                   </div>
 
-                  <button
-                    onClick={exportDREToExcel}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] shadow cursor-pointer"
-                  >
-                    <Download className="w-4 h-4" /> Exportar Planilha ({selectedDreYear})
-                  </button>
-                </div>
-              </div>
+                  <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between border-b pb-3">
+                      <div>
+                        <h3 className="text-sm font-extrabold text-[#1B3B2B] uppercase">
+                          Gerenciamento do Plano de Contas (DRE)
+                        </h3>
+                        <p className="text-xs text-slate-500">Adicione, edite ou remova contas do plano contábil do ERP.</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setPlanoForm({ tipo: 'receitas', codigo: '', nome: '', originalCodigo: null });
+                          setShowPlanoModal(true);
+                        }}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" /> Novo Plano de Contas
+                      </button>
+                    </div>
 
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-[11px] whitespace-nowrap">
-                    <thead>
-                      <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
-                        <th className="py-3 px-3 min-w-[280px]">ESTRUTURA DRE — GRUPO MARTINS (R$)</th>
-                        {dreGerencialData.monthsFull.map(m => (
-                          <th key={m} className="py-3 px-2 text-right">{m}/{String(selectedDreYear).slice(2)}</th>
-                        ))}
-                        <th className="py-3 px-3 text-right bg-[#132A1F]">ACUMULADO {selectedDreYear}</th>
-                        <th className="py-3 px-3 text-center bg-[#132A1F]">AV %</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 font-medium">
-                      <tr className="bg-slate-100 font-extrabold text-[#1B3B2B]">
-                        <td className="py-2.5 px-3">1. RECEITA OPERACIONAL BRUTA</td>
-                        {dreGerencialData.monthsFull.map(m => {
-                          const val = dreGerencialData.sumRowsMonth(dreGerencialData.receitasRows, m);
-                          return <td key={m} className="py-2.5 px-2 text-right">{formatCurrency(val)}</td>;
-                        })}
-                        <td className="py-2.5 px-3 text-right">{formatCurrency(dreGerencialData.receitaBrutaTotalAnual)}</td>
-                        <td className="py-2.5 px-3 text-center">100,0%</td>
-                      </tr>
-                      {dreGerencialData.receitasRows.map(r => (
-                        <tr key={r.codigo} className="hover:bg-slate-50 text-slate-700">
-                          <td className="py-2 px-4 pl-6"><i>(+) {r.nome}</i></td>
-                          {dreGerencialData.monthsFull.map(m => (
-                            <td key={m} className="py-2 px-2 text-right">{formatCurrency(r.mensalValues[m] || 0)}</td>
-                          ))}
-                          <td className="py-2 px-3 text-right font-bold">{formatCurrency(r.totalAnual)}</td>
-                          <td className="py-2 px-3 text-center text-slate-500">
-                            {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((r.totalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
-                          </td>
-                        </tr>
-                      ))}
-
-                      <tr className="bg-rose-50 text-rose-900 font-bold">
-                        <td className="py-2.5 px-3">2. (-) DEDUÇÕES E IMPOSTOS SOBRE FATURAMENTO</td>
-                        {dreGerencialData.monthsFull.map(m => {
-                          const val = dreGerencialData.sumRowsMonth(dreGerencialData.impostosRows, m);
-                          return <td key={m} className="py-2.5 px-2 text-right text-rose-700">{formatCurrency(val)}</td>;
-                        })}
-                        <td className="py-2.5 px-3 text-right text-rose-700">{formatCurrency(dreGerencialData.impostoTotalAnual)}</td>
-                        <td className="py-2.5 px-3 text-center text-rose-700">
-                          {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((dreGerencialData.impostoTotalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
-                        </td>
-                      </tr>
-                      {dreGerencialData.impostosRows.map(r => (
-                        <tr key={r.codigo} className="hover:bg-slate-50 text-slate-700">
-                          <td className="py-2 px-4 pl-6"><i>(-) {r.nome}</i></td>
-                          {dreGerencialData.monthsFull.map(m => (
-                            <td key={m} className="py-2 px-2 text-right">{formatCurrency(r.mensalValues[m] || 0)}</td>
-                          ))}
-                          <td className="py-2 px-3 text-right font-bold">{formatCurrency(r.totalAnual)}</td>
-                          <td className="py-2 px-3 text-center text-slate-500">—</td>
-                        </tr>
-                      ))}
-
-                      <tr className="bg-slate-100 font-extrabold text-[#1B3B2B]">
-                        <td className="py-2.5 px-3">3. (=) RECEITA OPERACIONAL LÍQUIDA</td>
-                        {dreGerencialData.monthsFull.map(m => {
-                          const rec = dreGerencialData.sumRowsMonth(dreGerencialData.receitasRows, m);
-                          const imp = dreGerencialData.sumRowsMonth(dreGerencialData.impostosRows, m);
-                          return <td key={m} className="py-2.5 px-2 text-right">{formatCurrency(rec - imp)}</td>;
-                        })}
-                        <td className="py-2.5 px-3 text-right">{formatCurrency(dreGerencialData.receitaLiquidaTotalAnual)}</td>
-                        <td className="py-2.5 px-3 text-center">
-                          {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((dreGerencialData.receitaLiquidaTotalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
-                        </td>
-                      </tr>
-
-                      <tr className="bg-rose-50 text-rose-900 font-bold">
-                        <td className="py-2.5 px-3">4. (-) CUSTOS DIRETOS DE PROJETOS E CAMPO (CSP)</td>
-                        {dreGerencialData.monthsFull.map(m => {
-                          const val = dreGerencialData.sumRowsMonth(dreGerencialData.custosDiretosRows, m);
-                          return <td key={m} className="py-2.5 px-2 text-right text-rose-700">{formatCurrency(val)}</td>;
-                        })}
-                        <td className="py-2.5 px-3 text-right text-rose-700">{formatCurrency(dreGerencialData.custosDiretosTotalAnual)}</td>
-                        <td className="py-2.5 px-3 text-center text-rose-700">
-                          {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((dreGerencialData.custosDiretosTotalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
-                        </td>
-                      </tr>
-                      {dreGerencialData.custosDiretosRows.map(r => (
-                        <tr key={r.codigo} className="hover:bg-slate-50 text-slate-700">
-                          <td className="py-2 px-4 pl-6"><i>(-) {r.nome}</i></td>
-                          {dreGerencialData.monthsFull.map(m => (
-                            <td key={m} className="py-2 px-2 text-right">{formatCurrency(r.mensalValues[m] || 0)}</td>
-                          ))}
-                          <td className="py-2 px-3 text-right font-bold">{formatCurrency(r.totalAnual)}</td>
-                          <td className="py-2 px-3 text-center text-slate-500">—</td>
-                        </tr>
-                      ))}
-
-                      <tr className="bg-emerald-50 text-emerald-900 font-extrabold">
-                        <td className="py-2.5 px-3">(=) LUCRO BRUTO</td>
-                        {dreGerencialData.monthsFull.map(m => {
-                          const rec = dreGerencialData.sumRowsMonth(dreGerencialData.receitasRows, m);
-                          const imp = dreGerencialData.sumRowsMonth(dreGerencialData.impostosRows, m);
-                          const cus = dreGerencialData.sumRowsMonth(dreGerencialData.custosDiretosRows, m);
-                          return <td key={m} className="py-2.5 px-2 text-right">{formatCurrency(rec - imp - cus)}</td>;
-                        })}
-                        <td className="py-2.5 px-3 text-right">{formatCurrency(dreGerencialData.lucroBrutoTotalAnual)}</td>
-                        <td className="py-2.5 px-3 text-center">
-                          {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((dreGerencialData.lucroBrutoTotalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
-                        </td>
-                      </tr>
-
-                      <tr className="bg-rose-50 text-rose-900 font-bold">
-                        <td className="py-2.5 px-3">5. (-) DESPESAS OPERACIONAIS, COMERCIAIS E PRÓ-LABORE</td>
-                        {dreGerencialData.monthsFull.map(m => {
-                          const val = dreGerencialData.sumRowsMonth(dreGerencialData.despesasOpRows, m);
-                          return <td key={m} className="py-2.5 px-2 text-right text-rose-700">{formatCurrency(val)}</td>;
-                        })}
-                        <td className="py-2.5 px-3 text-right text-rose-700">{formatCurrency(dreGerencialData.despesasOpTotalAnual)}</td>
-                        <td className="py-2.5 px-3 text-center text-rose-700">
-                          {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((dreGerencialData.despesasOpTotalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
-                        </td>
-                      </tr>
-                      {dreGerencialData.despesasOpRows.map(r => (
-                        <tr key={r.codigo} className="hover:bg-slate-50 text-slate-700">
-                          <td className="py-2 px-4 pl-6"><i>{r.codigo.startsWith('2.4.01') ? '★ (-) ' : '(-) '} {r.nome}</i></td>
-                          {dreGerencialData.monthsFull.map(m => (
-                            <td key={m} className="py-2 px-2 text-right">{formatCurrency(r.mensalValues[m] || 0)}</td>
-                          ))}
-                          <td className="py-2 px-3 text-right font-bold">{formatCurrency(r.totalAnual)}</td>
-                          <td className="py-2 px-3 text-center text-slate-500">—</td>
-                        </tr>
-                      ))}
-
-                      <tr className="bg-[#1B3B2B] text-white font-black text-sm">
-                        <td className="py-3 px-3">6. (=) LUCRO LÍQUIDO DO EXERCÍCIO (APÓS PRÓ-LABORE)</td>
-                        {dreGerencialData.monthsFull.map(m => {
-                          const rec = dreGerencialData.sumRowsMonth(dreGerencialData.receitasRows, m);
-                          const imp = dreGerencialData.sumRowsMonth(dreGerencialData.impostosRows, m);
-                          const cus = dreGerencialData.sumRowsMonth(dreGerencialData.custosDiretosRows, m);
-                          const des = dreGerencialData.sumRowsMonth(dreGerencialData.despesasOpRows, m);
-                          return <td key={m} className="py-3 px-2 text-right text-emerald-300">{formatCurrency(rec - imp - cus - des)}</td>;
-                        })}
-                        <td className="py-3 px-3 text-right text-emerald-300">{formatCurrency(dreGerencialData.lucroLiquidoTotalAnual)}</td>
-                        <td className="py-3 px-3 text-center text-emerald-300">
-                          {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((dreGerencialData.lucroLiquidoTotalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'lancamentos' && (
-            <div className="space-y-5">
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="relative flex-1 min-w-[220px]">
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                    <input
-                      type="text"
-                      value={txSearch}
-                      onChange={(e) => setTxSearch(e.target.value)}
-                      placeholder="Pesquisar por favorecido, ID ou descrição..."
-                      className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
-                    />
-                  </div>
-                  <button
-                    onClick={() => {
-                      setEditingTx(null);
-                      setTxForm({
-                        date: '2026-11-10',
-                        month: 'Nov',
-                        type: 'Entrada',
-                        planoContas: planoContasData.receitas[0].codigo,
-                        category: planoContasData.receitas[0].nome,
-                        entity: '',
-                        contractId: '—',
-                        description: '',
-                        paymentMethod: 'PIX',
-                        status: 'Pago / Recebido',
-                        amount: ''
-                      });
-                      setShowTxModal(true);
-                    }}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" /> Incluir Lançamento
-                  </button>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100 text-xs">
-                  <span className="font-bold text-slate-600 flex items-center gap-1">
-                    <Filter className="w-3.5 h-3.5 text-[#1B3B2B]" /> Filtrar colunas:
-                  </span>
-                  
-                  <select
-                    value={txTypeFilter}
-                    onChange={(e) => setTxTypeFilter(e.target.value)}
-                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold cursor-pointer"
-                  >
-                    <option value="Todos">Tipo: Todos</option>
-                    <option value="Entrada">Entrada</option>
-                    <option value="Saída">Saída</option>
-                  </select>
-
-                  <select
-                    value={txCategoryFilter}
-                    onChange={(e) => setTxCategoryFilter(e.target.value)}
-                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold max-w-[260px] truncate cursor-pointer"
-                  >
-                    <option value="Todas">Plano de Contas: Todas</option>
-                    <optgroup label="Receitas (1.X)">
-                      {planoContasData.receitas.map(r => <option key={r.codigo} value={r.codigo}>{r.nome}</option>)}
-                    </optgroup>
-                    <optgroup label="Despesas (2.X)">
-                      {planoContasData.despesas.map(d => <option key={d.codigo} value={d.codigo}>{d.nome}</option>)}
-                    </optgroup>
-                  </select>
-
-                  <select
-                    value={txStatusFilter}
-                    onChange={(e) => setTxStatusFilter(e.target.value)}
-                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold cursor-pointer"
-                  >
-                    <option value="Todos">Status: Todos</option>
-                    <option value="Pago / Recebido">Pago / Recebido</option>
-                    <option value="Pendente">Pendente</option>
-                  </select>
-
-                  {(txTypeFilter !== 'Todos' || txCategoryFilter !== 'Todas' || txStatusFilter !== 'Todos' || txSearch !== '') && (
-                    <button
-                      onClick={() => {
-                        setTxTypeFilter('Todos');
-                        setTxCategoryFilter('Todas');
-                        setTxStatusFilter('Todos');
-                        setTxSearch('');
-                      }}
-                      className="text-rose-600 font-bold hover:underline ml-auto cursor-pointer"
-                    >
-                      Limpar Filtros
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
-                        <th onClick={() => handleSort('id')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center gap-1">ID {sortField === 'id' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th onClick={() => handleSort('date')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center gap-1">Data {sortField === 'date' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th onClick={() => handleSort('type')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center gap-1">Tipo {sortField === 'type' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th onClick={() => handleSort('planocontas')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center gap-1">Plano de Contas {sortField === 'planocontas' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th onClick={() => handleSort('category')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center gap-1">Categoria Detalhada {sortField === 'category' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th onClick={() => handleSort('entity')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center gap-1">Favorecido / Cliente {sortField === 'entity' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th onClick={() => handleSort('description')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center gap-1">Descrição {sortField === 'description' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th onClick={() => handleSort('amount')} className="py-3.5 px-3 text-right cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center justify-end gap-1">Valor {sortField === 'amount' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th className="py-3.5 px-3 text-center">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredTransactions.length === 0 ? (
-                        <tr>
-                          <td colSpan="10" className="py-8 text-center text-slate-400">Nenhum lançamento encontrado com os filtros atuais.</td>
-                        </tr>
-                      ) : (
-                        filteredTransactions.map((tx) => (
-                          <tr key={tx.id} className="hover:bg-slate-50">
-                            <td className="py-2.5 px-3 font-mono font-bold">{tx.id}</td>
-                            <td className="py-2.5 px-3">{tx.date}</td>
-                            <td className="py-2.5 px-3">
-                              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${tx.type === 'Entrada' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                                {tx.type}
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-3 font-mono font-bold text-teal-900">{tx.planocontas || tx.planoContas || '1.1.01'}</td>
-                            <td className="py-2.5 px-3 text-slate-700">{tx.category}</td>
-                            <td className="py-2.5 px-3 font-bold">{tx.entity}</td>
-                            <td className="py-2.5 px-3">{tx.description}</td>
-                            <td className="py-2.5 px-3 text-center">
-                              <button onClick={() => handleToggleStatus(tx.id)} className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${tx.status === 'Pago / Recebido' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'} cursor-pointer`}>
-                                {tx.status}
-                              </button>
-                            </td>
-                            <td className={`py-2.5 px-3 text-right font-extrabold ${tx.type === 'Entrada' ? 'text-emerald-700' : 'text-rose-700'}`}>
-                              {formatCurrency(tx.amount)}
-                            </td>
-                            <td className="py-2.5 px-3 text-center space-x-2">
-                              <button
-                                onClick={() => {
-                                  setEditingTx(tx);
-                                  setTxForm({
-                                    date: tx.date,
-                                    month: tx.month,
-                                    type: tx.type,
-                                    planoContas: tx.planocontas || tx.planoContas || '1.1.01',
-                                    category: tx.category,
-                                    entity: tx.entity,
-                                    contractId: tx.contractid || tx.contractId || '—',
-                                    description: tx.description,
-                                    paymentMethod: tx.paymentmethod || tx.paymentMethod || 'PIX',
-                                    status: tx.status,
-                                    amount: tx.amount
-                                  });
-                                  setShowTxModal(true);
-                                }}
-                                className="p-1 rounded text-teal-700 hover:bg-teal-50 cursor-pointer"
-                                title="Editar Lançamento"
-                              >
-                                <Edit3 className="w-4 h-4 inline" />
-                              </button>
-                              <button
-                                onClick={() => setDeleteTxTarget(tx)}
-                                className="p-1 rounded text-rose-600 hover:bg-rose-50 cursor-pointer"
-                                title="Excluir Lançamento"
-                              >
-                                <Trash2 className="w-4 h-4 inline" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'contratos' && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">VALOR TOTAL CONTRATADO ({contracts.length} CONTRATOS)</div>
-                  <div className="text-2xl font-black text-[#1B3B2B] mt-2">{formatCurrency(financialData.totalContratado)}</div>
-                  <div className="text-xs text-slate-500 mt-1">Carteira Ambiental SEMA-MT & SST</div>
-                </div>
-                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">TOTAL JÁ RECEBIDO DOS CONTRATOS</div>
-                  <div className="text-2xl font-black text-emerald-700 mt-2">{formatCurrency(financialData.totalRecebidoContratos)}</div>
-                  <div className="text-xs text-emerald-600 mt-1">Parcelas quitadas via baixa</div>
-                </div>
-                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">SALDO A FATURAR / RECEBER</div>
-                  <div className="text-2xl font-black text-amber-600 mt-2">{formatCurrency(financialData.saldoAFaturar)}</div>
-                  <div className="text-xs text-slate-500 mt-1">Parcelas pendentes de recebimento</div>
-                </div>
-                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">MARGEM TÉCNICA MÉDIA DOS PROJETOS</div>
-                  <div className="text-2xl font-black text-[#1B3B2B] mt-2">{financialData.margemMedia.toFixed(1).replace('.', ',')}%</div>
-                  <div className="text-xs text-slate-500 mt-1">Após custos laboratoriais, drone e taxas</div>
-                </div>
-              </div>
-
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
-                <div className="relative flex-1 min-w-[280px]">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                  <input
-                    type="text"
-                    value={ctSearch}
-                    onChange={(e) => setCtSearch(e.target.value)}
-                    placeholder="Buscar por cliente, fazenda, SEMA-MT, eSocial ou código..."
-                    className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
-                  />
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <select
-                    value={ctDueDateFilter}
-                    onChange={(e) => setCtDueDateFilter(e.target.value)}
-                    className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white text-[#1B3B2B] cursor-pointer"
-                  >
-                    <option value="Todos">Vencimento: Todos</option>
-                    <option value="Vencidos">🔴 Vencidos</option>
-                    <option value="Hoje">🟡 Vencendo Hoje</option>
-                    <option value="AVencer">🟢 A Vencer</option>
-                  </select>
-
-                  <select
-                    value={ctStatusFilter}
-                    onChange={(e) => setCtStatusFilter(e.target.value)}
-                    className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white cursor-pointer"
-                  >
-                    <option value="Todos">Status Técnico: Todos</option>
-                    <option value="Em Elaboração Técnica">Em Elaboração Técnica</option>
-                    <option value="Protocolado / SEMA">Protocolado / SEMA</option>
-                    <option value="Em Andamento">Em Andamento</option>
-                    <option value="Concluído / Licença Emitida">Concluído / Licença Emitida</option>
-                  </select>
-                  <button
-                    onClick={() => {
-                      setEditingContract(null);
-                      setCtForm({
-                        client: '',
-                        service: '',
-                        agency: 'SEMA-MT',
-                        status: 'Em Elaboração Técnica',
-                        contractValue: '',
-                        directCosts: '',
-                        installmentsCount: '1',
-                        installmentDates: [`${selectedDreYear}-12-30`, '', '', '', '', '', '', '', '', '', '', ''],
-                        installmentAmounts: ['', '', '', '', '', '', '', '', '', '', '', ''],
-                        paymentMethod: 'PIX'
-                      });
-                      setShowContractModal(true);
-                    }}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" /> Novo Contrato Ambiental / SST
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px]">
-                        <th onClick={() => handleSort('id')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center gap-1">Código {sortField === 'id' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th onClick={() => handleSort('client')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center gap-1">Cliente / Empreendimento {sortField === 'client' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th onClick={() => handleSort('service')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center gap-1">Escopo Técnico {sortField === 'service' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th onClick={() => handleSort('agency')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center gap-1">Órgão {sortField === 'agency' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th onClick={() => handleSort('contractvalue')} className="py-3.5 px-3 text-right cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center justify-end gap-1">Valor Contrato {sortField === 'contractvalue' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th className="py-3.5 px-3 text-right">Já Recebido</th>
-                        <th className="py-3.5 px-3 text-right">Saldo a Receber</th>
-                        <th className="py-3.5 px-3 text-center">Gerenciar Parcelas</th>
-                        <th className="py-3.5 px-3 text-center">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredContracts.length === 0 ? (
-                        <tr>
-                          <td colSpan="10" className="py-8 text-center text-slate-400">Nenhum contrato cadastrado com os filtros selecionados.</td>
-                        </tr>
-                      ) : (
-                        filteredContracts.map((ct) => {
-                          const val = Number(ct.contractvalue || ct.contractValue || 0);
-                          const insts = ct.installmentsData || ct.installmentsdata || [];
-                          const rec = insts.filter(i => i.status === 'Pago').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
-                          const saldo = val - rec;
-                          return (
-                            <tr key={ct.id} className="hover:bg-slate-50">
-                              <td className="py-3 px-3 font-mono font-bold text-[#1B3B2B]">{ct.id}</td>
-                              <td className="py-3 px-3 font-bold text-slate-900">{ct.client}</td>
-                              <td className="py-3 px-3 text-slate-700">{ct.service}</td>
-                              <td className="py-3 px-3 font-semibold text-slate-600">{ct.agency || 'SEMA-MT'}</td>
-                              <td className="py-3 px-3 text-center">
-                                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
-                                  {ct.status}
-                                </span>
-                              </td>
-                              <td className="py-3 px-3 text-right font-bold text-[#1B3B2B]">{formatCurrency(val)}</td>
-                              <td className="py-3 px-3 text-right text-emerald-700 font-semibold">{formatCurrency(rec)}</td>
-                              <td className="py-3 px-3 text-right text-amber-600 font-semibold">{formatCurrency(saldo)}</td>
-                              <td className="py-3 px-3 text-center">
-                                <button
-                                  onClick={() => setViewingContractInstallments(ct)}
-                                  className="px-3 py-1 rounded-lg bg-teal-800 text-white font-bold text-[10px] hover:bg-teal-900 cursor-pointer"
-                                >
-                                  Ver Parcelas ({insts.filter(i => i.status === 'Pago').length}/{insts.length})
-                                </button>
-                              </td>
-                              <td className="py-3 px-3 text-center space-x-2">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-extrabold text-emerald-800 uppercase tracking-wider">Contas de Receita (1.X)</h4>
+                        <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                          {planoContasData.receitas.map((rev) => (
+                            <div key={rev.codigo} className="flex items-center justify-between p-3 rounded-xl border border-emerald-200 bg-emerald-50/40 text-xs">
+                              <span className="font-semibold text-slate-800 truncate mr-2">{rev.nome}</span>
+                              <div className="flex items-center gap-1 shrink-0">
                                 <button
                                   onClick={() => {
-                                    setEditingContract(ct);
-                                    setCtForm({
-                                      client: ct.client,
-                                      service: ct.service,
-                                      agency: ct.agency,
-                                      status: ct.status,
-                                      contractValue: ct.contractvalue || ct.contractValue,
-                                      directCosts: ct.directcosts || ct.directCosts,
-                                      installmentsCount: ct.installmentscount || ct.installmentsCount || '1',
-                                      installmentDates: (ct.installmentsData || ct.installmentsdata)?.map(i => i.dueDate) || [`${selectedDreYear}-12-30`],
-                                      installmentAmounts: (ct.installmentsData || ct.installmentsdata)?.map(i => i.amount) || [''],
-                                      paymentMethod: ct.paymentmethod || ct.paymentMethod || 'PIX'
-                                    });
-                                    setShowContractModal(true);
+                                    setPlanoForm({ tipo: 'receitas', codigo: rev.codigo, nome: rev.nome, originalCodigo: rev.codigo });
+                                    setShowPlanoModal(true);
                                   }}
-                                  className="p-1.5 rounded-lg text-teal-700 hover:bg-teal-50 cursor-pointer"
-                                  title="Editar Contrato"
+                                  className="p-1 rounded text-teal-800 hover:bg-emerald-100 cursor-pointer"
+                                  title="Editar"
                                 >
-                                  <Edit3 className="w-4 h-4 inline" />
+                                  <Edit3 className="w-3.5 h-3.5" />
                                 </button>
                                 <button
-                                  onClick={() => setDeleteContractTarget(ct)}
-                                  className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
-                                  title="Excluir Contrato"
+                                  onClick={() => {
+                                    if (window.confirm(`Deseja excluir a conta ${rev.codigo}?`)) {
+                                      const updated = {
+                                        ...planoContasData,
+                                        receitas: planoContasData.receitas.filter(r => r.codigo !== rev.codigo)
+                                      };
+                                      setPlanoContasData(updated);
+                                      syncSettingsToCloud(availableSegments, availableStatuses, updated, params);
+                                      showToast('Conta removida do plano de contas!');
+                                    }
+                                  }}
+                                  className="p-1 rounded text-rose-600 hover:bg-rose-100 cursor-pointer"
+                                  title="Excluir"
                                 >
-                                  <Trash2 className="w-4 h-4 inline" />
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </button>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'clientes' && (
-            <div className="space-y-6">
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-                <div className="relative flex-1 max-w-md">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                  <input
-                    type="text"
-                    value={cliSearch}
-                    onChange={(e) => setCliSearch(e.target.value)}
-                    placeholder="Buscar clientes..."
-                    className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
-                  />
-                </div>
-                <button
-                  onClick={() => {
-                    setEditingClient(null);
-                    setCliForm({
-                      name: '',
-                      document: '',
-                      registration: '',
-                      segment: availableSegments[0],
-                      city: 'Rondonópolis — MT',
-                      contactName: '',
-                      phone: '',
-                      email: '',
-                      mainProgram: 'Licenciamento Ambiental (LP / LI / LO)',
-                      status: availableStatuses[0]
-                    });
-                    setShowClientModal(true);
-                  }}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#1B3B2B] text-white cursor-pointer"
-                >
-                  <UserPlus className="w-4 h-4" /> Cadastrar Cliente
-                </button>
-              </div>
-
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
-                        <th onClick={() => handleSort('id')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center gap-1">ID {sortField === 'id' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th onClick={() => handleSort('name')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center gap-1">Razão Social / Empreendimento {sortField === 'name' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th onClick={() => handleSort('segment')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center gap-1">Segmento Econômico {sortField === 'segment' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th onClick={() => handleSort('contactName')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center gap-1">Responsável / Contato {sortField === 'contactName' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th onClick={() => handleSort('city')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center gap-1">Cidade {sortField === 'city' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th className="py-3.5 px-3 text-center">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredClients.length === 0 ? (
-                        <tr>
-                          <td colSpan="7" className="py-8 text-center text-slate-400">Nenhum cliente cadastrado.</td>
-                        </tr>
-                      ) : (
-                        filteredClients.map((cli) => (
-                          <tr key={cli.id} className="hover:bg-slate-50">
-                            <td className="py-3 px-3 font-mono font-bold">{cli.id}</td>
-                            <td className="py-3 px-3 font-bold">{cli.name}</td>
-                            <td className="py-3 px-3">{cli.segment}</td>
-                            <td className="py-3 px-3">{cli.contactName || cli.contactname || '—'}</td>
-                            <td className="py-3 px-3">{cli.city}</td>
-                            <td className="py-3 px-3 text-center">
-                              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
-                                {cli.status}
-                              </span>
-                            </td>
-                            <td className="py-3 px-3 text-center space-x-2">
-                              <button
-                                onClick={() => {
-                                  setEditingClient(cli);
-                                  setCliForm({
-                                    name: cli.name,
-                                    document: cli.document || '',
-                                    registration: cli.registration || '',
-                                    segment: cli.segment || availableSegments[0],
-                                    city: cli.city || 'Rondonópolis — MT',
-                                    contactName: cli.contactName || cli.contactname || '',
-                                    phone: cli.phone || '',
-                                    email: cli.email || '',
-                                    mainProgram: cli.mainProgram || cli.mainprogram || 'Licenciamento Ambiental',
-                                    status: cli.status || availableStatuses[0]
-                                  });
-                                  setShowClientModal(true);
-                                }}
-                                className="p-1.5 rounded-lg text-teal-700 hover:bg-teal-50 cursor-pointer"
-                                title="Editar Cliente"
-                              >
-                                <Edit3 className="w-4 h-4 inline" />
-                              </button>
-                              <button
-                                onClick={() => setDeleteClientTarget(cli)}
-                                className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
-                                title="Excluir Cliente"
-                              >
-                                <Trash2 className="w-4 h-4 inline" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'condicionantes' && (
-            <div className="space-y-6">
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
-                <div className="relative flex-1 min-w-[240px]">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                  <input
-                    type="text"
-                    value={condSearch}
-                    onChange={(e) => setCondSearch(e.target.value)}
-                    placeholder="Buscar por cliente, condicionante, licença ou responsável..."
-                    className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
-                  />
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3">
-                  <select
-                    value={condStatusFilter}
-                    onChange={(e) => setCondStatusFilter(e.target.value)}
-                    className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white text-[#1B3B2B] cursor-pointer"
-                  >
-                    <option value="Todos">Filtrar por Status</option>
-                    <option value="FINALIZADO">FINALIZADO</option>
-                    <option value="ATENDIDO">ATENDIDO</option>
-                    <option value="EM ANDAMENTO">EM ANDAMENTO</option>
-                    <option value="A VENCER">A VENCER</option>
-                  </select>
-
-                  <button
-                    onClick={() => {
-                      setEditingCond(null);
-                      setCondForm({
-                        client: '',
-                        service: '',
-                        dueDate: new Date().toISOString().split('T')[0],
-                        license: '',
-                        responsible: '',
-                        observation: '',
-                        status: 'EM ANDAMENTO'
-                      });
-                      setShowCondModal(true);
-                    }}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" /> Nova Condicionante
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px]">
-                        <th 
-                          onClick={() => handleSort('client')} 
-                          className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none"
-                        >
-                          <div className="flex items-center gap-1.5">
-                            Nome do Cliente {sortField === 'client' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}
-                          </div>
-                        </th>
-                        <th 
-                          onClick={() => handleSort('service')} 
-                          className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none"
-                        >
-                          <div className="flex items-center gap-1.5">
-                            Condicionantes / Serviço {sortField === 'service' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}
-                          </div>
-                        </th>
-                        <th 
-                          onClick={() => handleSort('duedate')} 
-                          className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none"
-                        >
-                          <div className="flex items-center gap-1.5">
-                            Vencimento Final {sortField === 'duedate' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}
-                          </div>
-                        </th>
-                        <th onClick={() => handleSort('license')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center gap-1">Licença {sortField === 'license' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th onClick={() => handleSort('responsible')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center gap-1">Responsável - Empresa {sortField === 'responsible' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th onClick={() => handleSort('observation')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center gap-1">Observação {sortField === 'observation' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                          <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                        </th>
-                        <th className="py-3.5 px-3 text-center">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredCondicionantes.length === 0 ? (
-                        <tr>
-                          <td colSpan="8" className="py-8 text-center text-slate-400">Nenhuma condicionante encontrada.</td>
-                        </tr>
-                      ) : (
-                        filteredCondicionantes.map((cond) => (
-                          <tr key={cond.id} className="hover:bg-slate-50">
-                            <td className="py-3 px-3 font-bold text-slate-900">{cond.client}</td>
-                            <td className="py-3 px-3 text-slate-700 max-w-xs">{cond.service}</td>
-                            <td className="py-3 px-3 font-mono">{cond.dueDate || cond.duedate}</td>
-                            <td className="py-3 px-3 font-semibold">{cond.license}</td>
-                            <td className="py-3 px-3 font-bold text-slate-700">{cond.responsible}</td>
-                            <td className="py-3 px-3 text-slate-500 max-w-xs truncate">{cond.observation || '—'}</td>
-                            <td className="py-3 px-3 text-center">
-                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
-                                cond.status === 'FINALIZADO' ? 'bg-emerald-700 text-white' :
-                                cond.status === 'ATENDIDO' ? 'bg-emerald-600 text-white' :
-                                cond.status === 'EM ANDAMENTO' ? 'bg-amber-500 text-white' : 'bg-amber-600 text-white'
-                              }`}>
-                                {cond.status}
-                              </span>
-                            </td>
-                            <td className="py-3 px-3 text-center space-x-1">
-                              <button
-                                onClick={() => {
-                                  setEditingCond(cond);
-                                  setCondForm({
-                                    client: cond.client,
-                                    service: cond.service,
-                                    dueDate: cond.dueDate || cond.duedate,
-                                    license: cond.license,
-                                    responsible: cond.responsible,
-                                    observation: cond.observation,
-                                    status: cond.status
-                                  });
-                                  setShowCondModal(true);
-                                }}
-                                className="p-1.5 rounded-lg text-teal-700 hover:bg-teal-50 cursor-pointer"
-                                title="Editar Condicionante"
-                              >
-                                <Edit3 className="w-4 h-4 inline" />
-                              </button>
-                              <button
-                                onClick={() => setDeleteCondTarget(cond)}
-                                className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
-                                title="Excluir Condicionante"
-                              >
-                                <Trash2 className="w-4 h-4 inline" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'acessos' && (
-            <div className="space-y-6">
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-extrabold text-[#1B3B2B]">Árvore de Acessos & Perfis</h3>
-                  <p className="text-xs text-slate-500">Gerencie colaboradores, edite senhas e configure permissões granulares por módulo.</p>
-                </div>
-                <button
-                  onClick={() => setShowUserRoleModal(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
-                >
-                  <UserPlus className="w-4 h-4" /> Cadastrar Novo Utilizador
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {accessRoles.map((role) => (
-                  <div key={role.id} className="p-5 rounded-2xl border border-slate-200 bg-white shadow-sm space-y-3 flex flex-col justify-between">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#1B3B2B] text-emerald-300 uppercase">
-                          {role.level}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => setEditingRoleTarget(role)}
-                            className="p-1.5 rounded-lg text-teal-800 hover:bg-teal-50 cursor-pointer"
-                            title="Editar Perfil e Senha"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteRole(role.id)}
-                            className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
-                            title="Excluir Perfil"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                      <h4 className="font-extrabold text-[#1B3B2B] text-sm">{role.name}</h4>
-                      <div className="text-xs font-bold text-slate-700">👤 {role.holder}</div>
-                      <div className="text-xs text-slate-500">✉️ {role.email}</div>
-                      <p className="text-[11px] text-slate-600 border-t pt-2 mt-2">{role.description}</p>
-                    </div>
 
-                    <div className="space-y-2 pt-2 border-t border-slate-100">
-                      <button
-                        onClick={() => setEditingRolePermissions(role)}
-                        className="w-full py-1.5 rounded-xl text-xs font-bold bg-emerald-800 text-white hover:bg-emerald-900 flex items-center justify-center gap-1.5 cursor-pointer"
-                      >
-                        <Sliders className="w-3.5 h-3.5" /> Configurar Permissões (Flags)
-                      </button>
-                      <span className="w-full py-1.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800 flex items-center justify-center gap-1">
-                        <Check className="w-3.5 h-3.5" /> Sincronizado na Nuvem
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'config' && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-                <div>
-                  <h2 className="text-base font-extrabold text-[#1B3B2B]">
-                    Parâmetros Financeiros e Metas — Grupo Martins ({selectedDreYear})
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Ajuste o Saldo Inicial de Caixa, Meta de Faturamento e Pró-Labore Alvo do Sócio-Diretor Maikon Martins.
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
-                  <div>
-                    <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-1.5">
-                      SALDO INICIAL DE CAIXA (R$)
-                    </label>
-                    <input
-                      type="number"
-                      value={params.saldoInicialCaixa}
-                      onChange={(e) => {
-                        const updated = { ...params, saldoInicialCaixa: Number(e.target.value) };
-                        setParams(updated);
-                        syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated);
-                      }}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-1.5">
-                      META MENSAL DE RECEITA (R$)
-                    </label>
-                    <input
-                      type="number"
-                      value={params.metaMensalReceita}
-                      onChange={(e) => {
-                        const updated = { ...params, metaMensalReceita: Number(e.target.value) };
-                        setParams(updated);
-                        syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated);
-                      }}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-1.5">
-                      PRÓ-LABORE MENSAL ALVO (R$)
-                    </label>
-                    <input
-                      type="number"
-                      value={params.proLaboreAlvoMensal}
-                      onChange={(e) => {
-                        const updated = { ...params, proLaboreAlvoMensal: Number(e.target.value) };
-                        setParams(updated);
-                        syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated);
-                      }}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-1.5">
-                      SÓCIO-DIRETOR RESPONSÁVEL
-                    </label>
-                    <input
-                      type="text"
-                      value={params.socioDiretor}
-                      onChange={(e) => {
-                        const updated = { ...params, socioDiretor: e.target.value };
-                        setParams(updated);
-                        syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated);
-                      }}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b pb-3">
-                  <div>
-                    <h3 className="text-sm font-extrabold text-[#1B3B2B] uppercase">
-                      Gerenciamento do Plano de Contas (DRE)
-                    </h3>
-                    <p className="text-xs text-slate-500">Adicione, edite ou remova contas do plano contábil do ERP.</p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setPlanoForm({ tipo: 'receitas', codigo: '', nome: '', originalCodigo: null });
-                      setShowPlanoModal(true);
-                    }}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" /> Novo Plano de Contas
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
-                  <div className="space-y-3">
-                    <h4 className="text-xs font-extrabold text-emerald-800 uppercase tracking-wider">Contas de Receita (1.X)</h4>
-                    <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                      {planoContasData.receitas.map((rev) => (
-                        <div key={rev.codigo} className="flex items-center justify-between p-3 rounded-xl border border-emerald-200 bg-emerald-50/40 text-xs">
-                          <span className="font-semibold text-slate-800 truncate mr-2">{rev.nome}</span>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              onClick={() => {
-                                setPlanoForm({ tipo: 'receitas', codigo: rev.codigo, nome: rev.nome, originalCodigo: rev.codigo });
-                                setShowPlanoModal(true);
-                              }}
-                              className="p-1 rounded text-teal-800 hover:bg-emerald-100 cursor-pointer"
-                              title="Editar"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (window.confirm(`Deseja excluir a conta ${rev.codigo}?`)) {
-                                  const updated = {
-                                    ...planoContasData,
-                                    receitas: planoContasData.receitas.filter(r => r.codigo !== rev.codigo)
-                                  };
-                                  setPlanoContasData(updated);
-                                  syncSettingsToCloud(availableSegments, availableStatuses, updated, params);
-                                  showToast('Conta removida do plano de contas!');
-                                }
-                              }}
-                              className="p-1 rounded text-rose-600 hover:bg-rose-100 cursor-pointer"
-                              title="Excluir"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-extrabold text-rose-950 uppercase tracking-wider">Contas de Despesas e Custos (2.X)</h4>
+                        <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                          {planoContasData.despesas.map((desp) => (
+                            <div key={desp.codigo} className="flex items-center justify-between p-3 rounded-xl border border-rose-200 bg-rose-50/30 text-xs">
+                              <span className="font-semibold text-slate-800 truncate mr-2">{desp.nome}</span>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  onClick={() => {
+                                    setPlanoForm({ tipo: 'despesas', codigo: desp.codigo, nome: desp.nome, originalCodigo: desp.codigo });
+                                    setShowPlanoModal(true);
+                                  }}
+                                  className="p-1 rounded text-rose-800 hover:bg-rose-100 cursor-pointer"
+                                  title="Editar"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (window.confirm(`Deseja excluir a conta ${desp.codigo}?`)) {
+                                      const updated = {
+                                        ...planoContasData,
+                                        despesas: planoContasData.despesas.filter(d => d.codigo !== desp.codigo)
+                                      };
+                                      setPlanoContasData(updated);
+                                      syncSettingsToCloud(availableSegments, availableStatuses, updated, params);
+                                      showToast('Conta removida do plano de contas!');
+                                    }
+                                  }}
+                                  className="p-1 rounded text-rose-600 hover:bg-rose-100 cursor-pointer"
+                                  title="Excluir"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <h4 className="text-xs font-extrabold text-rose-950 uppercase tracking-wider">Contas de Despesas e Custos (2.X)</h4>
-                    <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                      {planoContasData.despesas.map((desp) => (
-                        <div key={desp.codigo} className="flex items-center justify-between p-3 rounded-xl border border-rose-200 bg-rose-50/30 text-xs">
-                          <span className="font-semibold text-slate-800 truncate mr-2">{desp.nome}</span>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              onClick={() => {
-                                setPlanoForm({ tipo: 'despesas', codigo: desp.codigo, nome: desp.nome, originalCodigo: desp.codigo });
-                                setShowPlanoModal(true);
-                              }}
-                              className="p-1 rounded text-rose-800 hover:bg-rose-100 cursor-pointer"
-                              title="Editar"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (window.confirm(`Deseja excluir a conta ${desp.codigo}?`)) {
-                                  const updated = {
-                                    ...planoContasData,
-                                    despesas: planoContasData.despesas.filter(d => d.codigo !== desp.codigo)
-                                  };
-                                  setPlanoContasData(updated);
-                                  syncSettingsToCloud(availableSegments, availableStatuses, updated, params);
-                                  showToast('Conta removida do plano de contas!');
-                                }
-                              }}
-                              className="p-1 rounded text-rose-600 hover:bg-rose-100 cursor-pointer"
-                              title="Excluir"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              )}
+            </>
           )}
         </main>
       </div>
@@ -3951,6 +4041,19 @@ const handleSaveNewUserRole = async (e) => {
             </div>
             <form onSubmit={handleSaveNewUserRole} className="space-y-3 text-xs">
               <div>
+                <label className="block font-bold mb-1">Nível Hierárquico</label>
+                <select
+                  value={newRoleForm.level}
+                  onChange={(e) => setNewRoleForm({ ...newRoleForm, level: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border font-bold bg-white cursor-pointer"
+                >
+                  <option value="Nível 1 — Master">Nível 1 — Master</option>
+                  <option value="Nível 2 — Diretoria">Nível 2 — Diretoria</option>
+                  <option value="Nível 3 — Financeiro">Nível 3 — Financeiro</option>
+                  <option value="Nível Especial — Colaborador">Nível Especial — Colaborador</option>
+                </select>
+              </div>
+              <div>
                 <label className="block font-bold mb-1">Nome do Perfil / Departamento</label>
                 <input
                   type="text"
@@ -4032,11 +4135,11 @@ const handleSaveNewUserRole = async (e) => {
                   <div key={modKey} className="p-3 rounded-xl border bg-slate-50 flex flex-wrap items-center justify-between gap-3">
                     <span className="font-extrabold text-[#1B3B2B] uppercase w-32">{modKey}</span>
                     <div className="flex flex-wrap items-center gap-4">
-                      {Object.keys(modPerms).map((actKey) => (
+                      {['view', 'create', 'edit', 'delete', 'approve'].map((actKey) => (
                         <label key={actKey} className="flex items-center gap-1.5 cursor-pointer font-medium select-none">
                           <input
                             type="checkbox"
-                            checked={modPerms[actKey]}
+                            checked={Boolean(modPerms?.[actKey])}
                             onChange={() => handlePermissionToggle(editingRolePermissions.id, modKey, actKey)}
                             className="w-4 h-4 rounded text-[#1B3B2B] focus:ring-[#1B3B2B] cursor-pointer"
                           />
@@ -4174,6 +4277,11 @@ const handleSaveNewUserRole = async (e) => {
                 return;
               }
               setActiveRoleId(found.id);
+              // Ao fazer login, já posiciona na primeira aba que o utilizador tem permissão de ver
+              const isMasterUser = found.id === 'ROLE-01-PEDRO' || found.email.toLowerCase() === 'pedrosmelos@gmail.com';
+              const firstOpenTab = navItems.find(item => (isMasterUser && item.permKey === 'acessos') || Boolean(found.permissions?.[item.permKey]?.view));
+              if (firstOpenTab) setActiveTab(firstOpenTab.id);
+
               setAuthLoggedIn(true);
               showToast(`Bem-vindo(a), ${found.holder}! Acesso autorizado.`);
             }} className="space-y-4 text-left text-xs">
