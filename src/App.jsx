@@ -60,8 +60,7 @@ import {
   Legend,
   PieChart,
   Pie,
-  Cell,
-  BarChart
+  Cell
 } from 'recharts';
 
 import { createClient } from '@supabase/supabase-js';
@@ -352,7 +351,7 @@ export default function App() {
 
   const [editingRoleTarget, setEditingRoleTarget] = useState(null);
 
-  const [availableSegments, setAvailableSegments] = useState([
+  const [availableSegments] = useState([
     'Agronegócio / Propriedade Rural',
     'Indústria / Agroindústria',
     'Construtora / Loteamento',
@@ -360,17 +359,13 @@ export default function App() {
     'Comércio / Serviços',
     'Saúde / Hospitalar'
   ]);
-  const [newSegmentInput, setNewSegmentInput] = useState('');
-  const [showNewSegmentField, setShowNewSegmentField] = useState(false);
 
-  const [availableStatuses, setAvailableStatuses] = useState([
+  const [availableStatuses] = useState([
     'Ativo',
     'Em Prospecção',
     'Pendência Documental',
     'Inativo'
   ]);
-  const [newStatusInput, setNewStatusInput] = useState('');
-  const [showNewStatusField, setShowNewStatusField] = useState(false);
 
   const [accessRoles, setAccessRoles] = useState(INITIAL_ACCESS_ROLES);
   const [activeRoleId, setActiveRoleId] = useState('ROLE-01-PEDRO');
@@ -473,8 +468,8 @@ export default function App() {
     contractValue: '',
     directCosts: '',
     installmentsCount: '1',
-    installmentDates: [`${selectedDreYear}-12-30`, '', '', '', '', '', '', '', '', ''],
-    installmentAmounts: ['', '', '', '', '', '', '', '', '', ''],
+    installmentDates: [`${selectedDreYear}-12-30`, '', '', '', '', '', '', '', '', '', '', ''],
+    installmentAmounts: ['', '', '', '', '', '', '', '', '', '', '', ''],
     paymentMethod: 'PIX'
   });
 
@@ -816,14 +811,14 @@ export default function App() {
       const defaultInstVal = contractVal / nInstallments;
 
       for (let i = 0; i < nInstallments; i++) {
-        const customAmt = parseFloat(String(ctForm.installmentAmounts[i]).replace(',', '.'));
+        const customAmt = parseFloat(String(ctForm.installmentAmounts?.[i]).replace(',', '.'));
         const instVal = !isNaN(customAmt) && customAmt > 0 ? customAmt : defaultInstVal;
         
         const existingInst = editingContract?.installmentsData?.[i] || editingContract?.installmentsdata?.[i];
         installments.push({
           number: i + 1,
           amount: instVal,
-          dueDate: ctForm.installmentDates[i] || `${selectedDreYear}-12-30`,
+          dueDate: ctForm.installmentDates?.[i] || `${selectedDreYear}-12-30`,
           status: existingInst ? existingInst.status : 'Pendente',
           paymentDate: existingInst?.paymentDate || existingInst?.paymentdate || null,
           interestPaid: existingInst?.interestPaid || existingInst?.interestpaid || 0
@@ -959,7 +954,7 @@ export default function App() {
     }
 
     setViewingContractInstallments(updatedContract);
-    showToast(`Recebimento registrado com sucesso em 2 lançamentos separados no Caixa!`);
+    showToast(`Recebimento registrado com sucesso no Caixa!`);
     setReceivingInstallmentData(null);
     setReceiveForm({ paymentDate: new Date().toISOString().split('T')[0], interestAmount: '' });
   };
@@ -1158,7 +1153,6 @@ export default function App() {
     setDeleteCondTarget(null);
   };
 
-  // Função para Ordenar Universal ao Clicar em Qualquer Coluna
   const handleSort = (field) => {
     if (sortField === field) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
@@ -1257,7 +1251,7 @@ export default function App() {
   };
 
   const exportDREToExcel = () => {
-    const { selectedDreYear, monthsFull, receitasRows, receitaBrutaTotalAnual, impostosRows, impostoTotalAnual, receitaLiquidaTotalAnual, custosDiretosRows, custosDiretosTotalAnual, lucroBrutoTotalAnual, despesasOpRows, despesasOpTotalAnual, lucroLiquidoTotalAnual } = dreGerencialData;
+    const { selectedDreYear, monthsFull, receitasRows, receitaBrutaTotalAnual, impostosRows, impostoTotalAnual, receitaLiquidaTotalAnual, custosDiretosRows, custosDiretosTotalAnual, despesasOpRows, despesasOpTotalAnual, lucroLiquidoTotalAnual } = dreGerencialData;
     
     let csv = "\uFEFF";
     csv += `ESTRUTURA DRE — GRUPO MARTINS (${selectedDreYear}) (R$);` + monthsFull.join(";") + `;ACUMULADO ${selectedDreYear};AV %\n`;
@@ -1490,7 +1484,7 @@ export default function App() {
                   {!allowed ? (
                     <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                   ) : (
-                    item.badge && (
+                    item.badge !== undefined && (
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${isActive ? 'bg-[#1B3B2B] text-[#F8F3EF]' : 'bg-[#2D5A43] text-emerald-200'}`}>
                         {item.badge}
                       </span>
@@ -1504,7 +1498,7 @@ export default function App() {
 
         <div className="p-4 border-t border-[#2D5A43]">
           <div className="text-[11px] text-center text-emerald-200/70">
-            Grupo Martins ERP v3.6 • Supabase
+            Grupo Martins ERP v3.7 • Supabase
           </div>
         </div>
       </aside>
@@ -2191,8 +2185,8 @@ export default function App() {
                         contractValue: '',
                         directCosts: '',
                         installmentsCount: '1',
-                        installmentDates: [`${selectedDreYear}-12-30`, '', '', '', '', '', '', '', '', ''],
-                        installmentAmounts: ['', '', '', '', '', '', '', '', '', ''],
+                        installmentDates: [`${selectedDreYear}-12-30`, '', '', '', '', '', '', '', '', '', '', ''],
+                        installmentAmounts: ['', '', '', '', '', '', '', '', '', '', '', ''],
                         paymentMethod: 'PIX'
                       });
                       setShowContractModal(true);
@@ -2277,10 +2271,10 @@ export default function App() {
                                       status: ct.status,
                                       contractValue: ct.contractvalue || ct.contractValue,
                                       directCosts: ct.directcosts || ct.directCosts,
-                                      installmentsCount: ct.installmentscount || ct.installmentsCount,
+                                      installmentsCount: ct.installmentscount || ct.installmentsCount || '1',
                                       installmentDates: (ct.installmentsData || ct.installmentsdata)?.map(i => i.dueDate) || [`${selectedDreYear}-12-30`],
                                       installmentAmounts: (ct.installmentsData || ct.installmentsdata)?.map(i => i.amount) || [''],
-                                      paymentMethod: ct.paymentmethod || ct.paymentMethod
+                                      paymentMethod: ct.paymentmethod || ct.paymentMethod || 'PIX'
                                     });
                                     setShowContractModal(true);
                                   }}
@@ -2806,7 +2800,11 @@ export default function App() {
         </main>
       </div>
 
-      {/* MODAL NOVO PLANO DE CONTAS */}
+      {/* ========================================================================== */}
+      {/* TODOS OS 13 MODAIS DO SISTEMA UNIFICADOS E ATIVOS                          */}
+      {/* ========================================================================== */}
+
+      {/* 1. MODAL NOVO / EDITAR PLANO DE CONTAS */}
       {showPlanoModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
@@ -2875,7 +2873,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL NOVO CONTRATO AMBIENTAL / SST */}
+      {/* 2. MODAL NOVO / EDITAR CONTRATO AMBIENTAL / SST */}
       {showContractModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
@@ -2981,6 +2979,40 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Datas e valores personalizados das parcelas */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <label className="block font-bold text-[#1B3B2B] uppercase">Vencimentos e Valores das Parcelas</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
+                  {Array.from({ length: parseInt(ctForm.installmentsCount) || 1 }).map((_, idx) => (
+                    <div key={idx} className="p-2 rounded-xl border bg-slate-50 flex items-center gap-2">
+                      <span className="font-bold text-slate-600 w-8">{idx + 1}ª:</span>
+                      <input
+                        type="date"
+                        value={ctForm.installmentDates?.[idx] || ''}
+                        onChange={(e) => {
+                          const newDates = [...(ctForm.installmentDates || [])];
+                          newDates[idx] = e.target.value;
+                          setCtForm({ ...ctForm, installmentDates: newDates });
+                        }}
+                        className="px-2 py-1 rounded border text-[11px] font-mono flex-1"
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Valor (auto)"
+                        value={ctForm.installmentAmounts?.[idx] || ''}
+                        onChange={(e) => {
+                          const newAmts = [...(ctForm.installmentAmounts || [])];
+                          newAmts[idx] = e.target.value;
+                          setCtForm({ ...ctForm, installmentAmounts: newAmts });
+                        }}
+                        className="px-2 py-1 rounded border text-[11px] w-24 font-bold"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <button
                   type="button"
@@ -3001,7 +3033,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL VER PARCELAS DO CONTRATO */}
+      {/* 3. MODAL VER PARCELAS DO CONTRATO */}
       {viewingContractInstallments && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
@@ -3074,12 +3106,12 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL BAIXAR / RECEBER PARCELA */}
+      {/* 4. MODAL BAIXAR / RECEBER PARCELA */}
       {receivingInstallmentData && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl border">
             <h3 className="text-base font-extrabold text-[#1B3B2B]">Registrar Recebimento da Parcela</h3>
-            <p className="text-xs text-slate-600">Informe a data de recebimento e juros eventuais. O sistema gerará automaticamente 2 lançamentos no Livro Caixa.</p>
+            <p className="text-xs text-slate-600">Informe a data de recebimento e juros eventuais. O sistema lançará automaticamente no Livro Caixa.</p>
             <div className="space-y-3 text-xs">
               <div>
                 <label className="block font-bold uppercase mb-1">Data do Recebimento</label>
@@ -3106,6 +3138,700 @@ export default function App() {
               <button onClick={() => setReceivingInstallmentData(null)} className="px-4 py-2 rounded-xl border font-bold text-xs cursor-pointer">Cancelar</button>
               <button onClick={handleConfirmReceiveInstallment} className="px-5 py-2 rounded-xl bg-emerald-800 text-white font-bold text-xs cursor-pointer">Confirmar Baixa</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. MODAL CONFIRMAR ESTORNO DE PARCELA */}
+      {cancelInstallmentTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <RotateCcw className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-extrabold text-rose-700">Estornar Recebimento?</h3>
+            <p className="text-xs text-slate-600">
+              Deseja cancelar a baixa da <strong>Parcela {cancelInstallmentTarget.installmentNumber}</strong> e remover o lançamento correspondente do Livro Caixa?
+            </p>
+            <div className="flex justify-center gap-2 pt-2">
+              <button onClick={() => setCancelInstallmentTarget(null)} className="px-4 py-2 rounded-xl border font-bold text-xs text-slate-600 cursor-pointer">Cancelar</button>
+              <button onClick={confirmCancelReceiveInstallment} className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer">Sim, Estornar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. MODAL EXCLUIR CONTRATO */}
+      {deleteContractTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-extrabold text-rose-700">Excluir Contrato?</h3>
+            <p className="text-xs text-slate-600">
+              Deseja realmente remover o contrato <strong>{deleteContractTarget.id} ({deleteContractTarget.client})</strong>?
+            </p>
+            <div className="flex justify-center gap-2 pt-2">
+              <button onClick={() => setDeleteContractTarget(null)} className="px-4 py-2 rounded-xl border font-bold text-xs text-slate-600 cursor-pointer">Cancelar</button>
+              <button onClick={confirmDeleteContract} className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer">Sim, Excluir</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 7. MODAL CADASTRAR / EDITAR LANÇAMENTO */}
+      {showTxModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
+            <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
+              <h3 className="text-base font-extrabold">{editingTx ? 'Editar Lançamento' : 'Novo Lançamento no Livro Caixa'}</h3>
+              <button onClick={() => { setShowTxModal(false); setEditingTx(null); }} className="text-white hover:text-emerald-300 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveTransaction} className="p-6 space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">TIPO</label>
+                  <select
+                    value={txForm.type}
+                    onChange={(e) => setTxForm({ ...txForm, type: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
+                  >
+                    <option value="Entrada">Entrada</option>
+                    <option value="Saída">Saída</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">DATA</label>
+                  <input
+                    type="date"
+                    value={txForm.date}
+                    onChange={(e) => {
+                      const dt = e.target.value;
+                      const mNum = dt.split('-')[1];
+                      const mNames = { '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez' };
+                      setTxForm({ ...txForm, date: dt, month: mNames[mNum] || 'Nov' });
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">PLANO DE CONTAS</label>
+                <select
+                  value={txForm.planocontas || txForm.planoContas}
+                  onChange={(e) => {
+                    const code = e.target.value;
+                    const allC = [...planoContasData.receitas, ...planoContasData.despesas];
+                    const found = allC.find(c => c.codigo === code);
+                    setTxForm({ ...txForm, planoContas: code, planocontas: code, category: found ? found.nome : txForm.category });
+                  }}
+                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
+                >
+                  <optgroup label="Receitas (1.X)">
+                    {planoContasData.receitas.map(r => <option key={r.codigo} value={r.codigo}>{r.nome}</option>)}
+                  </optgroup>
+                  <optgroup label="Despesas (2.X)">
+                    {planoContasData.despesas.map(d => <option key={d.codigo} value={d.codigo}>{d.nome}</option>)}
+                  </optgroup>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">FAVORECIDO / CLIENTE</label>
+                <input
+                  type="text"
+                  list="client-list-tx"
+                  value={txForm.entity}
+                  onChange={(e) => setTxForm({ ...txForm, entity: e.target.value })}
+                  placeholder="Nome do cliente ou fornecedor..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold"
+                  required
+                />
+                <datalist id="client-list-tx">
+                  {clients.map(cli => <option key={cli.id} value={cli.name} />)}
+                </datalist>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">VALOR (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={txForm.amount}
+                    onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })}
+                    placeholder="0.00"
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-black text-[#1B3B2B]"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">STATUS</label>
+                  <select
+                    value={txForm.status}
+                    onChange={(e) => setTxForm({ ...txForm, status: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
+                  >
+                    <option value="Pago / Recebido">Pago / Recebido</option>
+                    <option value="Pendente">Pendente</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">DESCRIÇÃO</label>
+                <input
+                  type="text"
+                  value={txForm.description}
+                  onChange={(e) => setTxForm({ ...txForm, description: e.target.value })}
+                  placeholder="Detalhes do lançamento..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => { setShowTxModal(false); setEditingTx(null); }}
+                  className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
+                >
+                  Salvar Lançamento
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 8. MODAL EXCLUIR LANÇAMENTO */}
+      {deleteTxTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-extrabold text-rose-700">Excluir Lançamento?</h3>
+            <p className="text-xs text-slate-600">
+              Deseja realmente remover o lançamento <strong>{deleteTxTarget.id} ({deleteTxTarget.entity})</strong>?
+            </p>
+            <div className="flex justify-center gap-2 pt-2">
+              <button onClick={() => setDeleteTxTarget(null)} className="px-4 py-2 rounded-xl border font-bold text-xs text-slate-600 cursor-pointer">Cancelar</button>
+              <button onClick={confirmDeleteTransaction} className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer">Sim, Excluir</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 9. MODAL CADASTRAR / EDITAR CLIENTE */}
+      {showClientModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
+            <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
+              <h3 className="text-base font-extrabold">{editingClient ? 'Editar Cliente' : 'Novo Cadastro de Cliente'}</h3>
+              <button onClick={() => { setShowClientModal(false); setEditingClient(null); }} className="text-white hover:text-emerald-300 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveClient} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">CNPJ (Busca Automática ao sair do campo)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={cliForm.document}
+                    onChange={(e) => setCliForm({ ...cliForm, document: e.target.value })}
+                    onBlur={(e) => { if (e.target.value) handleCnpjBlur(e.target.value); }}
+                    placeholder="Digite o CNPJ (apenas números)..."
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">RAZÃO SOCIAL / NOME</label>
+                <input
+                  type="text"
+                  value={cliForm.name}
+                  onChange={(e) => setCliForm({ ...cliForm, name: e.target.value })}
+                  placeholder="Nome do cliente ou empresa..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-slate-800"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">SEGMENTO</label>
+                  <select
+                    value={cliForm.segment}
+                    onChange={(e) => setCliForm({ ...cliForm, segment: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
+                  >
+                    {availableSegments.map(seg => <option key={seg} value={seg}>{seg}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">STATUS</label>
+                  <select
+                    value={cliForm.status}
+                    onChange={(e) => setCliForm({ ...cliForm, status: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
+                  >
+                    {availableStatuses.map(st => <option key={st} value={st}>{st}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">RESPONSÁVEL / CONTATO</label>
+                  <input
+                    type="text"
+                    value={cliForm.contactName || cliForm.contactname || ''}
+                    onChange={(e) => setCliForm({ ...cliForm, contactName: e.target.value, contactname: e.target.value })}
+                    placeholder="Nome do contato..."
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">TELEFONE</label>
+                  <input
+                    type="text"
+                    value={cliForm.phone}
+                    onChange={(e) => setCliForm({ ...cliForm, phone: e.target.value })}
+                    placeholder="(66) 99999-9999"
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">E-MAIL</label>
+                  <input
+                    type="email"
+                    value={cliForm.email}
+                    onChange={(e) => setCliForm({ ...cliForm, email: e.target.value })}
+                    placeholder="email@empresa.com"
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">CIDADE</label>
+                  <input
+                    type="text"
+                    value={cliForm.city}
+                    onChange={(e) => setCliForm({ ...cliForm, city: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => { setShowClientModal(false); setEditingClient(null); }}
+                  className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
+                >
+                  Salvar Cliente
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 10. MODAL EXCLUIR CLIENTE */}
+      {deleteClientTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-extrabold text-rose-700">Excluir Cliente do CRM?</h3>
+            <p className="text-xs text-slate-600">
+              Deseja realmente remover o cliente <strong>{deleteClientTarget.name}</strong>?
+            </p>
+            <div className="flex justify-center gap-2 pt-2">
+              <button onClick={() => setDeleteClientTarget(null)} className="px-4 py-2 rounded-xl border font-bold text-xs text-slate-600 cursor-pointer">Cancelar</button>
+              <button onClick={confirmDeleteClient} className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer">Sim, Excluir</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 11. MODAL CADASTRAR / EDITAR CONDICIONANTE */}
+      {showCondModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
+            <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
+              <h3 className="text-base font-extrabold">{editingCond ? 'Editar Condicionante Ambiental' : 'Novo Cadastro de Condicionante Ambiental'}</h3>
+              <button onClick={() => { setShowCondModal(false); setEditingCond(null); }} className="text-white hover:text-emerald-300 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCondicionante} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">NOME DO CLIENTE / EMPREENDIMENTO</label>
+                <input
+                  type="text"
+                  list="client-list-cond"
+                  value={condForm.client}
+                  onChange={(e) => setCondForm({ ...condForm, client: e.target.value })}
+                  placeholder="Selecione ou digite o nome do cliente..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-slate-800"
+                  required
+                />
+                <datalist id="client-list-cond">
+                  {clients.map(cli => (
+                    <option key={cli.id} value={cli.name} />
+                  ))}
+                </datalist>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">LICENÇA (Nº / ANO)</label>
+                  <input
+                    type="text"
+                    value={condForm.license}
+                    onChange={(e) => setCondForm({ ...condForm, license: e.target.value })}
+                    placeholder="Ex: LO: 106/2026"
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-semibold"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">VENCIMENTO FINAL</label>
+                  <input
+                    type="date"
+                    value={condForm.dueDate}
+                    onChange={(e) => setCondForm({ ...condForm, dueDate: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">STATUS</label>
+                  <select
+                    value={condForm.status}
+                    onChange={(e) => setCondForm({ ...condForm, status: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
+                  >
+                    <option value="FINALIZADO">FINALIZADO</option>
+                    <option value="ATENDIDO">ATENDIDO</option>
+                    <option value="EM ANDAMENTO">EM ANDAMENTO</option>
+                    <option value="A VENCER">A VENCER</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">RESPONSÁVEL - EMPRESA</label>
+                <input
+                  type="text"
+                  value={condForm.responsible}
+                  onChange={(e) => setCondForm({ ...condForm, responsible: e.target.value })}
+                  placeholder="Nome do responsável técnico..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border font-semibold"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">TIPO DE SERVIÇO / DESCRIÇÃO DA CONDICIONANTE</label>
+                <textarea
+                  value={condForm.service}
+                  onChange={(e) => setCondForm({ ...condForm, service: e.target.value })}
+                  placeholder="Ex: A CADA 6 MESES - ANÁLISE FÍSICO QUÍMICA..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border h-20 resize-none font-medium"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">OBSERVAÇÃO</label>
+                <textarea
+                  value={condForm.observation}
+                  onChange={(e) => setCondForm({ ...condForm, observation: e.target.value })}
+                  placeholder="Digite observações adicionais..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border h-16 resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => { setShowCondModal(false); setEditingCond(null); }}
+                  className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
+                >
+                  Salvar Condicionante
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 12. MODAL EXCLUIR CONDICIONANTE */}
+      {deleteCondTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-extrabold text-rose-700">Excluir Condicionante?</h3>
+            <p className="text-xs text-slate-600">
+              Deseja realmente remover a condicionante de <strong>{deleteCondTarget.client}</strong>?
+            </p>
+            <div className="flex justify-center gap-2 pt-2">
+              <button 
+                onClick={() => setDeleteCondTarget(null)} 
+                className="px-4 py-2 rounded-xl border font-bold text-xs text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={confirmDeleteCondicionante} 
+                className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer"
+              >
+                Sim, Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 13A. MODAL CADASTRAR NOVO UTILIZADOR */}
+      {showUserRoleModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-base font-extrabold text-[#1B3B2B]">Cadastrar Novo Utilizador</h3>
+              <button onClick={() => setShowUserRoleModal(false)} className="text-slate-500 hover:text-slate-700 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveNewUserRole} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold mb-1">Nome do Perfil / Departamento</label>
+                <input
+                  type="text"
+                  value={newRoleForm.name}
+                  onChange={(e) => setNewRoleForm({ ...newRoleForm, name: e.target.value })}
+                  placeholder="Ex: Financeiro, Técnico..."
+                  className="w-full px-3 py-2 rounded-xl border font-bold"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">Nome do Titular / Responsável</label>
+                <input
+                  type="text"
+                  value={newRoleForm.holder}
+                  onChange={(e) => setNewRoleForm({ ...newRoleForm, holder: e.target.value })}
+                  placeholder="Nome completo..."
+                  className="w-full px-3 py-2 rounded-xl border"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">E-mail Corporativo de Acesso</label>
+                <input
+                  type="email"
+                  value={newRoleForm.email}
+                  onChange={(e) => setNewRoleForm({ ...newRoleForm, email: e.target.value })}
+                  placeholder="email@grupomartins.eng.br"
+                  className="w-full px-3 py-2 rounded-xl border"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">Senha Inicial</label>
+                <input
+                  type="text"
+                  value={newRoleForm.password}
+                  onChange={(e) => setNewRoleForm({ ...newRoleForm, password: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border font-bold text-teal-900 bg-emerald-50"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">Descrição das Alçadas</label>
+                <textarea
+                  value={newRoleForm.description}
+                  onChange={(e) => setNewRoleForm({ ...newRoleForm, description: e.target.value })}
+                  placeholder="Explique o escopo de acesso..."
+                  className="w-full px-3 py-2 rounded-xl border h-16 resize-none"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <button type="button" onClick={() => setShowUserRoleModal(false)} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar Utilizador</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 13B. MODAL CONFIGURAR PERMISSÕES (FLAGS) */}
+      {editingRolePermissions && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-[#1B3B2B]">Configurar Permissões Granulares</h3>
+                <p className="text-xs text-slate-500">Perfil: <strong>{editingRolePermissions.name} ({editingRolePermissions.holder})</strong></p>
+              </div>
+              <button onClick={() => setEditingRolePermissions(null)} className="text-slate-500 hover:text-slate-700 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              {Object.keys(editingRolePermissions.permissions || {}).map((modKey) => {
+                const modPerms = editingRolePermissions.permissions[modKey];
+                return (
+                  <div key={modKey} className="p-3 rounded-xl border bg-slate-50 flex flex-wrap items-center justify-between gap-3">
+                    <span className="font-extrabold text-[#1B3B2B] uppercase w-32">{modKey}</span>
+                    <div className="flex flex-wrap items-center gap-4">
+                      {Object.keys(modPerms).map((actKey) => (
+                        <label key={actKey} className="flex items-center gap-1.5 cursor-pointer font-medium select-none">
+                          <input
+                            type="checkbox"
+                            checked={modPerms[actKey]}
+                            onChange={() => handlePermissionToggle(editingRolePermissions.id, modKey, actKey)}
+                            className="w-4 h-4 rounded text-[#1B3B2B] focus:ring-[#1B3B2B] cursor-pointer"
+                          />
+                          <span className="capitalize">{actKey}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex justify-end pt-3 border-t">
+              <button onClick={() => setEditingRolePermissions(null)} className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">
+                Concluir & Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 13C. MODAL EDITAR PERFIL / SENHA / EXCLUIR */}
+      {editingRoleTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-base font-extrabold text-[#1B3B2B]">Editar Perfil e Senha</h3>
+              <button onClick={() => setEditingRoleTarget(null)} className="text-slate-500 hover:text-slate-700 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveRoleEdit} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold mb-1">Cargo / Nível</label>
+                <input
+                  type="text"
+                  value={editingRoleTarget.level}
+                  onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, level: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border font-bold"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">Nome do Departamento / Função</label>
+                <input
+                  type="text"
+                  value={editingRoleTarget.name}
+                  onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, name: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border font-bold"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">Titular / Responsável</label>
+                <input
+                  type="text"
+                  value={editingRoleTarget.holder}
+                  onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, holder: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">E-mail Corporativo</label>
+                <input
+                  type="email"
+                  value={editingRoleTarget.email}
+                  onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, email: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">Nova Senha de Acesso</label>
+                <input
+                  type="text"
+                  value={editingRoleTarget.password || ''}
+                  onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, password: e.target.value })}
+                  placeholder="Digite a nova senha..."
+                  className="w-full px-3 py-2 rounded-xl border font-bold text-teal-900 bg-emerald-50"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">Descrição / Alçadas</label>
+                <textarea
+                  value={editingRoleTarget.description}
+                  onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, description: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border h-16 resize-none"
+                  required
+                />
+              </div>
+              <div className="flex items-center justify-between pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={() => handleDeleteRole(editingRoleTarget.id)}
+                  className="px-4 py-2 rounded-xl bg-rose-100 text-rose-700 font-bold hover:bg-rose-200 cursor-pointer"
+                >
+                  Excluir Perfil
+                </button>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setEditingRoleTarget(null)} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
+                  <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar Alterações</button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       )}
