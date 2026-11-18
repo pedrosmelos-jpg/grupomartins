@@ -292,6 +292,14 @@ const INITIAL_STATUSES = [
   'Inativo'
 ];
 
+const INITIAL_AGENCIES = [
+  'SEMA-MT',
+  'IBAMA',
+  'PREFEITURA',
+  'SST / eSocial',
+  'CREA-MT'
+];
+
 const DEFAULT_PERMISSIONS = {
   dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
   prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
@@ -359,6 +367,12 @@ export default function App() {
   const [showStatusManager, setShowStatusManager] = useState(false);
   const [statusInput, setStatusInput] = useState('');
   const [editingStatusOriginal, setEditingStatusOriginal] = useState(null);
+
+  // Estados para Cadastro, Edição e Exclusão de Órgãos / Setores dos Contratos
+  const [availableAgencies, setAvailableAgencies] = useState(INITIAL_AGENCIES);
+  const [showAgencyManager, setShowAgencyManager] = useState(false);
+  const [agencyInput, setAgencyInput] = useState('');
+  const [editingAgencyOriginal, setEditingAgencyOriginal] = useState(null);
 
   const [accessRoles, setAccessRoles] = useState(INITIAL_ACCESS_ROLES);
   const [activeRoleId, setActiveRoleId] = useState('ROLE-01-PEDRO');
@@ -455,14 +469,15 @@ export default function App() {
   const [ctForm, setCtForm] = useState({
     client: '',
     service: '',
-    agency: 'SEMA-MT',
+    agency: INITIAL_AGENCIES[0],
     status: 'Em Elaboração Técnica',
     contractValue: '',
     directCosts: '',
     installmentsCount: '1',
     installmentDates: [`2026-12-30`, '', '', '', '', '', '', '', '', '', '', ''],
     installmentAmounts: ['', '', '', '', '', '', '', '', '', '', '', ''],
-    paymentMethod: 'PIX'
+    paymentMethod: 'PIX',
+    observation: ''
   });
 
   const [cliForm, setCliForm] = useState({
@@ -478,21 +493,59 @@ export default function App() {
     status: INITIAL_STATUSES[0]
   });
 
-  // Salva configurações globais no Supabase em Tempo Real
-  const syncSettingsToCloud = async (newSegments, newStatuses, newPlano, newParams) => {
+  // Salva configurações globais no Supabase em Tempo Real (incluindo Órgãos/Setores)
+  const syncSettingsToCloud = async (newSegments, newStatuses, newPlano, newParams, newAgencies) => {
     if (!supabase) return;
     const payload = {
       id: 'GLOBAL',
       segments: newSegments || availableSegments,
       statuses: newStatuses || availableStatuses,
       plano_contas: newPlano || planoContasData,
-      params: newParams || params
+      params: newParams || params,
+      agencies: newAgencies || availableAgencies
     };
     try {
       await supabase.from('erp_settings').upsert([payload]);
     } catch (err) {
       console.error('Erro ao sincronizar configurações:', err);
     }
+  };
+
+  // Funções de Gerenciamento de Órgãos / Setores dos Contratos
+  const handleSaveAgency = async () => {
+    const clean = agencyInput.trim();
+    if (!clean) return;
+    let updatedList;
+    if (editingAgencyOriginal) {
+      updatedList = availableAgencies.map(a => a === editingAgencyOriginal ? clean : a);
+      setContracts(prev => prev.map(c => c.agency === editingAgencyOriginal ? { ...c, agency: clean } : c));
+    } else {
+      if (availableAgencies.includes(clean)) {
+        alert('Este órgão já está cadastrado.');
+        return;
+      }
+      updatedList = [...availableAgencies, clean];
+    }
+    setAvailableAgencies(updatedList);
+    setCtForm(prev => ({ ...prev, agency: clean }));
+    setAgencyInput('');
+    setEditingAgencyOriginal(null);
+    await syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, params, updatedList);
+    showToast(editingAgencyOriginal ? 'Órgão atualizado!' : 'Novo órgão cadastrado!');
+  };
+
+  const handleDeleteAgency = async (agToDelete) => {
+    if (availableAgencies.length <= 1) {
+      alert('Mantenha pelo menos 1 órgão disponível.');
+      return;
+    }
+    const updatedList = availableAgencies.filter(a => a !== agToDelete);
+    setAvailableAgencies(updatedList);
+    if (ctForm.agency === agToDelete) {
+      setCtForm(prev => ({ ...prev, agency: updatedList[0] }));
+    }
+    await syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, params, updatedList);
+    showToast('Órgão removido!');
   };
 
   // Funções de Gerenciamento de Segmentos do CRM
@@ -514,7 +567,7 @@ export default function App() {
     setCliForm(prev => ({ ...prev, segment: clean }));
     setSegmentInput('');
     setEditingSegmentOriginal(null);
-    await syncSettingsToCloud(updatedList, availableStatuses, planoContasData, params);
+    await syncSettingsToCloud(updatedList, availableStatuses, planoContasData, params, availableAgencies);
     showToast(editingSegmentOriginal ? 'Segmento atualizado!' : 'Novo segmento adicionado!');
   };
 
@@ -528,7 +581,7 @@ export default function App() {
     if (cliForm.segment === segToDelete) {
       setCliForm(prev => ({ ...prev, segment: updatedList[0] }));
     }
-    await syncSettingsToCloud(updatedList, availableStatuses, planoContasData, params);
+    await syncSettingsToCloud(updatedList, availableStatuses, planoContasData, params, availableAgencies);
     showToast('Segmento removido!');
   };
 
@@ -551,7 +604,7 @@ export default function App() {
     setCliForm(prev => ({ ...prev, status: clean }));
     setStatusInput('');
     setEditingStatusOriginal(null);
-    await syncSettingsToCloud(availableSegments, updatedList, planoContasData, params);
+    await syncSettingsToCloud(availableSegments, updatedList, planoContasData, params, availableAgencies);
     showToast(editingStatusOriginal ? 'Status atualizado!' : 'Novo status adicionado!');
   };
 
@@ -565,7 +618,7 @@ export default function App() {
     if (cliForm.status === stToDelete) {
       setCliForm(prev => ({ ...prev, status: updatedList[0] }));
     }
-    await syncSettingsToCloud(availableSegments, updatedList, planoContasData, params);
+    await syncSettingsToCloud(availableSegments, updatedList, planoContasData, params, availableAgencies);
     showToast('Status removido!');
   };
 
@@ -641,6 +694,7 @@ export default function App() {
       if (!settingsRes.error && settingsRes.data) {
         if (settingsRes.data.segments?.length) setAvailableSegments(settingsRes.data.segments);
         if (settingsRes.data.statuses?.length) setAvailableStatuses(settingsRes.data.statuses);
+        if (settingsRes.data.agencies?.length) setAvailableAgencies(settingsRes.data.agencies);
         if (settingsRes.data.plano_contas) setPlanoContasData(settingsRes.data.plano_contas);
         if (settingsRes.data.params) setParams(settingsRes.data.params);
       }
@@ -687,6 +741,7 @@ export default function App() {
         if (data) {
           if (data.segments?.length) setAvailableSegments(data.segments);
           if (data.statuses?.length) setAvailableStatuses(data.statuses);
+          if (data.agencies?.length) setAvailableAgencies(data.agencies);
           if (data.plano_contas) setPlanoContasData(data.plano_contas);
           if (data.params) setParams(data.params);
         }
@@ -704,7 +759,6 @@ export default function App() {
     return accessRoles.find((r) => r.id === activeRoleId) || accessRoles[0];
   }, [accessRoles, activeRoleId]);
 
-  // Verifica se é o administrador Master principal (Pedro Melo) para nunca trancar a Árvore de Acessos dele próprio
   const isRootMaster = useMemo(() => {
     if (!currentRole) return false;
     return (
@@ -713,10 +767,8 @@ export default function App() {
     );
   }, [currentRole]);
 
-  // Verificação rigorosa das permissões (Flags)
   const hasPermission = useCallback((moduleKey, actionKey = 'view') => {
     if (!currentRole) return false;
-    // Garante que o Master principal sempre possa acessar a Árvore de Acessos para administrar o sistema
     if (isRootMaster && moduleKey === 'acessos') return true;
     if (!currentRole.permissions || !currentRole.permissions[moduleKey]) return false;
     return Boolean(currentRole.permissions[moduleKey][actionKey]);
@@ -734,7 +786,6 @@ export default function App() {
     { id: 'config', label: 'Plano de Contas & Metas', icon: Settings, permKey: 'dashboard' }
   ], [transactions.length, contracts.length, clients.length, condicionantes.length, accessRoles.length]);
 
-  // Se o utilizador estiver numa aba que perdeu a permissão "view", redireciona imediatamente para a primeira aba liberada
   useEffect(() => {
     const currentNav = navItems.find((item) => item.id === activeTab);
     if (currentNav && !hasPermission(currentNav.permKey, 'view')) {
@@ -1000,7 +1051,8 @@ export default function App() {
         directcosts: directVal,
         installmentscount: String(nInstallments),
         paymentmethod: ctForm.paymentMethod,
-        installmentsdata: installments
+        installmentsdata: installments,
+        observation: ctForm.observation || ''
       };
 
       if (supabase) {
@@ -1020,6 +1072,7 @@ export default function App() {
       showToast('Contrato salvo permanentemente na nuvem!');
       setShowContractModal(false);
       setEditingContract(null);
+      setShowAgencyManager(false);
     } catch (err) {
       console.error('Erro ao salvar contrato:', err);
       alert('Erro inesperado ao salvar contrato.');
@@ -1531,7 +1584,8 @@ export default function App() {
       const matchSearch = (c.client || '').toLowerCase().includes(ctSearch.toLowerCase()) ||
         (c.service || '').toLowerCase().includes(ctSearch.toLowerCase()) ||
         (c.id || '').toLowerCase().includes(ctSearch.toLowerCase()) ||
-        (c.agency || '').toLowerCase().includes(ctSearch.toLowerCase());
+        (c.agency || '').toLowerCase().includes(ctSearch.toLowerCase()) ||
+        (c.observation || '').toLowerCase().includes(ctSearch.toLowerCase());
       const matchStatus = ctStatusFilter === 'Todos' || c.status === ctStatusFilter;
 
       let matchDueDate = true;
@@ -1651,7 +1705,6 @@ export default function App() {
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
-              // Corrigido: Agora respeita estritamente a flag "view" de cada módulo (inclusive "acessos")
               const allowed = hasPermission(item.permKey, 'view');
               return (
                 <button
@@ -1693,7 +1746,7 @@ export default function App() {
 
         <div className="p-4 border-t border-[#2D5A43]">
           <div className="text-[11px] text-center text-emerald-200/70">
-            Grupo Martins ERP v3.9 • Realtime Sync
+            Grupo Martins ERP v4.0 • Realtime Sync
           </div>
         </div>
       </aside>
@@ -2366,7 +2419,7 @@ export default function App() {
                         type="text"
                         value={ctSearch}
                         onChange={(e) => setCtSearch(e.target.value)}
-                        placeholder="Buscar por cliente, fazenda, SEMA-MT, eSocial ou código..."
+                        placeholder="Buscar por cliente, fazenda, órgão, observação ou código..."
                         className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
                       />
                     </div>
@@ -2397,17 +2450,19 @@ export default function App() {
                         <button
                           onClick={() => {
                             setEditingContract(null);
+                            setShowAgencyManager(false);
                             setCtForm({
                               client: '',
                               service: '',
-                              agency: 'SEMA-MT',
+                              agency: availableAgencies[0] || 'SEMA-MT',
                               status: 'Em Elaboração Técnica',
                               contractValue: '',
                               directCosts: '',
                               installmentsCount: '1',
                               installmentDates: [`${selectedDreYear}-12-30`, '', '', '', '', '', '', '', '', '', '', ''],
                               installmentAmounts: ['', '', '', '', '', '', '', '', '', '', '', ''],
-                              paymentMethod: 'PIX'
+                              paymentMethod: 'PIX',
+                              observation: ''
                             });
                             setShowContractModal(true);
                           }}
@@ -2436,6 +2491,9 @@ export default function App() {
                             <th onClick={() => handleSort('agency')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
                               <div className="flex items-center gap-1">Órgão {sortField === 'agency' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
+                            <th onClick={() => handleSort('observation')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                              <div className="flex items-center gap-1">Observação {sortField === 'observation' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
                             <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
                               <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
@@ -2451,7 +2509,7 @@ export default function App() {
                         <tbody className="divide-y divide-slate-100">
                           {filteredContracts.length === 0 ? (
                             <tr>
-                              <td colSpan="10" className="py-8 text-center text-slate-400">Nenhum contrato cadastrado com os filtros selecionados.</td>
+                              <td colSpan="11" className="py-8 text-center text-slate-400">Nenhum contrato cadastrado com os filtros selecionados.</td>
                             </tr>
                           ) : (
                             filteredContracts.map((ct) => {
@@ -2465,6 +2523,7 @@ export default function App() {
                                   <td className="py-3 px-3 font-bold text-slate-900">{ct.client}</td>
                                   <td className="py-3 px-3 text-slate-700">{ct.service}</td>
                                   <td className="py-3 px-3 font-semibold text-slate-600">{ct.agency || 'SEMA-MT'}</td>
+                                  <td className="py-3 px-3 text-slate-500 max-w-xs truncate" title={ct.observation || ''}>{ct.observation || '—'}</td>
                                   <td className="py-3 px-3 text-center">
                                     <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
                                       {ct.status}
@@ -2486,17 +2545,19 @@ export default function App() {
                                       <button
                                         onClick={() => {
                                           setEditingContract(ct);
+                                          setShowAgencyManager(false);
                                           setCtForm({
                                             client: ct.client,
                                             service: ct.service,
-                                            agency: ct.agency,
+                                            agency: ct.agency || availableAgencies[0] || 'SEMA-MT',
                                             status: ct.status,
                                             contractValue: ct.contractvalue || ct.contractValue,
                                             directCosts: ct.directcosts || ct.directCosts,
                                             installmentsCount: ct.installmentscount || ct.installmentsCount || '1',
                                             installmentDates: (ct.installmentsData || ct.installmentsdata)?.map(i => i.dueDate) || [`${selectedDreYear}-12-30`],
                                             installmentAmounts: (ct.installmentsData || ct.installmentsdata)?.map(i => i.amount) || [''],
-                                            paymentMethod: ct.paymentmethod || ct.paymentMethod || 'PIX'
+                                            paymentMethod: ct.paymentmethod || ct.paymentMethod || 'PIX',
+                                            observation: ct.observation || ''
                                           });
                                           setShowContractModal(true);
                                         }}
@@ -2906,7 +2967,7 @@ export default function App() {
                           onChange={(e) => {
                             const updated = { ...params, saldoInicialCaixa: Number(e.target.value) };
                             setParams(updated);
-                            syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated);
+                            syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated, availableAgencies);
                           }}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
                         />
@@ -2921,7 +2982,7 @@ export default function App() {
                           onChange={(e) => {
                             const updated = { ...params, metaMensalReceita: Number(e.target.value) };
                             setParams(updated);
-                            syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated);
+                            syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated, availableAgencies);
                           }}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
                         />
@@ -2936,7 +2997,7 @@ export default function App() {
                           onChange={(e) => {
                             const updated = { ...params, proLaboreAlvoMensal: Number(e.target.value) };
                             setParams(updated);
-                            syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated);
+                            syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated, availableAgencies);
                           }}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
                         />
@@ -2951,7 +3012,7 @@ export default function App() {
                           onChange={(e) => {
                             const updated = { ...params, socioDiretor: e.target.value };
                             setParams(updated);
-                            syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated);
+                            syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated, availableAgencies);
                           }}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
                         />
@@ -3004,7 +3065,7 @@ export default function App() {
                                         receitas: planoContasData.receitas.filter(r => r.codigo !== rev.codigo)
                                       };
                                       setPlanoContasData(updated);
-                                      syncSettingsToCloud(availableSegments, availableStatuses, updated, params);
+                                      syncSettingsToCloud(availableSegments, availableStatuses, updated, params, availableAgencies);
                                       showToast('Conta removida do plano de contas!');
                                     }
                                   }}
@@ -3044,7 +3105,7 @@ export default function App() {
                                         despesas: planoContasData.despesas.filter(d => d.codigo !== desp.codigo)
                                       };
                                       setPlanoContasData(updated);
-                                      syncSettingsToCloud(availableSegments, availableStatuses, updated, params);
+                                      syncSettingsToCloud(availableSegments, availableStatuses, updated, params, availableAgencies);
                                       showToast('Conta removida do plano de contas!');
                                     }
                                   }}
@@ -3096,7 +3157,7 @@ export default function App() {
 
               const updatedPlano = { ...planoContasData, [targetListKey]: updatedList };
               setPlanoContasData(updatedPlano);
-              syncSettingsToCloud(availableSegments, availableStatuses, updatedPlano, params);
+              syncSettingsToCloud(availableSegments, availableStatuses, updatedPlano, params, availableAgencies);
               setShowPlanoModal(false);
               showToast('Plano de Contas salvo e sincronizado!');
             }} className="space-y-3 text-xs">
@@ -3142,13 +3203,13 @@ export default function App() {
         </div>
       )}
 
-      {/* 2. MODAL NOVO / EDITAR CONTRATO AMBIENTAL / SST */}
+      {/* 2. MODAL NOVO / EDITAR CONTRATO AMBIENTAL / SST (COM CADASTRO DE ÓRGÃO E OBSERVAÇÃO) */}
       {showContractModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[92vh] overflow-y-auto">
             <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
               <h3 className="text-base font-extrabold">{editingContract ? 'Editar Contrato' : 'Novo Contrato Ambiental / SST'}</h3>
-              <button onClick={() => { setShowContractModal(false); setEditingContract(null); }} className="text-white hover:text-emerald-300 cursor-pointer">
+              <button onClick={() => { setShowContractModal(false); setEditingContract(null); setShowAgencyManager(false); }} className="text-white hover:text-emerald-300 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -3183,20 +3244,83 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">ÓRGÃO / SETOR</label>
+                {/* CAMPO DE ÓRGÃO / SETOR COM GERENCIADOR DE CADASTRO, EDIÇÃO E EXCLUSÃO */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-slate-700 uppercase">ÓRGÃO / SETOR</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAgencyManager(!showAgencyManager);
+                        setAgencyInput('');
+                        setEditingAgencyOriginal(null);
+                      }}
+                      className="text-[11px] font-extrabold text-[#1B3B2B] hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> {showAgencyManager ? 'Fechar Opções' : 'Cadastrar / Editar'}
+                    </button>
+                  </div>
                   <select
                     value={ctForm.agency}
                     onChange={(e) => setCtForm({ ...ctForm, agency: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white cursor-pointer"
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
                   >
-                    <option value="SEMA-MT">SEMA-MT</option>
-                    <option value="IBAMA">IBAMA</option>
-                    <option value="PREFEITURA">PREFEITURA MUNICIPAL</option>
-                    <option value="SST / eSocial">SST / eSocial</option>
-                    <option value="CREA-MT">CREA-MT</option>
+                    {availableAgencies.map(ag => <option key={ag} value={ag}>{ag}</option>)}
                   </select>
+
+                  {showAgencyManager && (
+                    <div className="p-3 rounded-xl border border-[#B7DFC5] bg-[#F4F9F5] space-y-2.5">
+                      <div className="text-[10px] font-extrabold uppercase text-[#1B3B2B]">
+                        {editingAgencyOriginal ? `Editando: ${editingAgencyOriginal}` : 'Novo Órgão / Setor'}
+                      </div>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="text"
+                          value={agencyInput}
+                          onChange={(e) => setAgencyInput(e.target.value)}
+                          placeholder="Ex: INCRA, ANM, SEMA..."
+                          className="flex-1 px-2.5 py-1.5 rounded-lg border bg-white text-xs font-semibold"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleSaveAgency}
+                          className="px-3 py-1.5 rounded-lg bg-[#1B3B2B] text-white font-bold text-xs hover:bg-[#2D5A43] cursor-pointer"
+                        >
+                          {editingAgencyOriginal ? 'Salvar' : 'Adicionar'}
+                        </button>
+                      </div>
+                      <div className="max-h-28 overflow-y-auto space-y-1 pt-1 border-t border-emerald-200/60">
+                        {availableAgencies.map((ag) => (
+                          <div key={ag} className="flex items-center justify-between text-[11px] bg-white px-2.5 py-1 rounded border border-slate-200">
+                            <span className="truncate font-medium pr-2">{ag}</span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingAgencyOriginal(ag);
+                                  setAgencyInput(ag);
+                                }}
+                                className="p-0.5 text-teal-700 hover:bg-teal-50 rounded cursor-pointer"
+                                title="Editar Órgão"
+                              >
+                                <Edit3 className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteAgency(ag)}
+                                className="p-0.5 text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                                title="Excluir Órgão"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
+
                 <div>
                   <label className="block font-bold text-slate-700 uppercase mb-1">STATUS TÉCNICO</label>
                   <select
@@ -3281,10 +3405,21 @@ export default function App() {
                 </div>
               </div>
 
+              {/* CAMPO DE OBSERVAÇÃO DO CONTRATO */}
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">OBSERVAÇÃO</label>
+                <textarea
+                  value={ctForm.observation || ''}
+                  onChange={(e) => setCtForm({ ...ctForm, observation: e.target.value })}
+                  placeholder="Digite observações sobre o contrato, nº de protocolo, prazos ou detalhes técnicos..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border h-16 resize-none"
+                />
+              </div>
+
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <button
                   type="button"
-                  onClick={() => { setShowContractModal(false); setEditingContract(null); }}
+                  onClick={() => { setShowContractModal(false); setEditingContract(null); setShowAgencyManager(false); }}
                   className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancelar
@@ -3641,7 +3776,6 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* CAMPO DE SEGMENTO COM BOTÃO DE CADASTRO/EDIÇÃO */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="block font-bold text-slate-700 uppercase">SEGMENTO</label>
@@ -3718,7 +3852,6 @@ export default function App() {
                   )}
                 </div>
 
-                {/* CAMPO DE STATUS COM BOTÃO DE CADASTRO/EDIÇÃO */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="block font-bold text-slate-700 uppercase">STATUS</label>
@@ -4277,7 +4410,6 @@ export default function App() {
                 return;
               }
               setActiveRoleId(found.id);
-              // Ao fazer login, já posiciona na primeira aba que o utilizador tem permissão de ver
               const isMasterUser = found.id === 'ROLE-01-PEDRO' || found.email.toLowerCase() === 'pedrosmelos@gmail.com';
               const firstOpenTab = navItems.find(item => (isMasterUser && item.permKey === 'acessos') || Boolean(found.permissions?.[item.permKey]?.view));
               if (firstOpenTab) setActiveTab(firstOpenTab.id);
