@@ -700,15 +700,15 @@ export default function App() {
       return { category: rev.nome, shortName: rev.nome.split(' — ')[1] || rev.nome, value, share: receitaBrutaAnual > 0 ? value / receitaBrutaAnual : 0 };
     }).sort((a, b) => b.value - a.value);
 
-    const totalContratado = contracts.reduce((acc, c) => acc + Number(c.contractValue || 0), 0);
+    const totalContratado = contracts.reduce((acc, c) => acc + Number(c.contractvalue || c.contractValue || 0), 0);
     const totalRecebidoContratos = contracts.reduce((acc, c) => {
-      const insts = c.installmentsData || [];
+      const insts = c.installmentsData || c.installmentsdata || [];
       const pagoInsts = insts.filter(i => i.status === 'Pago').reduce((sum, i) => sum + Number(i.amount || 0), 0);
       return acc + pagoInsts;
     }, 0);
     const saldoAFaturar = totalContratado - totalRecebidoContratos;
     
-    let totalCustoContratos = contracts.reduce((acc, c) => acc + Number(c.directCosts || 0), 0);
+    let totalCustoContratos = contracts.reduce((acc, c) => acc + Number(c.directcosts || c.directCosts || 0), 0);
     const margemMedia = totalContratado > 0 ? ((totalContratado - totalCustoContratos) / totalContratado) * 100 : 88.2;
 
     return {
@@ -819,14 +819,14 @@ export default function App() {
         const customAmt = parseFloat(String(ctForm.installmentAmounts[i]).replace(',', '.'));
         const instVal = !isNaN(customAmt) && customAmt > 0 ? customAmt : defaultInstVal;
         
-        const existingInst = editingContract?.installmentsData?.[i];
+        const existingInst = editingContract?.installmentsData?.[i] || editingContract?.installmentsdata?.[i];
         installments.push({
           number: i + 1,
           amount: instVal,
           dueDate: ctForm.installmentDates[i] || `${selectedDreYear}-12-30`,
           status: existingInst ? existingInst.status : 'Pendente',
-          paymentDate: existingInst?.paymentDate || null,
-          interestPaid: existingInst?.interestPaid || 0
+          paymentDate: existingInst?.paymentDate || existingInst?.paymentdate || null,
+          interestPaid: existingInst?.interestPaid || existingInst?.interestpaid || 0
         });
       }
 
@@ -2806,371 +2806,185 @@ export default function App() {
         </main>
       </div>
 
-      {/* MODAL CADASTRAR / EDITAR LANÇAMENTO */}
-      {showTxModal && (
+      {/* MODAL NOVO PLANO DE CONTAS */}
+      {showPlanoModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-base font-extrabold text-[#1B3B2B]">{planoForm.originalCodigo ? 'Editar Conta' : 'Novo Plano de Contas'}</h3>
+              <button onClick={() => setShowPlanoModal(false)} className="text-slate-500 hover:text-slate-700 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (!planoForm.codigo || !planoForm.nome) return;
+              const targetListKey = planoForm.tipo;
+              const list = planoContasData[targetListKey];
+              
+              let updatedList;
+              if (planoForm.originalCodigo) {
+                updatedList = list.map(item => item.codigo === planoForm.originalCodigo ? { codigo: planoForm.codigo, nome: planoForm.nome } : item);
+              } else {
+                updatedList = [...list, { codigo: planoForm.codigo, nome: planoForm.nome }];
+              }
+
+              setPlanoContasData({ ...planoContasData, [targetListKey]: updatedList });
+              setShowPlanoModal(false);
+              showToast('Plano de Contas salvo com sucesso!');
+            }} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold mb-1">Tipo de Conta</label>
+                <select
+                  value={planoForm.tipo}
+                  onChange={(e) => setPlanoForm({ ...planoForm, tipo: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border font-bold cursor-pointer"
+                >
+                  <option value="receitas">Receita (1.X)</option>
+                  <option value="despesas">Despesa / Custo (2.X)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold mb-1">Código da Conta</label>
+                <input
+                  type="text"
+                  value={planoForm.codigo}
+                  onChange={(e) => setPlanoForm({ ...planoForm, codigo: e.target.value })}
+                  placeholder="Ex: 1.1.06"
+                  className="w-full px-3 py-2 rounded-xl border font-mono font-bold"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">Nome / Descrição da Conta</label>
+                <input
+                  type="text"
+                  value={planoForm.nome}
+                  onChange={(e) => setPlanoForm({ ...planoForm, nome: e.target.value })}
+                  placeholder="Ex: 1.1.06 — Consultoria Ambiental Especial"
+                  className="w-full px-3 py-2 rounded-xl border font-bold"
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <button type="button" onClick={() => setShowPlanoModal(false)} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar Conta</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL NOVO CONTRATO AMBIENTAL / SST */}
+      {showContractModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
             <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
-              <h3 className="text-base font-extrabold">{editingTx ? 'Editar Lançamento' : 'Novo Lançamento no Livro Caixa'}</h3>
-              <button onClick={() => { setShowTxModal(false); setEditingTx(null); }} className="text-white hover:text-emerald-300 cursor-pointer">
+              <h3 className="text-base font-extrabold">{editingContract ? 'Editar Contrato' : 'Novo Contrato Ambiental / SST'}</h3>
+              <button onClick={() => { setShowContractModal(false); setEditingContract(null); }} className="text-white hover:text-emerald-300 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveTransaction} className="p-6 space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">TIPO</label>
-                  <select
-                    value={txForm.type}
-                    onChange={(e) => setTxForm({ ...txForm, type: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
-                  >
-                    <option value="Entrada">Entrada</option>
-                    <option value="Saída">Saída</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">DATA</label>
-                  <input
-                    type="date"
-                    value={txForm.date}
-                    onChange={(e) => {
-                      const dt = e.target.value;
-                      const mNum = dt.split('-')[1];
-                      const mNames = { '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez' };
-                      setTxForm({ ...txForm, date: dt, month: mNames[mNum] || 'Nov' });
-                    }}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold"
-                    required
-                  />
-                </div>
-              </div>
-
+            <form onSubmit={handleSaveContract} className="p-6 space-y-4 text-xs">
               <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">PLANO DE CONTAS</label>
-                <select
-                  value={txForm.planocontas || txForm.planoContas}
-                  onChange={(e) => {
-                    const code = e.target.value;
-                    const allC = [...planoContasData.receitas, ...planoContasData.despesas];
-                    const found = allC.find(c => c.codigo === code);
-                    setTxForm({ ...txForm, planoContas: code, planocontas: code, category: found ? found.nome : txForm.category });
-                  }}
-                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
-                >
-                  <optgroup label="Receitas (1.X)">
-                    {planoContasData.receitas.map(r => <option key={r.codigo} value={r.codigo}>{r.nome}</option>)}
-                  </optgroup>
-                  <optgroup label="Despesas (2.X)">
-                    {planoContasData.despesas.map(d => <option key={d.codigo} value={d.codigo}>{d.nome}</option>)}
-                  </optgroup>
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">FAVORECIDO / CLIENTE</label>
+                <label className="block font-bold text-slate-700 uppercase mb-1">CLIENTE / EMPREENDIMENTO</label>
                 <input
                   type="text"
-                  list="client-list-tx"
-                  value={txForm.entity}
-                  onChange={(e) => setTxForm({ ...txForm, entity: e.target.value })}
-                  placeholder="Nome do cliente ou fornecedor..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold"
+                  list="client-list-ct"
+                  value={ctForm.client}
+                  onChange={(e) => setCtForm({ ...ctForm, client: e.target.value })}
+                  placeholder="Nome do cliente..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-slate-800"
                   required
                 />
-                <datalist id="client-list-tx">
+                <datalist id="client-list-ct">
                   {clients.map(cli => <option key={cli.id} value={cli.name} />)}
                 </datalist>
               </div>
 
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">ESCOPO TÉCNICO / SERVIÇO</label>
+                <input
+                  type="text"
+                  value={ctForm.service}
+                  onChange={(e) => setCtForm({ ...ctForm, service: e.target.value })}
+                  placeholder="Ex: Licenciamento LP/LI/LO para Fazenda..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border font-semibold"
+                  required
+                />
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">VALOR (R$)</label>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">ÓRGÃO / SETOR</label>
+                  <select
+                    value={ctForm.agency}
+                    onChange={(e) => setCtForm({ ...ctForm, agency: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white cursor-pointer"
+                  >
+                    <option value="SEMA-MT">SEMA-MT</option>
+                    <option value="IBAMA">IBAMA</option>
+                    <option value="PREFEITURA">PREFEITURA MUNICIPAL</option>
+                    <option value="SST / eSocial">SST / eSocial</option>
+                    <option value="CREA-MT">CREA-MT</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">STATUS TÉCNICO</label>
+                  <select
+                    value={ctForm.status}
+                    onChange={(e) => setCtForm({ ...ctForm, status: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white cursor-pointer"
+                  >
+                    <option value="Em Elaboração Técnica">Em Elaboração Técnica</option>
+                    <option value="Protocolado / SEMA">Protocolado / SEMA</option>
+                    <option value="Em Andamento">Em Andamento</option>
+                    <option value="Concluído / Licença Emitida">Concluído / Licença Emitida</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">VALOR TOTAL (R$)</label>
                   <input
                     type="number"
                     step="0.01"
-                    value={txForm.amount}
-                    onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })}
+                    value={ctForm.contractValue}
+                    onChange={(e) => setCtForm({ ...ctForm, contractValue: e.target.value })}
                     placeholder="0.00"
                     className="w-full px-3.5 py-2.5 rounded-xl border font-black text-[#1B3B2B]"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">STATUS</label>
-                  <select
-                    value={txForm.status}
-                    onChange={(e) => setTxForm({ ...txForm, status: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
-                  >
-                    <option value="Pago / Recebido">Pago / Recebido</option>
-                    <option value="Pendente">Pendente</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">DESCRIÇÃO</label>
-                <input
-                  type="text"
-                  value={txForm.description}
-                  onChange={(e) => setTxForm({ ...txForm, description: e.target.value })}
-                  placeholder="Detalhes do lançamento..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t">
-                <button
-                  type="button"
-                  onClick={() => { setShowTxModal(false); setEditingTx(null); }}
-                  className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
-                >
-                  Salvar Lançamento
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL CADASTRAR / EDITAR CLIENTE */}
-      {showClientModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
-            <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
-              <h3 className="text-base font-extrabold">{editingClient ? 'Editar Cliente' : 'Novo Cadastro de Cliente'}</h3>
-              <button onClick={() => { setShowClientModal(false); setEditingClient(null); }} className="text-white hover:text-emerald-300 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveClient} className="p-6 space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">CNPJ (Busca Automática)</label>
-                <div className="flex gap-2">
+                  <label className="block font-bold text-slate-700 uppercase mb-1">CUSTOS DIRETOS (R$)</label>
                   <input
-                    type="text"
-                    value={cliForm.document}
-                    onChange={(e) => setCliForm({ ...cliForm, document: e.target.value })}
-                    onBlur={(e) => handleCnpjBlur(e.target.value)}
-                    placeholder="Digite o CNPJ (apenas números)..."
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-mono font-bold"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">RAZÃO SOCIAL / NOME</label>
-                <input
-                  type="text"
-                  value={cliForm.name}
-                  onChange={(e) => setCliForm({ ...cliForm, name: e.target.value })}
-                  placeholder="Nome do cliente ou empresa..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-slate-800"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">SEGMENTO</label>
-                  <select
-                    value={cliForm.segment}
-                    onChange={(e) => setCliForm({ ...cliForm, segment: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
-                  >
-                    {availableSegments.map(seg => <option key={seg} value={seg}>{seg}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">STATUS</label>
-                  <select
-                    value={cliForm.status}
-                    onChange={(e) => setCliForm({ ...cliForm, status: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
-                  >
-                    {availableStatuses.map(st => <option key={st} value={st}>{st}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">RESPONSÁVEL / CONTATO</label>
-                  <input
-                    type="text"
-                    value={cliForm.contactName || cliForm.contactname || ''}
-                    onChange={(e) => setCliForm({ ...cliForm, contactName: e.target.value, contactname: e.target.value })}
-                    placeholder="Nome do contato..."
-                    className="w-full px-3.5 py-2.5 rounded-xl border"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">TELEFONE</label>
-                  <input
-                    type="text"
-                    value={cliForm.phone}
-                    onChange={(e) => setCliForm({ ...cliForm, phone: e.target.value })}
-                    placeholder="(66) 99999-9999"
-                    className="w-full px-3.5 py-2.5 rounded-xl border"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">E-MAIL</label>
-                  <input
-                    type="email"
-                    value={cliForm.email}
-                    onChange={(e) => setCliForm({ ...cliForm, email: e.target.value })}
-                    placeholder="email@empresa.com"
-                    className="w-full px-3.5 py-2.5 rounded-xl border"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">CIDADE</label>
-                  <input
-                    type="text"
-                    value={cliForm.city}
-                    onChange={(e) => setCliForm({ ...cliForm, city: e.target.value })}
+                    type="number"
+                    step="0.01"
+                    value={ctForm.directCosts}
+                    onChange={(e) => setCtForm({ ...ctForm, directCosts: e.target.value })}
+                    placeholder="Taxas, laudos..."
                     className="w-full px-3.5 py-2.5 rounded-xl border font-bold"
                   />
                 </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t">
-                <button
-                  type="button"
-                  onClick={() => { setShowClientModal(false); setEditingClient(null); }}
-                  className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
-                >
-                  Salvar Cliente
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL CADASTRAR / EDITAR CONDICIONANTE */}
-      {showCondModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
-            <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
-              <h3 className="text-base font-extrabold">{editingCond ? 'Editar Condicionante Ambiental' : 'Novo Cadastro de Condicionante Ambiental'}</h3>
-              <button onClick={() => { setShowCondModal(false); setEditingCond(null); }} className="text-white hover:text-emerald-300 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveCondicionante} className="p-6 space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">NOME DO CLIENTE / EMPREENDIMENTO</label>
-                <input
-                  type="text"
-                  list="client-list-cond"
-                  value={condForm.client}
-                  onChange={(e) => setCondForm({ ...condForm, client: e.target.value })}
-                  placeholder="Selecione ou digite o nome do cliente..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-slate-800"
-                  required
-                />
-                <datalist id="client-list-cond">
-                  {clients.map(cli => (
-                    <option key={cli.id} value={cli.name} />
-                  ))}
-                </datalist>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">LICENÇA (Nº / ANO)</label>
-                  <input
-                    type="text"
-                    value={condForm.license}
-                    onChange={(e) => setCondForm({ ...condForm, license: e.target.value })}
-                    placeholder="Ex: LO: 106/2026"
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-semibold"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">VENCIMENTO FINAL</label>
-                  <input
-                    type="date"
-                    value={condForm.dueDate}
-                    onChange={(e) => setCondForm({ ...condForm, dueDate: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">STATUS</label>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">PARCELAS</label>
                   <select
-                    value={condForm.status}
-                    onChange={(e) => setCondForm({ ...condForm, status: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
+                    value={ctForm.installmentsCount}
+                    onChange={(e) => setCtForm({ ...ctForm, installmentsCount: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white cursor-pointer"
                   >
-                    <option value="FINALIZADO">FINALIZADO</option>
-                    <option value="ATENDIDO">ATENDIDO</option>
-                    <option value="EM ANDAMENTO">EM ANDAMENTO</option>
-                    <option value="A VENCER">A VENCER</option>
+                    {[1,2,3,4,5,6,7,8,9,10,12].map(n => <option key={n} value={n}>{n}x</option>)}
                   </select>
                 </div>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">RESPONSÁVEL - EMPRESA</label>
-                <input
-                  type="text"
-                  value={condForm.responsible}
-                  onChange={(e) => setCondForm({ ...condForm, responsible: e.target.value })}
-                  placeholder="Nome do responsável técnico..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border font-semibold"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">TIPO DE SERVIÇO / DESCRIÇÃO DA CONDICIONANTE</label>
-                <textarea
-                  value={condForm.service}
-                  onChange={(e) => setCondForm({ ...condForm, service: e.target.value })}
-                  placeholder="Ex: A CADA 6 MESES - ANÁLISE FÍSICO QUÍMICA..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border h-20 resize-none font-medium"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">OBSERVAÇÃO</label>
-                <textarea
-                  value={condForm.observation}
-                  onChange={(e) => setCondForm({ ...condForm, observation: e.target.value })}
-                  placeholder="Digite observações adicionais..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border h-16 resize-none"
-                />
-              </div>
-
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <button
                   type="button"
-                  onClick={() => { setShowCondModal(false); setEditingCond(null); }}
+                  onClick={() => { setShowContractModal(false); setEditingContract(null); }}
                   className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancelar
@@ -3179,7 +2993,7 @@ export default function App() {
                   type="submit"
                   className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
                 >
-                  Salvar Condicionante
+                  Salvar Contrato
                 </button>
               </div>
             </form>
@@ -3187,120 +3001,110 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CADASTRAR NOVO UTILIZADOR */}
-      {showUserRoleModal && (
+      {/* MODAL VER PARCELAS DO CONTRATO */}
+      {viewingContractInstallments && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="text-base font-extrabold text-[#1B3B2B]">Cadastrar Novo Utilizador</h3>
-              <button onClick={() => setShowUserRoleModal(false)} className="text-slate-500 hover:text-slate-700 cursor-pointer">
+          <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
+            <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-extrabold">Gerenciamento de Parcelas</h3>
+                <p className="text-xs text-emerald-300">Contrato: <strong>{viewingContractInstallments.id} — {viewingContractInstallments.client}</strong></p>
+              </div>
+              <button onClick={() => setViewingContractInstallments(null)} className="text-white hover:text-emerald-300 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleSaveNewUserRole} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold mb-1">Nome do Perfil / Departamento</label>
-                <input
-                  type="text"
-                  value={newRoleForm.name}
-                  onChange={(e) => setNewRoleForm({ ...newRoleForm, name: e.target.value })}
-                  placeholder="Ex: Financeiro, Técnico..."
-                  className="w-full px-3 py-2 rounded-xl border font-bold"
-                  required
-                />
+
+            <div className="p-6 space-y-4 text-xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-600 font-bold uppercase text-[11px] border-b">
+                      <th className="py-2.5 px-3">Parcela</th>
+                      <th className="py-2.5 px-3">Vencimento</th>
+                      <th className="py-2.5 px-3 text-right">Valor Base</th>
+                      <th className="py-2.5 px-3 text-center">Status</th>
+                      <th className="py-2.5 px-3 text-center">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {(viewingContractInstallments.installmentsData || viewingContractInstallments.installmentsdata || []).map((inst) => (
+                      <tr key={inst.number} className="hover:bg-slate-50">
+                        <td className="py-3 px-3 font-bold">Parcela {inst.number}</td>
+                        <td className="py-3 px-3 font-mono">{inst.dueDate || inst.duedate}</td>
+                        <td className="py-3 px-3 text-right font-black text-[#1B3B2B]">{formatCurrency(inst.amount)}</td>
+                        <td className="py-3 px-3 text-center">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${inst.status === 'Pago' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                            {inst.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          {inst.status === 'Pago' ? (
+                            <button
+                              onClick={() => setCancelInstallmentTarget({ contractId: viewingContractInstallments.id, installmentNumber: inst.number })}
+                              className="px-3 py-1 rounded bg-rose-100 text-rose-700 font-bold text-[10px] hover:bg-rose-200 cursor-pointer"
+                            >
+                              Estornar Baixa
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => setReceivingInstallmentData({ contractId: viewingContractInstallments.id, installmentNumber: inst.number })}
+                              className="px-3 py-1 rounded bg-emerald-800 text-white font-bold text-[10px] hover:bg-emerald-900 cursor-pointer"
+                            >
+                              Baixar / Receber
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <div>
-                <label className="block font-bold mb-1">Nome do Titular / Responsável</label>
-                <input
-                  type="text"
-                  value={newRoleForm.holder}
-                  onChange={(e) => setNewRoleForm({ ...newRoleForm, holder: e.target.value })}
-                  placeholder="Nome completo..."
-                  className="w-full px-3 py-2 rounded-xl border"
-                  required
-                />
+
+              <div className="flex justify-end pt-4 border-t">
+                <button
+                  onClick={() => setViewingContractInstallments(null)}
+                  className="px-6 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer"
+                >
+                  Fechar
+                </button>
               </div>
-              <div>
-                <label className="block font-bold mb-1">E-mail Corporativo de Acesso</label>
-                <input
-                  type="email"
-                  value={newRoleForm.email}
-                  onChange={(e) => setNewRoleForm({ ...newRoleForm, email: e.target.value })}
-                  placeholder="email@grupomartins.eng.br"
-                  className="w-full px-3 py-2 rounded-xl border"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Senha Inicial</label>
-                <input
-                  type="text"
-                  value={newRoleForm.password}
-                  onChange={(e) => setNewRoleForm({ ...newRoleForm, password: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border font-bold text-teal-900 bg-emerald-50"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Descrição das Alçadas</label>
-                <textarea
-                  value={newRoleForm.description}
-                  onChange={(e) => setNewRoleForm({ ...newRoleForm, description: e.target.value })}
-                  placeholder="Explique o escopo de acesso..."
-                  className="w-full px-3 py-2 rounded-xl border h-16 resize-none"
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-3 border-t">
-                <button type="button" onClick={() => setShowUserRoleModal(false)} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar Utilizador</button>
-              </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
 
-      {/* MODAL CONFIGURAR PERMISSÕES (FLAGS) */}
-      {editingRolePermissions && (
+      {/* MODAL BAIXAR / RECEBER PARCELA */}
+      {receivingInstallmentData && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b pb-3">
-              <div>
-                <h3 className="text-base font-extrabold text-[#1B3B2B]">Configurar Permissões Granulares</h3>
-                <p className="text-xs text-slate-500">Perfil: <strong>{editingRolePermissions.name} ({editingRolePermissions.holder})</strong></p>
-              </div>
-              <button onClick={() => setEditingRolePermissions(null)} className="text-slate-500 hover:text-slate-700 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl border">
+            <h3 className="text-base font-extrabold text-[#1B3B2B]">Registrar Recebimento da Parcela</h3>
+            <p className="text-xs text-slate-600">Informe a data de recebimento e juros eventuais. O sistema gerará automaticamente 2 lançamentos no Livro Caixa.</p>
             <div className="space-y-3 text-xs">
-              {Object.keys(editingRolePermissions.permissions || {}).map((modKey) => {
-                const modPerms = editingRolePermissions.permissions[modKey];
-                return (
-                  <div key={modKey} className="p-3 rounded-xl border bg-slate-50 flex flex-wrap items-center justify-between gap-3">
-                    <span className="font-extrabold text-[#1B3B2B] uppercase w-32">{modKey}</span>
-                    <div className="flex flex-wrap items-center gap-4">
-                      {Object.keys(modPerms).map((actKey) => (
-                        <label key={actKey} className="flex items-center gap-1.5 cursor-pointer font-medium select-none">
-                          <input
-                            type="checkbox"
-                            checked={modPerms[actKey]}
-                            onChange={() => handlePermissionToggle(editingRolePermissions.id, modKey, actKey)}
-                            className="w-4 h-4 rounded text-[#1B3B2B] focus:ring-[#1B3B2B] cursor-pointer"
-                          />
-                          <span className="capitalize">{actKey}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
+              <div>
+                <label className="block font-bold uppercase mb-1">Data do Recebimento</label>
+                <input
+                  type="date"
+                  value={receiveForm.paymentDate}
+                  onChange={(e) => setReceiveForm({ ...receiveForm, paymentDate: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border font-bold"
+                />
+              </div>
+              <div>
+                <label className="block font-bold uppercase mb-1">Juros / Multa por Atraso (R$)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={receiveForm.interestAmount}
+                  onChange={(e) => setReceiveForm({ ...receiveForm, interestAmount: e.target.value })}
+                  placeholder="0.00"
+                  className="w-full px-3 py-2 rounded-xl border font-bold"
+                />
+              </div>
             </div>
-
-            <div className="flex justify-end pt-3 border-t">
-              <button onClick={() => setEditingRolePermissions(null)} className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">
-                Concluir & Salvar
-              </button>
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={() => setReceivingInstallmentData(null)} className="px-4 py-2 rounded-xl border font-bold text-xs cursor-pointer">Cancelar</button>
+              <button onClick={handleConfirmReceiveInstallment} className="px-5 py-2 rounded-xl bg-emerald-800 text-white font-bold text-xs cursor-pointer">Confirmar Baixa</button>
             </div>
           </div>
         </div>
