@@ -1668,9 +1668,7 @@ export default function App() {
       const matchCategory = txCategoryFilter === 'Todas' || t.category === txCategoryFilter || t.planocontas === txCategoryFilter || t.planoContas === txCategoryFilter;
       const matchStatus = txStatusFilter === 'Todos' || t.status === txStatusFilter;
       const txDay = String(t.date || '').slice(0, 10);
-      const matchDate =
-        (!txDateFrom && !txDateTo) ||
-        (Boolean(txDay) && (!txDateFrom || txDay >= txDateFrom) && (!txDateTo || txDay <= txDateTo));
+      const matchDate = (!txDateFrom || (txDay && txDay >= txDateFrom)) && (!txDateTo || (txDay && txDay <= txDateTo));
 
       return matchSearch && matchType && matchCategory && matchStatus && matchDate;
     });
@@ -1706,10 +1704,10 @@ export default function App() {
         (c.agency || '').toLowerCase().includes(ctSearch.toLowerCase()) ||
         (c.observation || '').toLowerCase().includes(ctSearch.toLowerCase());
       const matchStatus = ctStatusFilter === 'Todos' || c.status === ctStatusFilter;
-      const insts = c.installmentsData || c.installmentsdata || [];
 
       let matchDueDate = true;
       if (ctDueDateFilter !== 'Todos') {
+        const insts = c.installmentsData || c.installmentsdata || [];
         const pendingInsts = insts.filter(i => i.status !== 'Pago');
 
         if (ctDueDateFilter === 'Vencidos') {
@@ -1723,15 +1721,11 @@ export default function App() {
 
       let matchPeriod = true;
       if (ctDateFrom || ctDateTo) {
-        matchPeriod =
-          insts.length > 0 &&
-          insts.some(i => {
-            const d = String(i.dueDate || i.duedate || '').slice(0, 10);
-            if (!d) return false;
-            if (ctDateFrom && d < ctDateFrom) return false;
-            if (ctDateTo && d > ctDateTo) return false;
-            return true;
-          });
+        const periodInsts = c.installmentsData || c.installmentsdata || [];
+        matchPeriod = periodInsts.some(i => {
+          const d = String(i.dueDate || i.duedate || '').slice(0, 10);
+          return d && (!ctDateFrom || d >= ctDateFrom) && (!ctDateTo || d <= ctDateTo);
+        });
       }
 
       return matchSearch && matchStatus && matchDueDate && matchPeriod;
