@@ -1867,7 +1867,7 @@ export default function App() {
   }, [availableTechnicalStatuses, contracts]);
 
   const filteredTechnicalContracts = useMemo(() => {
-    return contracts.filter((c) => {
+    let list = contracts.filter((c) => {
       const matchSearch =
         (c.client || '').toLowerCase().includes(techSearch.toLowerCase()) ||
         (c.service || '').toLowerCase().includes(techSearch.toLowerCase()) ||
@@ -1877,7 +1877,22 @@ export default function App() {
       const matchStatus = techStatusFilter === 'Todos' || (c.status || 'Em Andamento') === techStatusFilter;
       return matchSearch && matchStatus;
     });
-  }, [contracts, techSearch, techStatusFilter]);
+
+    if (sortField) {
+      list.sort((a, b) => {
+        let valA = sortField === 'status' ? (a.status || 'Em Andamento') : (a[sortField] || a[sortField?.toLowerCase()] || '');
+        let valB = sortField === 'status' ? (b.status || 'Em Andamento') : (b[sortField] || b[sortField?.toLowerCase()] || '');
+        if (typeof valA === 'string') valA = valA.toLowerCase();
+        if (typeof valB === 'string') valB = valB.toLowerCase();
+
+        if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+        if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return list;
+  }, [contracts, techSearch, techStatusFilter, sortField, sortDirection]);
 
   useEffect(() => {
     setCtPage(1);
@@ -2812,281 +2827,12 @@ export default function App() {
                             <th onClick={() => handleSort('agency')} className="py-3.5 px-4 cursor-pointer hover:bg-[#244B38] transition select-none">
                               <div className="flex items-center gap-1">ÓRGÃO / SETOR {sortField === 'agency' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
-                            <th className="py-3.5 px-4 text-center">SITUAÇÃO PARCELA</th>
-                            <th onClick={() => handleSort('contractvalue')} className="py-3.5 px-4 text-right cursor-pointer hover:bg-[#244B38] transition select-none">
-                              <div className="flex items-center justify-end gap-1">VALOR CONTRATO {sortField === 'contractvalue' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            <th onClick={() => handleSort('observation')} className="py-3.5 px-4 cursor-pointer hover:bg-[#244B38] transition select-none">
+                              <div className="flex items-center gap-1">OBSERVAÇÃO {sortField === 'observation' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
-                            <th className="py-3.5 px-4 text-right">AÇÕES</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {paginatedContracts.length === 0 ? (
-                            <tr>
-                              <td colSpan="7" className="py-10 text-center text-slate-400">
-                                Nenhum contrato cadastrado com os filtros selecionados.
-                              </td>
-                            </tr>
-                          ) : (
-                            paginatedContracts.map((ct) => {
-                              const val = Number(ct.contractvalue || ct.contractValue || 0);
-                              const sitBadge = getInstallmentSituationBadge(ct);
-                              return (
-                                <tr key={ct.id} className="hover:bg-[#F8F3EF]/60 transition-colors">
-                                  <td className="py-4 px-4 font-mono font-medium text-slate-700 whitespace-nowrap">{ct.id}</td>
-                                  <td className="py-4 px-4 font-semibold text-slate-900">{ct.client}</td>
-                                  <td className="py-4 px-4 text-slate-700">{ct.service}</td>
-                                  <td className="py-4 px-4 font-medium text-slate-700 whitespace-nowrap">{ct.agency || 'SEMA-MT'}</td>
-                                  <td className="py-4 px-4 text-center whitespace-nowrap">
-                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border ${sitBadge.className}`}>
-                                      {sitBadge.dotColor && <span className={`w-1.5 h-1.5 rounded-full ${sitBadge.dotColor}`} />}
-                                      {sitBadge.label}
-                                    </span>
-                                  </td>
-                                  <td className="py-4 px-4 text-right font-bold text-slate-900 whitespace-nowrap">
-                                    <MaskedValue show={canViewContractValues} value={formatCurrency(val)} />
-                                  </td>
-                                  <td className="py-4 px-4 text-right whitespace-nowrap">
-                                    <div className="inline-flex items-center justify-end gap-1.5">
-                                      <button
-                                        onClick={() => setViewingContractInstallments(ct)}
-                                        className="px-3.5 py-1.5 rounded-lg bg-[#1B3B2B] text-white font-bold text-xs hover:bg-[#244B38] cursor-pointer"
-                                      >
-                                        Ver Parcelas
-                                      </button>
-                                      {hasPermission('contratos', 'edit') && (
-                                        <button
-                                          onClick={() => {
-                                            setEditingContract(ct);
-                                            setShowAgencyManager(false);
-                                            setCtForm({
-                                              client: ct.client,
-                                              service: ct.service,
-                                              agency: ct.agency || availableAgencies[0] || 'SEMA-MT',
-                                              status: ct.status || 'Em Andamento',
-                                              contractValue: ct.contractvalue || ct.contractValue,
-                                              directCosts: ct.directcosts || ct.directCosts,
-                                              installmentsCount: ct.installmentscount || ct.installmentsCount || '1',
-                                              installmentDates: (ct.installmentsData || ct.installmentsdata)?.map(i => i.dueDate) || [`${selectedDreYear}-12-30`],
-                                              installmentAmounts: (ct.installmentsData || ct.installmentsdata)?.map(i => i.amount) || [''],
-                                              paymentMethod: ct.paymentmethod || ct.paymentMethod || 'PIX',
-                                              observation: ct.observation || ''
-                                            });
-                                            setShowContractModal(true);
-                                          }}
-                                          className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 cursor-pointer"
-                                          title="Editar Contrato"
-                                        >
-                                          <Edit3 className="w-4 h-4" />
-                                        </button>
-                                      )}
-                                      {hasPermission('contratos', 'delete') && (
-                                        <button
-                                          onClick={() => setDeleteContractTarget(ct)}
-                                          className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
-                                          title="Excluir Contrato"
-                                        >
-                                          <Trash2 className="w-4 h-4" />
-                                        </button>
-                                      )}
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <div className="px-4 py-3 bg-[#F8F3EF]/50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
-                      <div>
-                        Exibindo{' '}
-                        {filteredContracts.length === 0
-                          ? '0'
-                          : `${(safeCtPage - 1) * CONTRACTS_PER_PAGE + 1}-${Math.min(safeCtPage * CONTRACTS_PER_PAGE, filteredContracts.length)}`}{' '}
-                        de {filteredContracts.length} registros
-                      </div>
-                      <div className="flex items-center gap-3 font-medium">
-                        <button
-                          type="button"
-                          disabled={safeCtPage <= 1}
-                          onClick={() => setCtPage(p => Math.max(1, p - 1))}
-                          className="hover:text-[#1B3B2B] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-                        >
-                          ◂ Anterior
-                        </button>
-                        <span className="font-bold text-slate-800">{safeCtPage}</span>
-                        <button
-                          type="button"
-                          disabled={safeCtPage >= totalContractPages}
-                          onClick={() => setCtPage(p => Math.min(totalContractPages, p + 1))}
-                          className="hover:text-[#1B3B2B] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-                        >
-                          Próximo ▸
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'status_tecnico' && (
-                <div className="space-y-5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <h2 className="text-2xl sm:text-3xl font-extrabold text-[#1B3B2B] tracking-tight">
-                        Status Técnico
-                      </h2>
-                      <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-                        Acompanhamento e atualização do andamento técnico dos contratos cadastrados
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowTechStatusManager(!showTechStatusManager);
-                        setTechStatusInput('');
-                        setEditingTechStatusOriginal(null);
-                      }}
-                      className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#244B38] shadow-sm cursor-pointer shrink-0 self-start sm:self-auto"
-                    >
-                      <Plus className="w-4 h-4" />
-                      {showTechStatusManager ? 'Fechar Gerenciador de Status' : 'Cadastrar / Editar Status'}
-                    </button>
-                  </div>
-
-                  {showTechStatusManager && (
-                    <div className="bg-white p-4 rounded-2xl border border-[#B7DFC5] shadow-sm space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-extrabold uppercase text-[#1B3B2B]">
-                          {editingTechStatusOriginal ? `Editando status: ${editingTechStatusOriginal}` : 'Cadastrar Novo Status Técnico'}
-                        </span>
-                        {editingTechStatusOriginal && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingTechStatusOriginal(null);
-                              setTechStatusInput('');
-                            }}
-                            className="text-[11px] font-bold text-slate-500 hover:underline cursor-pointer"
-                          >
-                            Cancelar edição
-                          </button>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <input
-                          type="text"
-                          value={techStatusInput}
-                          onChange={(e) => setTechStatusInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleSaveTechnicalStatus();
-                            }
-                          }}
-                          placeholder="Ex: Aguardando Vistoria, Em Análise SEMA, Exigência Técnica..."
-                          className="flex-1 min-w-[220px] px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleSaveTechnicalStatus}
-                          className="px-4 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold text-xs hover:bg-[#244B38] cursor-pointer"
-                        >
-                          {editingTechStatusOriginal ? 'Salvar Alteração' : 'Adicionar Status'}
-                        </button>
-                      </div>
-                      <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
-                        {technicalStatusOptions.map((st) => (
-                          <div
-                            key={st}
-                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 bg-[#F4F9F5] text-xs font-bold text-[#1B3B2B]"
-                          >
-                            <span>{st}</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingTechStatusOriginal(st);
-                                setTechStatusInput(st);
-                              }}
-                              className="p-0.5 text-teal-700 hover:bg-teal-100 rounded cursor-pointer"
-                              title="Editar Status"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteTechnicalStatus(st)}
-                              className="p-0.5 text-rose-600 hover:bg-rose-100 rounded cursor-pointer"
-                              title="Excluir Status"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[260px]">
-                      <div className="relative flex-1 min-w-[220px] max-w-sm">
-                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                        <input
-                          type="text"
-                          value={techSearch}
-                          onChange={(e) => setTechSearch(e.target.value)}
-                          placeholder="Buscar por código, cliente, serviço ou órgão..."
-                          className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:outline-none focus:border-[#1B3B2B]"
-                        />
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <Filter className="w-3.5 h-3.5 text-[#1B3B2B]" />
-                        <select
-                          value={techStatusFilter}
-                          onChange={(e) => setTechStatusFilter(e.target.value)}
-                          className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white text-[#1B3B2B] cursor-pointer"
-                        >
-                          <option value="Todos">Filtrar por Status: Todos ({contracts.length})</option>
-                          {technicalStatusOptions.map((st) => (
-                            <option key={st} value={st}>
-                              {st} ({contracts.filter(c => (c.status || 'Em Andamento') === st).length})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {(techSearch !== '' || techStatusFilter !== 'Todos') && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setTechSearch('');
-                            setTechStatusFilter('Todos');
-                          }}
-                          className="text-xs text-rose-600 font-bold hover:underline cursor-pointer"
-                        >
-                          Limpar Filtros
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="text-xs font-semibold text-slate-500">
-                      Exibindo {filteredTechnicalContracts.length} de {contracts.length} contratos
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px] tracking-wider">
-                            <th className="py-3.5 px-4">CÓDIGO</th>
-                            <th className="py-3.5 px-4">CLIENTE / EMPREENDIMENTO</th>
-                            <th className="py-3.5 px-4">PLANO DE CONTAS</th>
-                            <th className="py-3.5 px-4">ÓRGÃO / SETOR</th>
-                            <th className="py-3.5 px-4">OBSERVAÇÃO</th>
-                            <th className="py-3.5 px-4 text-center">STATUS ATUAL</th>
+                            <th onClick={() => handleSort('status')} className="py-3.5 px-4 text-center cursor-pointer hover:bg-[#244B38] transition select-none">
+                              <div className="flex items-center justify-center gap-1">STATUS ATUAL {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            </th>
                             <th className="py-3.5 px-4 text-right">ALTERAR STATUS</th>
                           </tr>
                         </thead>
