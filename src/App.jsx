@@ -28,7 +28,8 @@ import {
   Sliders,
   Check,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  EyeOff
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -337,6 +338,19 @@ const formatCurrency = (val) => {
   if (val === undefined || val === null || isNaN(val)) return 'R$ 0,00';
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 };
+
+const MaskedValue = ({ show, value }) =>
+  show ? (
+    value
+  ) : (
+    <span
+      className="inline-flex items-center gap-2 text-slate-400"
+      title="Visualização bloqueada para o seu perfil"
+    >
+      <EyeOff className="w-[1em] h-[1em] shrink-0" />
+      <span className="blur-sm select-none" aria-hidden="true">R$ 000.000,00</span>
+    </span>
+  );
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -778,6 +792,11 @@ export default function App() {
     if (!currentRole.permissions || !currentRole.permissions[moduleKey]) return false;
     return Boolean(currentRole.permissions[moduleKey][actionKey]);
   }, [currentRole, isRootMaster]);
+
+  const canViewContractValues = useMemo(() => {
+    if (!currentRole) return false;
+    return currentRole.permissions?.contratos?.viewValues !== false;
+  }, [currentRole]);
 
   const navItems = useMemo(() => [
     { id: 'dashboard', label: 'Painel Executivo', icon: LayoutDashboard, badge: 'KPIs', permKey: 'dashboard' },
@@ -1441,7 +1460,9 @@ export default function App() {
     let targetUpdated = null;
     const updatedRoles = accessRoles.map((role) => {
       if (role.id === roleId) {
-        const currentVal = role.permissions?.[moduleKey]?.[actionKey] || false;
+        const currentVal = actionKey === 'viewValues'
+          ? role.permissions?.[moduleKey]?.viewValues !== false
+          : (role.permissions?.[moduleKey]?.[actionKey] || false);
         const updatedRole = {
           ...role,
           permissions: {
@@ -2411,17 +2432,17 @@ export default function App() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
                       <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">VALOR TOTAL CONTRATADO ({contracts.length} CONTRATOS)</div>
-                      <div className="text-2xl font-black text-[#1B3B2B] mt-2">{formatCurrency(financialData.totalContratado)}</div>
+                      <div className="text-2xl font-black text-[#1B3B2B] mt-2"><MaskedValue show={canViewContractValues} value={formatCurrency(financialData.totalContratado)} /></div>
                       <div className="text-xs text-slate-500 mt-1">Carteira Ambiental SEMA-MT & SST</div>
                     </div>
                     <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
                       <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">TOTAL JÁ RECEBIDO DOS CONTRATOS</div>
-                      <div className="text-2xl font-black text-emerald-700 mt-2">{formatCurrency(financialData.totalRecebidoContratos)}</div>
+                      <div className="text-2xl font-black text-emerald-700 mt-2"><MaskedValue show={canViewContractValues} value={formatCurrency(financialData.totalRecebidoContratos)} /></div>
                       <div className="text-xs text-emerald-600 mt-1">Parcelas quitadas via baixa</div>
                     </div>
                     <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
                       <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">SALDO A FATURAR / RECEBER</div>
-                      <div className="text-2xl font-black text-amber-600 mt-2">{formatCurrency(financialData.saldoAFaturar)}</div>
+                      <div className="text-2xl font-black text-amber-600 mt-2"><MaskedValue show={canViewContractValues} value={formatCurrency(financialData.saldoAFaturar)} /></div>
                       <div className="text-xs text-slate-500 mt-1">Parcelas pendentes de recebimento</div>
                     </div>
                     <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
@@ -2548,9 +2569,9 @@ export default function App() {
                                       {ct.status}
                                     </span>
                                   </td>
-                                  <td className="py-3 px-3 text-right font-bold text-[#1B3B2B]">{formatCurrency(val)}</td>
-                                  <td className="py-3 px-3 text-right text-emerald-700 font-semibold">{formatCurrency(rec)}</td>
-                                  <td className="py-3 px-3 text-right text-amber-600 font-semibold">{formatCurrency(saldo)}</td>
+                                  <td className="py-3 px-3 text-right font-bold text-[#1B3B2B]"><MaskedValue show={canViewContractValues} value={formatCurrency(val)} /></td>
+                                  <td className="py-3 px-3 text-right text-emerald-700 font-semibold"><MaskedValue show={canViewContractValues} value={formatCurrency(rec)} /></td>
+                                  <td className="py-3 px-3 text-right text-amber-600 font-semibold"><MaskedValue show={canViewContractValues} value={formatCurrency(saldo)} /></td>
                                   <td className="py-3 px-3 text-center">
                                     <button
                                       onClick={() => setViewingContractInstallments(ct)}
@@ -4285,15 +4306,15 @@ export default function App() {
                   <div key={modKey} className="p-3 rounded-xl border bg-slate-50 flex flex-wrap items-center justify-between gap-3">
                     <span className="font-extrabold text-[#1B3B2B] uppercase w-32">{modKey}</span>
                     <div className="flex flex-wrap items-center gap-4">
-                      {['view', 'create', 'edit', 'delete', 'approve'].map((actKey) => (
+                      {['view', 'create', 'edit', 'delete', 'approve', ...(modKey === 'contratos' ? ['viewValues'] : [])].map((actKey) => (
                         <label key={actKey} className="flex items-center gap-1.5 cursor-pointer font-medium select-none">
                           <input
                             type="checkbox"
-                            checked={Boolean(modPerms?.[actKey])}
+                            checked={actKey === 'viewValues' ? modPerms?.viewValues !== false : Boolean(modPerms?.[actKey])}
                             onChange={() => handlePermissionToggle(editingRolePermissions.id, modKey, actKey)}
                             className="w-4 h-4 rounded text-[#1B3B2B] focus:ring-[#1B3B2B] cursor-pointer"
                           />
-                          <span className="capitalize">{actKey}</span>
+                          <span className="capitalize">{actKey === 'viewValues' ? 'Ver valores' : actKey}</span>
                         </label>
                       ))}
                     </div>
