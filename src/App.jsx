@@ -29,10 +29,7 @@ import {
   Check,
   ArrowUp,
   ArrowDown,
-  EyeOff,
-  AlertCircle,
-  AlertTriangle,
-  Save
+  EyeOff
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -49,287 +46,12 @@ import {
   Cell
 } from 'recharts';
 
-// ============================================================================
-// CONFIGURAÇÃO SUPABASE (CLIENTE REST NATIVO SEM DEPENDÊNCIA EXTERNA)
-// ============================================================================
-/**
- * Cliente REST nativo compatível com a API PostgREST do Supabase,
- * evitando falhas de resolução do pacote "@supabase/supabase-js" no bundler.
- */
-const createClient = (url, key) => {
-  const baseUrl = String(url || '').replace(/\/+$/, '');
-  const baseHeaders = {
-    apikey: key,
-    Authorization: `Bearer ${key}`,
-    'Content-Type': 'application/json'
-  };
+import { createClient } from '@supabase/supabase-js';
 
-  const from = (table) => {
-    const state = {
-      method: 'GET',
-      selectCols: '*',
-      filters: [],
-      body: undefined,
-      extraHeaders: {},
-      maybeSingle: false
-    };
-
-    const execute = async () => {
-      try {
-        const params = [];
-        if (state.method === 'GET' && state.selectCols) {
-          params.push(`select=${encodeURIComponent(state.selectCols)}`);
-        }
-        state.filters.forEach((f) => params.push(f));
-
-        const queryString = params.length > 0 ? `?${params.join('&')}` : '';
-        const endpoint = `${baseUrl}/rest/v1/${encodeURIComponent(table)}${queryString}`;
-
-        const response = await fetch(endpoint, {
-          method: state.method,
-          headers: { ...baseHeaders, ...state.extraHeaders },
-          body: state.body !== undefined ? JSON.stringify(state.body) : undefined
-        });
-
-        const text = await response.text();
-        let parsed = null;
-        if (text) {
-          try {
-            parsed = JSON.parse(text);
-          } catch {
-            parsed = text;
-          }
-        }
-
-        if (!response.ok) {
-          return {
-            data: null,
-            error: {
-              message:
-                (parsed && (parsed.message || parsed.error_description || parsed.hint)) ||
-                response.statusText,
-              status: response.status
-            }
-          };
-        }
-
-        if (state.maybeSingle) {
-          return {
-            data: Array.isArray(parsed) ? (parsed[0] ?? null) : parsed,
-            error: null
-          };
-        }
-
-        return { data: parsed, error: null };
-      } catch (err) {
-        return {
-          data: null,
-          error: { message: err?.message || 'Erro de conexão com o Supabase.' }
-        };
-      }
-    };
-
-    const builder = {
-      select(columns = '*') {
-        state.method = 'GET';
-        state.selectCols = columns;
-        return builder;
-      },
-      upsert(values) {
-        state.method = 'POST';
-        state.body = Array.isArray(values) ? values : [values];
-        state.extraHeaders = {
-          ...state.extraHeaders,
-          Prefer: 'resolution=merge-duplicates,return=representation'
-        };
-        return builder;
-      },
-      update(values) {
-        state.method = 'PATCH';
-        state.body = values;
-        state.extraHeaders = {
-          ...state.extraHeaders,
-          Prefer: 'return=representation'
-        };
-        return builder;
-      },
-      delete() {
-        state.method = 'DELETE';
-        state.extraHeaders = {
-          ...state.extraHeaders,
-          Prefer: 'return=representation'
-        };
-        return builder;
-      },
-      eq(column, value) {
-        state.filters.push(`${encodeURIComponent(column)}=eq.${encodeURIComponent(String(value))}`);
-        return builder;
-      },
-      in(column, values) {
-        const list = (Array.isArray(values) ? values : [values])
-          .map((v) => `"${encodeURIComponent(String(v).replace(/"/g, '\\"'))}"`)
-          .join(',');
-        state.filters.push(`${encodeURIComponent(column)}=in.(${list})`);
-        return builder;
-      },
-      maybeSingle() {
-        state.maybeSingle = true;
-        return builder;
-      },
-      then(resolve, reject) {
-        return execute().then(resolve, reject);
-      },
-      catch(reject) {
-        return execute().catch(reject);
-      }
-    };
-
-    return builder;
-  };
-
-  return {
-    from,
-    channel(name) {
-      const ch = {
-        name,
-        on() {
-          return ch;
-        },
-        subscribe(callback) {
-          if (typeof callback === 'function') {
-            setTimeout(() => callback('SUBSCRIBED'), 0);
-          }
-          return ch;
-        }
-      };
-      return ch;
-    },
-    removeChannel() {
-      return Promise.resolve('ok');
-    }
-  };
-};
-
+// Inicialização Supabase direta
 const supabaseUrl = "https://fhmgpgqqhcbxuqmpjrlh.supabase.co";
 const supabaseKey = "sb_publishable_P1Xy1OH2KBqp-oITOLz0_g_615LlpyM";
 const supabase = createClient(supabaseUrl, supabaseKey);
-
-// ============================================================================
-// UTILITÁRIOS GLOBAIS E GERAÇÃO DE IDS ÚNICOS SEGUROS
-// ============================================================================
-const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-const MONTH_NAMES_MAP = {
-  '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr',
-  '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago',
-  '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez'
-};
-
-const ANOS_DRE = Array.from({ length: 15 }, (_, i) => 2026 + i);
-const PAYMENT_METHODS = ['PIX', 'Boleto Bancário', 'Transferência (TED/DOC)', 'Cartão de Crédito', 'Cartão de Débito', 'Dinheiro'];
-const SESSION_STORAGE_KEY = 'grupo_martins_erp_session_role';
-
-/**
- * Gera identificadores únicos seguros sem risco de colisão em cadastros rápidos.
- */
-const generateUniqueId = (prefix) => {
-  const timePart = Date.now().toString(36).toUpperCase();
-  const randPart = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `${prefix}-${timePart}-${randPart}`;
-};
-
-/**
- * Formata valores numéricos para moeda brasileira (BRL).
- */
-const formatCurrency = (val) => {
-  if (val === undefined || val === null || isNaN(val)) return 'R$ 0,00';
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
-};
-
-/**
- * Extrai o ano (número) de uma data YYYY-MM-DD com segurança.
- */
-const extractYear = (dateStr) => {
-  if (!dateStr) return null;
-  const parsed = parseInt(String(dateStr).split('-')[0], 10);
-  return isNaN(parsed) ? null : parsed;
-};
-
-/**
- * Resolve o código e o nome oficial do Plano de Contas a partir da string salva no contrato.
- */
-const resolvePlanoContasFromService = (serviceText, planoContasData) => {
-  const allAccounts = [
-    ...(planoContasData?.receitas || []),
-    ...(planoContasData?.despesas || [])
-  ];
-  const raw = String(serviceText || '').trim();
-
-  // 1. Busca exata por nome ou código
-  const exactMatch = allAccounts.find(
-    (acc) => acc.nome === raw || acc.codigo === raw
-  );
-  if (exactMatch) {
-    return { codigo: exactMatch.codigo, nome: exactMatch.nome };
-  }
-
-  // 2. Busca por prefixo de código (ex: "1.1.04 — ...")
-  const codeMatch = raw.match(/^(\d+(?:\.\d+)+)/);
-  if (codeMatch) {
-    const extractedCode = codeMatch[1];
-    const byCode = allAccounts.find((acc) => acc.codigo === extractedCode);
-    if (byCode) {
-      return { codigo: byCode.codigo, nome: byCode.nome };
-    }
-    return { codigo: extractedCode, nome: raw };
-  }
-
-  // 3. Fallback seguro para a primeira conta de receita
-  const fallback = planoContasData?.receitas?.[0] || {
-    codigo: '1.1.01',
-    nome: '1.1.01 — Licenciamento Ambiental (LP / LI / LO)'
-  };
-  return { codigo: fallback.codigo, nome: raw || fallback.nome };
-};
-
-/**
- * Calcula o status consolidado das parcelas de um contrato para exibição de alerta visual.
- */
-const getContractInstallmentHealth = (contract) => {
-  const insts = contract.installmentsData || contract.installmentsdata || [];
-  if (insts.length === 0) {
-    return { label: 'Sem Parcelas', tone: 'slate', count: 0 };
-  }
-
-  const pending = insts.filter((i) => i.status !== 'Pago');
-  if (pending.length === 0) {
-    return { label: 'Quitado', tone: 'quitado', count: 0 };
-  }
-
-  const todayStr = new Date().toISOString().split('T')[0];
-  const overdueCount = pending.filter((i) => {
-    const d = String(i.dueDate || i.duedate || '').slice(0, 10);
-    return d && d < todayStr;
-  }).length;
-
-  if (overdueCount > 0) {
-    return {
-      label: overdueCount === 1 ? '1 Vencida' : `${overdueCount} Vencidas`,
-      tone: 'vencida',
-      count: overdueCount
-    };
-  }
-
-  const dueTodayCount = pending.filter((i) => {
-    const d = String(i.dueDate || i.duedate || '').slice(0, 10);
-    return d && d === todayStr;
-  }).length;
-
-  if (dueTodayCount > 0) {
-    return { label: 'Vence Hoje', tone: 'hoje', count: dueTodayCount };
-  }
-
-  return { label: 'Em Dia', tone: 'emdia', count: pending.length };
-};
 
 // ============================================================================
 // 1. COMPONENTE DA LOGO OFICIAL VETORIZADA — GRUPO MARTINS
@@ -515,9 +237,11 @@ const GrupoMartinsLogo = ({ size = 'md', theme = 'cream', className = '' }) => {
   );
 };
 
-// ============================================================================
-// 2. DADOS INICIAIS DE CONFIGURAÇÃO E PERFIS
-// ============================================================================
+const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const MONTH_NAMES_MAP = { '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez' };
+
+const ANOS_DRE = Array.from({ length: 15 }, (_, i) => 2026 + i);
+
 const INITIAL_PLANO_CONTAS = {
   receitas: [
     { codigo: '1.1.01', nome: '1.1.01 — Licenciamento Ambiental (LP / LI / LO)' },
@@ -582,7 +306,7 @@ const DEFAULT_PERMISSIONS = {
   prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
   lancamentos: { view: true, create: true, edit: true, delete: false, approve: true },
   dre: { view: true, create: false, edit: false, delete: false, approve: false },
-  contratos: { view: true, create: true, edit: true, delete: false, approve: false, viewValues: true },
+  contratos: { view: true, create: true, edit: true, delete: false, approve: false },
   clientes: { view: true, create: true, edit: true, delete: false, approve: false },
   condicionantes: { view: true, create: true, edit: true, delete: true, approve: false },
   acessos: { view: false, create: false, edit: false, delete: false, approve: false }
@@ -602,7 +326,7 @@ const INITIAL_ACCESS_ROLES = [
       prolabore: { view: true, create: true, edit: true, delete: true, approve: true },
       lancamentos: { view: true, create: true, edit: true, delete: true, approve: true },
       dre: { view: true, create: true, edit: true, delete: true, approve: true },
-      contratos: { view: true, create: true, edit: true, delete: true, approve: true, viewValues: true },
+      contratos: { view: true, create: true, edit: true, delete: true, approve: true },
       clientes: { view: true, create: true, edit: true, delete: true, approve: true },
       condicionantes: { view: true, create: true, edit: true, delete: true, approve: true },
       acessos: { view: true, create: true, edit: true, delete: true, approve: true }
@@ -610,9 +334,11 @@ const INITIAL_ACCESS_ROLES = [
   }
 ];
 
-/**
- * Componente de máscara visual para valores protegidos por permissão.
- */
+const formatCurrency = (val) => {
+  if (val === undefined || val === null || isNaN(val)) return 'R$ 0,00';
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+};
+
 const MaskedValue = ({ show, value }) =>
   show ? (
     value
@@ -626,35 +352,25 @@ const MaskedValue = ({ show, value }) =>
     </span>
   );
 
-// ============================================================================
-// 3. APLICAÇÃO PRINCIPAL — GRUPO MARTINS ERP v4.1
-// ============================================================================
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isCloudSynced, setIsCloudSynced] = useState(false);
 
-  // Entidades principais sincronizadas com Supabase
   const [transactions, setTransactions] = useState([]);
   const [contracts, setContracts] = useState([]);
   const [clients, setClients] = useState([]);
   const [condicionantes, setCondicionantes] = useState([]);
 
-  // Exercício financeiro selecionado (compartilhado entre Dashboard, Pró-Labore e DRE)
   const [selectedDreYear, setSelectedDreYear] = useState(2026);
 
-  // Plano de Contas e Modal de Criação/Edição/Exclusão
   const [planoContasData, setPlanoContasData] = useState(INITIAL_PLANO_CONTAS);
   const [showPlanoModal, setShowPlanoModal] = useState(false);
   const [planoForm, setPlanoForm] = useState({ tipo: 'receitas', codigo: '', nome: '', originalCodigo: null });
-  const [planoFromContractModal, setPlanoFromContractModal] = useState(false);
-  const [deletePlanoTarget, setDeletePlanoTarget] = useState(null);
 
-  // Gestão de Perfis de Acesso
   const [editingRoleTarget, setEditingRoleTarget] = useState(null);
-  const [deleteRoleTarget, setDeleteRoleTarget] = useState(null);
 
-  // Segmentos e Status do CRM
+  // Estados para Cadastro, Edição e Exclusão de Segmentos e Status do CRM
   const [availableSegments, setAvailableSegments] = useState(INITIAL_SEGMENTS);
   const [showSegmentManager, setShowSegmentManager] = useState(false);
   const [segmentInput, setSegmentInput] = useState('');
@@ -665,37 +381,21 @@ export default function App() {
   const [statusInput, setStatusInput] = useState('');
   const [editingStatusOriginal, setEditingStatusOriginal] = useState(null);
 
-  // Órgãos / Setores dos Contratos
+  // Estados para Cadastro, Edição e Exclusão de Órgãos / Setores dos Contratos
   const [availableAgencies, setAvailableAgencies] = useState(INITIAL_AGENCIES);
   const [showAgencyManager, setShowAgencyManager] = useState(false);
   const [agencyInput, setAgencyInput] = useState('');
   const [editingAgencyOriginal, setEditingAgencyOriginal] = useState(null);
 
-  // Sessão persistida em sessionStorage para sobreviver a F5 sem perder segurança por aba
   const [accessRoles, setAccessRoles] = useState(INITIAL_ACCESS_ROLES);
-  const [activeRoleId, setActiveRoleId] = useState(() => {
-    try {
-      return sessionStorage.getItem(SESSION_STORAGE_KEY) || 'ROLE-01-PEDRO';
-    } catch {
-      return 'ROLE-01-PEDRO';
-    }
-  });
-  const [authLoggedIn, setAuthLoggedIn] = useState(() => {
-    try {
-      return Boolean(sessionStorage.getItem(SESSION_STORAGE_KEY));
-    } catch {
-      return false;
-    }
-  });
+  const [activeRoleId, setActiveRoleId] = useState('ROLE-01-PEDRO');
+  const [authLoggedIn, setAuthLoggedIn] = useState(false);
   const [authEmailInput, setAuthEmailInput] = useState('');
   const [authPasswordInput, setAuthPasswordInput] = useState('');
   const [authErrorMsg, setAuthErrorMsg] = useState('');
 
-  // Parâmetros financeiros
   const [params, setParams] = useState(INITIAL_PARAMETERS);
-  const [paramsDirty, setParamsDirty] = useState(false);
 
-  // Modais de controle de acesso
   const [showUserRoleModal, setShowUserRoleModal] = useState(false);
   const [editingRolePermissions, setEditingRolePermissions] = useState(null);
   const [newRoleForm, setNewRoleForm] = useState({
@@ -707,7 +407,6 @@ export default function App() {
     description: ''
   });
 
-  // Filtros das telas
   const [txSearch, setTxSearch] = useState('');
   const [txTypeFilter, setTxTypeFilter] = useState('Todos');
   const [txCategoryFilter, setTxCategoryFilter] = useState('Todas');
@@ -728,16 +427,10 @@ export default function App() {
   const [sortField, setSortField] = useState(null);
   const [sortDirection, setSortDirection] = useState('asc');
 
-  // Reseta a ordenação automaticamente ao trocar de aba para evitar conflito entre tabelas
-  useEffect(() => {
-    setSortField(null);
-    setSortDirection('asc');
-  }, [activeTab]);
-
-  // Modais de Condicionantes
   const [showCondModal, setShowCondModal] = useState(false);
   const [editingCond, setEditingCond] = useState(null);
   const [deleteCondTarget, setDeleteCondTarget] = useState(null);
+
   const [condForm, setCondForm] = useState({
     client: '',
     service: '',
@@ -748,11 +441,10 @@ export default function App() {
     status: 'EM ANDAMENTO'
   });
 
-  // Modais de Lançamentos, Contratos e Clientes
   const [showTxModal, setShowTxModal] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
   const [deleteTxTarget, setDeleteTxTarget] = useState(null);
-
+  
   const [showContractModal, setShowContractModal] = useState(false);
   const [editingContract, setEditingContract] = useState(null);
   const [deleteContractTarget, setDeleteContractTarget] = useState(null);
@@ -770,22 +462,16 @@ export default function App() {
   const [editingClient, setEditingClient] = useState(null);
   const [deleteClientTarget, setDeleteClientTarget] = useState(null);
 
-  // Sistema de Toast elegante (substitui qualquer alert() nativo)
-  const [toast, setToast] = useState(null);
+  const [toastMessage, setToastMessage] = useState(null);
 
-  const showToast = useCallback((msg, variant = 'success') => {
-    setToast({ msg, variant });
-  }, []);
-
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(null), 3800);
-    return () => clearTimeout(timer);
-  }, [toast]);
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
 
   const [txForm, setTxForm] = useState({
-    date: new Date().toISOString().split('T')[0],
-    month: MONTH_NAMES_MAP[new Date().toISOString().split('T')[0].split('-')[1]] || 'Nov',
+    date: '2026-11-10',
+    month: 'Nov',
     type: 'Entrada',
     planoContas: INITIAL_PLANO_CONTAS.receitas[0].codigo,
     planocontas: INITIAL_PLANO_CONTAS.receitas[0].codigo,
@@ -825,9 +511,7 @@ export default function App() {
     status: INITIAL_STATUSES[0]
   });
 
-  // ============================================================================
-  // SINCRONIZAÇÃO GLOBAL DE CONFIGURAÇÕES (COM SALVAMENTO OTIMIZADO)
-  // ============================================================================
+  // Salva configurações globais no Supabase em Tempo Real (incluindo Órgãos/Setores)
   const syncSettingsToCloud = async (newSegments, newStatuses, newPlano, newParams, newAgencies) => {
     if (!supabase) return;
     const payload = {
@@ -839,45 +523,32 @@ export default function App() {
       agencies: newAgencies || availableAgencies
     };
     try {
-      const { error } = await supabase.from('erp_settings').upsert([payload]);
-      if (error) {
-        console.error('Erro ao sincronizar configurações:', error);
-        showToast('Erro ao sincronizar configurações na nuvem.', 'error');
-      }
+      await supabase.from('erp_settings').upsert([payload]);
     } catch (err) {
       console.error('Erro ao sincronizar configurações:', err);
-      showToast('Falha de conexão ao salvar configurações.', 'error');
     }
   };
 
-  const handleSaveParamsToCloud = async () => {
-    await syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, params, availableAgencies);
-    setParamsDirty(false);
-    showToast('Parâmetros financeiros salvos e sincronizados!');
-  };
-
-  // ============================================================================
-  // GERENCIAMENTO DE ÓRGÃOS / SETORES, SEGMENTOS E STATUS
-  // ============================================================================
+  // Funções de Gerenciamento de Órgãos / Setores dos Contratos
   const handleSaveAgency = async () => {
     const clean = agencyInput.trim();
     if (!clean) return;
     let updatedList;
     if (editingAgencyOriginal) {
-      updatedList = availableAgencies.map((a) => (a === editingAgencyOriginal ? clean : a));
-      setContracts((prev) => prev.map((c) => (c.agency === editingAgencyOriginal ? { ...c, agency: clean } : c)));
+      updatedList = availableAgencies.map(a => a === editingAgencyOriginal ? clean : a);
+      setContracts(prev => prev.map(c => c.agency === editingAgencyOriginal ? { ...c, agency: clean } : c));
       if (supabase) {
         await supabase.from('contracts').update({ agency: clean }).eq('agency', editingAgencyOriginal);
       }
     } else {
       if (availableAgencies.includes(clean)) {
-        showToast('Este órgão já está cadastrado.', 'error');
+        alert('Este órgão já está cadastrado.');
         return;
       }
       updatedList = [...availableAgencies, clean];
     }
     setAvailableAgencies(updatedList);
-    setCtForm((prev) => ({ ...prev, agency: clean }));
+    setCtForm(prev => ({ ...prev, agency: clean }));
     setAgencyInput('');
     setEditingAgencyOriginal(null);
     await syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, params, updatedList);
@@ -886,37 +557,38 @@ export default function App() {
 
   const handleDeleteAgency = async (agToDelete) => {
     if (availableAgencies.length <= 1) {
-      showToast('Mantenha pelo menos 1 órgão disponível.', 'error');
+      alert('Mantenha pelo menos 1 órgão disponível.');
       return;
     }
-    const updatedList = availableAgencies.filter((a) => a !== agToDelete);
+    const updatedList = availableAgencies.filter(a => a !== agToDelete);
     setAvailableAgencies(updatedList);
     if (ctForm.agency === agToDelete) {
-      setCtForm((prev) => ({ ...prev, agency: updatedList[0] }));
+      setCtForm(prev => ({ ...prev, agency: updatedList[0] }));
     }
     await syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, params, updatedList);
     showToast('Órgão removido!');
   };
 
+  // Funções de Gerenciamento de Segmentos do CRM
   const handleSaveSegment = async () => {
     const clean = segmentInput.trim();
     if (!clean) return;
     let updatedList;
     if (editingSegmentOriginal) {
-      updatedList = availableSegments.map((s) => (s === editingSegmentOriginal ? clean : s));
-      setClients((prev) => prev.map((c) => (c.segment === editingSegmentOriginal ? { ...c, segment: clean } : c)));
+      updatedList = availableSegments.map(s => s === editingSegmentOriginal ? clean : s);
+      setClients(prev => prev.map(c => c.segment === editingSegmentOriginal ? { ...c, segment: clean } : c));
       if (supabase) {
         await supabase.from('clients').update({ segment: clean }).eq('segment', editingSegmentOriginal);
       }
     } else {
       if (availableSegments.includes(clean)) {
-        showToast('Este segmento já está cadastrado.', 'error');
+        alert('Este segmento já está cadastrado.');
         return;
       }
       updatedList = [...availableSegments, clean];
     }
     setAvailableSegments(updatedList);
-    setCliForm((prev) => ({ ...prev, segment: clean }));
+    setCliForm(prev => ({ ...prev, segment: clean }));
     setSegmentInput('');
     setEditingSegmentOriginal(null);
     await syncSettingsToCloud(updatedList, availableStatuses, planoContasData, params, availableAgencies);
@@ -925,37 +597,38 @@ export default function App() {
 
   const handleDeleteSegment = async (segToDelete) => {
     if (availableSegments.length <= 1) {
-      showToast('Mantenha pelo menos 1 segmento disponível.', 'error');
+      alert('Mantenha pelo menos 1 segmento disponível.');
       return;
     }
-    const updatedList = availableSegments.filter((s) => s !== segToDelete);
+    const updatedList = availableSegments.filter(s => s !== segToDelete);
     setAvailableSegments(updatedList);
     if (cliForm.segment === segToDelete) {
-      setCliForm((prev) => ({ ...prev, segment: updatedList[0] }));
+      setCliForm(prev => ({ ...prev, segment: updatedList[0] }));
     }
     await syncSettingsToCloud(updatedList, availableStatuses, planoContasData, params, availableAgencies);
     showToast('Segmento removido!');
   };
 
+  // Funções de Gerenciamento de Status do CRM
   const handleSaveStatus = async () => {
     const clean = statusInput.trim();
     if (!clean) return;
     let updatedList;
     if (editingStatusOriginal) {
-      updatedList = availableStatuses.map((s) => (s === editingStatusOriginal ? clean : s));
-      setClients((prev) => prev.map((c) => (c.status === editingStatusOriginal ? { ...c, status: clean } : c)));
+      updatedList = availableStatuses.map(s => s === editingStatusOriginal ? clean : s);
+      setClients(prev => prev.map(c => c.status === editingStatusOriginal ? { ...c, status: clean } : c));
       if (supabase) {
         await supabase.from('clients').update({ status: clean }).eq('status', editingStatusOriginal);
       }
     } else {
       if (availableStatuses.includes(clean)) {
-        showToast('Este status já está cadastrado.', 'error');
+        alert('Este status já está cadastrado.');
         return;
       }
       updatedList = [...availableStatuses, clean];
     }
     setAvailableStatuses(updatedList);
-    setCliForm((prev) => ({ ...prev, status: clean }));
+    setCliForm(prev => ({ ...prev, status: clean }));
     setStatusInput('');
     setEditingStatusOriginal(null);
     await syncSettingsToCloud(availableSegments, updatedList, planoContasData, params, availableAgencies);
@@ -964,13 +637,13 @@ export default function App() {
 
   const handleDeleteStatus = async (stToDelete) => {
     if (availableStatuses.length <= 1) {
-      showToast('Mantenha pelo menos 1 status disponível.', 'error');
+      alert('Mantenha pelo menos 1 status disponível.');
       return;
     }
-    const updatedList = availableStatuses.filter((s) => s !== stToDelete);
+    const updatedList = availableStatuses.filter(s => s !== stToDelete);
     setAvailableStatuses(updatedList);
     if (cliForm.status === stToDelete) {
-      setCliForm((prev) => ({ ...prev, status: updatedList[0] }));
+      setCliForm(prev => ({ ...prev, status: updatedList[0] }));
     }
     await syncSettingsToCloud(availableSegments, updatedList, planoContasData, params, availableAgencies);
     showToast('Status removido!');
@@ -978,30 +651,31 @@ export default function App() {
 
   const handleCnpjBlur = async (cnpjValue) => {
     const cleanCnpj = cnpjValue.replace(/\D/g, '');
-    if (!cleanCnpj) return;
     if (cleanCnpj.length !== 14) {
-      showToast('O CNPJ deve conter exatamente 14 dígitos.', 'error');
+      alert('O CNPJ deve conter exatamente 14 dígitos.');
       return;
     }
 
-    showToast('Consultando CNPJ na Receita...', 'info');
+    showToast('Consultando CNPJ...');
     try {
       let response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
       if (!response.ok) {
         response = await fetch(`https://minhareceita.org/${cleanCnpj}`);
       }
+
       if (!response.ok) {
         throw new Error('CNPJ não encontrado.');
       }
 
       const data = await response.json();
+
       const razaoSocial = data.razao_social || data.nome_fantasia;
       const municipio = data.municipio || data.estabelecimento?.cidade?.nome;
       const uf = data.uf || data.estabelecimento?.estado?.sigla;
       const telefone = data.ddd_telefone_1 || data.estabelecimento?.telefone1;
       const emailCorretor = data.email || data.estabelecimento?.email;
 
-      setCliForm((prev) => ({
+      setCliForm(prev => ({
         ...prev,
         name: razaoSocial || prev.name,
         document: cnpjValue,
@@ -1010,16 +684,14 @@ export default function App() {
         email: emailCorretor || prev.email
       }));
 
-      showToast('Dados do CNPJ preenchidos com sucesso!');
+      showToast('Dados preenchidos com sucesso!');
     } catch (err) {
       console.error(err);
-      showToast('Não foi possível consultar automaticamente. Preencha os dados manualmente.', 'error');
+      alert('Não foi possível consultar automaticamente. Preencha os dados manualmente.');
     }
   };
 
-  // ============================================================================
-  // CARGA INICIAL E SINCRONIZAÇÃO REALTIME SUPABASE
-  // ============================================================================
+  // Busca inicial completa do Supabase
   const fetchAllData = useCallback(async () => {
     if (!supabase) return;
     try {
@@ -1027,7 +699,6 @@ export default function App() {
         supabase.from('transactions').select('*'),
         supabase.from('contracts').select('*'),
         supabase.from('clients').select('*'),
-        // Nota de segurança: Em produção, recomenda-se migrar a verificação de senha para Supabase Auth ou função RPC no backend.
         supabase.from('user_roles').select('*'),
         supabase.from('condicionantes').select('*'),
         supabase.from('erp_settings').select('*').eq('id', 'GLOBAL').maybeSingle()
@@ -1059,6 +730,7 @@ export default function App() {
     }
   }, []);
 
+  // Sincronização em Tempo Real Instantânea
   useEffect(() => {
     fetchAllData();
     if (!supabase) return;
@@ -1106,9 +778,6 @@ export default function App() {
     };
   }, [fetchAllData]);
 
-  // ============================================================================
-  // PERMISSÕES E NAVEGAÇÃO
-  // ============================================================================
   const currentRole = useMemo(() => {
     return accessRoles.find((r) => r.id === activeRoleId) || accessRoles[0];
   }, [accessRoles, activeRoleId]);
@@ -1162,18 +831,15 @@ export default function App() {
 
   const isCurrentTabAllowed = hasPermission(currentTabPermKey, 'view');
 
-  // ============================================================================
-  // CÁLCULO DA DRE GERENCIAL (POR EXERCÍCIO)
-  // ============================================================================
   const dreGerencialData = useMemo(() => {
     const monthsFull = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-
+    
     const getVal = (codigoConta, mesStr, anoNum) => {
       return transactions
-        .filter((t) => t.status === 'Pago / Recebido' && (t.planocontas === codigoConta || t.planoContas === codigoConta || (t.category || '').includes(codigoConta)))
-        .filter((t) => {
+        .filter(t => t.status === 'Pago / Recebido' && (t.planocontas === codigoConta || t.planoContas === codigoConta || (t.category || '').includes(codigoConta)))
+        .filter(t => {
           if (t.date) {
-            const txAno = extractYear(t.date);
+            const txAno = parseInt(t.date.split('-')[0], 10);
             if (txAno !== anoNum) return false;
           }
           if (mesStr) {
@@ -1185,10 +851,10 @@ export default function App() {
         .reduce((sum, cur) => sum + Number(cur.amount || 0), 0);
     };
 
-    const receitasRows = planoContasData.receitas.map((rev) => {
+    const receitasRows = planoContasData.receitas.map(rev => {
       const mensalValues = {};
       let totalAno = 0;
-      monthsFull.forEach((m) => {
+      monthsFull.forEach(m => {
         const val = getVal(rev.codigo, m, selectedDreYear);
         mensalValues[m] = val;
         totalAno += val;
@@ -1198,10 +864,10 @@ export default function App() {
 
     const receitaBrutaTotalAnual = receitasRows.reduce((acc, r) => acc + r.totalAnual, 0);
 
-    const despesasRows = planoContasData.despesas.map((desp) => {
+    const despesasRows = planoContasData.despesas.map(desp => {
       const mensalValues = {};
       let totalAno = 0;
-      monthsFull.forEach((m) => {
+      monthsFull.forEach(m => {
         const val = getVal(desp.codigo, m, selectedDreYear);
         mensalValues[m] = val;
         totalAno += val;
@@ -1209,9 +875,9 @@ export default function App() {
       return { codigo: desp.codigo, nome: desp.nome, mensalValues, totalAnual: totalAno };
     });
 
-    const impostosRows = despesasRows.filter((d) => d.codigo.startsWith('2.1'));
-    const custosDiretosRows = despesasRows.filter((d) => d.codigo.startsWith('2.2') || d.codigo.startsWith('2.3'));
-    const despesasOpRows = despesasRows.filter((d) => d.codigo >= '2.4');
+    const impostosRows = despesasRows.filter(d => d.codigo.startsWith('2.1'));
+    const custosDiretosRows = despesasRows.filter(d => d.codigo.startsWith('2.2') || d.codigo.startsWith('2.3'));
+    const despesasOpRows = despesasRows.filter(d => d.codigo >= '2.4');
 
     const sumRowsMonth = (rows, m) => rows.reduce((acc, r) => acc + (r.mensalValues[m] || 0), 0);
     const sumRowsTotal = (rows) => rows.reduce((acc, r) => acc + r.totalAnual, 0);
@@ -1242,47 +908,24 @@ export default function App() {
     };
   }, [transactions, planoContasData, selectedDreYear]);
 
-  // ============================================================================
-  // CONSOLIDAÇÃO FINANCEIRA DO PAINEL EXECUTIVO (FILTRADO POR selectedDreYear)
-  // ============================================================================
-  const isProLaboreTx = useCallback((t) => {
-    const code = t.planocontas || t.planoContas || '';
-    const cat = t.category || '';
-    return code === '2.4.01' || cat.includes('Pró-Labore') || cat.toLowerCase().includes('pro-labore');
-  }, []);
-
   const financialData = useMemo(() => {
-    // Filtra movimentações pelo exercício selecionado para KPIs anuais e gráficos
-    const yearTxs = transactions.filter((t) => {
-      const y = extractYear(t.date);
-      return y === null || y === selectedDreYear;
-    });
-
-    const receitaBrutaAnual = yearTxs.filter((t) => t.type === 'Entrada').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
-    const saidasTotaisAnual = yearTxs.filter((t) => t.type === 'Saída').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    const receitaBrutaAnual = transactions.filter((t) => t.type === 'Entrada').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    const saidasTotaisAnual = transactions.filter((t) => t.type === 'Saída').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
     const lucroLiquidoAnual = receitaBrutaAnual - saidasTotaisAnual;
+    
+    const proLaboreTotalAnual = transactions.filter((t) => (t.category || t.planocontas || t.planoContas || '').includes('Pró-Labore')).reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    const proLaborePago = transactions.filter((t) => (t.category || t.planocontas || t.planoContas || '').includes('Pró-Labore') && t.status === 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
 
-    const proLaboreTotalAnual = yearTxs.filter(isProLaboreTx).reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
-    const proLaborePago = yearTxs.filter((t) => isProLaboreTx(t) && t.status === 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    const entradasRealizadas = transactions.filter((t) => t.type === 'Entrada' && t.status === 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    const saidasRealizadas = transactions.filter((t) => t.type === 'Saída' && t.status === 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    const saldoAtualCaixa = Number(params.saldoInicialCaixa || 0) + entradasRealizadas - saidasRealizadas;
 
-    // Caixa Atual: Acumulado Histórico Global (todos os anos realizados + saldo inicial)
-    const entradasRealizadasTotal = transactions
-      .filter((t) => t.type === 'Entrada' && t.status === 'Pago / Recebido')
-      .reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
-    const saidasRealizadasTotal = transactions
-      .filter((t) => t.type === 'Saída' && t.status === 'Pago / Recebido')
-      .reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
-    const saldoAtualCaixa = Number(params.saldoInicialCaixa || 0) + entradasRealizadasTotal - saidasRealizadasTotal;
-
-    const contasAReceber = yearTxs.filter((t) => t.type === 'Entrada' && t.status !== 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
-    const contasAPagar = yearTxs.filter((t) => t.type === 'Saída' && t.status !== 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    const contasAReceber = transactions.filter((t) => t.type === 'Entrada' && t.status !== 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    const contasAPagar = transactions.filter((t) => t.type === 'Saída' && t.status !== 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
 
     let runningBalance = Number(params.saldoInicialCaixa || 0);
     const monthlySeries = MONTHS.map((m) => {
-      const mTxs = yearTxs.filter((t) => {
-        const txMonth = t.month || (t.date ? MONTH_NAMES_MAP[t.date.split('-')[1]] : '');
-        return txMonth === m;
-      });
+      const mTxs = transactions.filter((t) => t.month === m);
       const entradas = mTxs.filter((t) => t.type === 'Entrada').reduce((a, b) => a + Number(b.amount || 0), 0);
       const saidas = mTxs.filter((t) => t.type === 'Saída').reduce((a, b) => a + Number(b.amount || 0), 0);
       const resultadoLiquido = entradas - saidas;
@@ -1291,26 +934,19 @@ export default function App() {
     });
 
     const revenueByCategory = planoContasData.receitas.map((rev) => {
-      const value = yearTxs
-        .filter((t) => t.planocontas === rev.codigo || t.planoContas === rev.codigo || t.category === rev.nome)
-        .reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
-      return {
-        category: rev.nome,
-        shortName: rev.nome.split(' — ')[1] || rev.nome,
-        value,
-        share: receitaBrutaAnual > 0 ? value / receitaBrutaAnual : 0
-      };
+      const value = transactions.filter(t => (t.planocontas === rev.codigo || t.planoContas === rev.codigo || t.category === rev.nome)).reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+      return { category: rev.nome, shortName: rev.nome.split(' — ')[1] || rev.nome, value, share: receitaBrutaAnual > 0 ? value / receitaBrutaAnual : 0 };
     }).sort((a, b) => b.value - a.value);
 
     const totalContratado = contracts.reduce((acc, c) => acc + Number(c.contractvalue || c.contractValue || 0), 0);
     const totalRecebidoContratos = contracts.reduce((acc, c) => {
       const insts = c.installmentsData || c.installmentsdata || [];
-      const pagoInsts = insts.filter((i) => i.status === 'Pago').reduce((sum, i) => sum + Number(i.amount || 0), 0);
+      const pagoInsts = insts.filter(i => i.status === 'Pago').reduce((sum, i) => sum + Number(i.amount || 0), 0);
       return acc + pagoInsts;
     }, 0);
     const saldoAFaturar = totalContratado - totalRecebidoContratos;
-
-    const totalCustoContratos = contracts.reduce((acc, c) => acc + Number(c.directcosts || c.directCosts || 0), 0);
+    
+    let totalCustoContratos = contracts.reduce((acc, c) => acc + Number(c.directcosts || c.directCosts || 0), 0);
     const margemMedia = totalContratado > 0 ? ((totalContratado - totalCustoContratos) / totalContratado) * 100 : 88.2;
 
     return {
@@ -1329,48 +965,18 @@ export default function App() {
       saldoAFaturar,
       margemMedia
     };
-  }, [transactions, contracts, params, planoContasData, selectedDreYear, isProLaboreTx]);
+  }, [transactions, contracts, params, planoContasData]);
 
-  // Validação em tempo real da soma das parcelas no Modal de Contrato
-  const contractInstallmentsValidation = useMemo(() => {
-    const total = parseFloat(String(ctForm.contractValue).replace(',', '.')) || 0;
-    const count = parseInt(ctForm.installmentsCount, 10) || 1;
-    const defaultVal = count > 0 ? total / count : 0;
-
-    let sum = 0;
-    let hasCustom = false;
-    for (let i = 0; i < count; i++) {
-      const customAmt = parseFloat(String(ctForm.installmentAmounts?.[i]).replace(',', '.'));
-      if (!isNaN(customAmt) && customAmt > 0) {
-        sum += customAmt;
-        hasCustom = true;
-      } else {
-        sum += defaultVal;
-      }
-    }
-    const diff = Number((sum - total).toFixed(2));
-    return {
-      total,
-      sum: Number(sum.toFixed(2)),
-      diff,
-      hasCustom,
-      isMismatch: total > 0 && Math.abs(diff) >= 0.02
-    };
-  }, [ctForm.contractValue, ctForm.installmentsCount, ctForm.installmentAmounts]);
-
-  // ============================================================================
-  // AÇÕES DE LANÇAMENTOS (LIVRO CAIXA)
-  // ============================================================================
   const handleToggleStatus = async (id) => {
     if (!hasPermission('lancamentos', 'approve') && !hasPermission('lancamentos', 'edit')) {
-      showToast('Sem permissão para alterar o status de lançamentos.', 'error');
+      showToast('Sem permissão para alterar o status de lançamentos.');
       return;
     }
-    const item = transactions.find((t) => t.id === id);
+    const item = transactions.find(t => t.id === id);
     if (!item) return;
     const nextStatus = item.status === 'Pago / Recebido' ? 'Pendente' : 'Pago / Recebido';
     const updatedItem = { ...item, status: nextStatus };
-    setTransactions((prev) => prev.map((t) => (t.id === id ? updatedItem : t)));
+    setTransactions(prev => prev.map(t => t.id === id ? updatedItem : t));
     if (supabase) await supabase.from('transactions').upsert(updatedItem);
     showToast('Status atualizado!');
   };
@@ -1379,14 +985,14 @@ export default function App() {
     e.preventDefault();
     const numericAmount = parseFloat(String(txForm.amount).replace(',', '.'));
     if (!txForm.entity || isNaN(numericAmount) || numericAmount <= 0) {
-      showToast('Preencha o favorecido e o valor corretamente.', 'error');
+      alert('Preencha o favorecido e o valor corretamente.');
       return;
     }
 
     try {
-      const txId = editingTx ? editingTx.id : generateUniqueId('MT');
-      const txData = {
-        id: txId,
+      const txId = editingTx ? editingTx.id : `MT-${Date.now().toString().slice(-5)}`;
+      const txData = { 
+        id: txId, 
         date: txForm.date,
         month: txForm.month,
         type: txForm.type,
@@ -1397,21 +1003,21 @@ export default function App() {
         description: txForm.description,
         paymentmethod: txForm.paymentMethod || txForm.paymentmethod || 'PIX',
         status: txForm.status,
-        amount: numericAmount
+        amount: numericAmount 
       };
 
       if (supabase) {
         const { error } = await supabase.from('transactions').upsert([txData]);
         if (error) {
           console.error('Erro Supabase Lançamento:', error);
-          showToast('Erro ao salvar lançamento na nuvem: ' + error.message, 'error');
+          alert('Erro ao salvar lançamento na nuvem: ' + error.message);
           return;
         }
       }
 
-      setTransactions((prev) => {
-        const exists = prev.some((t) => t.id === txId);
-        return exists ? prev.map((t) => (t.id === txId ? txData : t)) : [...prev, txData];
+      setTransactions(prev => {
+        const exists = prev.some(t => t.id === txId);
+        return exists ? prev.map(t => t.id === txId ? txData : t) : [...prev, txData];
       });
 
       showToast('Lançamento salvo na nuvem com sucesso!');
@@ -1419,14 +1025,14 @@ export default function App() {
       setEditingTx(null);
     } catch (err) {
       console.error('Erro crítico:', err);
-      showToast('Erro inesperado ao salvar lançamento.', 'error');
+      alert('Erro inesperado ao salvar lançamento.');
     }
   };
 
   const confirmDeleteTransaction = async () => {
     if (!deleteTxTarget) return;
     const id = deleteTxTarget.id;
-    setTransactions((prev) => prev.filter((t) => t.id !== id));
+    setTransactions(prev => prev.filter(t => t.id !== id));
     if (supabase) {
       await supabase.from('transactions').delete().eq('id', id);
     }
@@ -1434,58 +1040,32 @@ export default function App() {
     setDeleteTxTarget(null);
   };
 
-  // ============================================================================
-  // AÇÕES DE CONTRATOS & BAIXA AUTOMÁTICA NA CONTA CORRETA DA DRE
-  // ============================================================================
   const handleSaveContract = async (e) => {
     e.preventDefault();
     const contractVal = parseFloat(String(ctForm.contractValue).replace(',', '.')) || 0;
     const directVal = parseFloat(String(ctForm.directCosts).replace(',', '.')) || 0;
-    const nInstallments = parseInt(ctForm.installmentsCount, 10) || 1;
-
-    if (!ctForm.client || !ctForm.service) {
-      showToast('Preencha o cliente e selecione o Plano de Contas.', 'error');
-      return;
-    }
-    if (canViewContractValues && contractVal <= 0) {
-      showToast('Informe um valor total válido para o contrato.', 'error');
-      return;
-    }
+    const nInstallments = parseInt(ctForm.installmentsCount) || 1;
+    if (!ctForm.client || contractVal <= 0) return;
 
     try {
-      const contractId = editingContract
-        ? editingContract.id
-        : generateUniqueId(`CT-${selectedDreYear}`);
-
-      const finalContractVal = editingContract && !canViewContractValues
-        ? Number(editingContract.contractvalue || editingContract.contractValue || 0)
-        : contractVal;
-
-      const finalDirectVal = editingContract && !canViewContractValues
-        ? Number(editingContract.directcosts || editingContract.directCosts || 0)
-        : directVal;
-
+      const contractId = editingContract ? editingContract.id : `CT-${selectedDreYear}-${Date.now().toString().slice(-4)}`;
+      
       let installments = [];
-      const existingInstList = editingContract?.installmentsData || editingContract?.installmentsdata || [];
+      const defaultInstVal = contractVal / nInstallments;
 
-      if (editingContract && !canViewContractValues && existingInstList.length > 0) {
-        // Preserva parcelas financeiras intactas se usuário sem permissão de valores editar campos técnicos
-        installments = existingInstList;
-      } else {
-        const defaultInstVal = finalContractVal / nInstallments;
-        for (let i = 0; i < nInstallments; i++) {
-          const customAmt = parseFloat(String(ctForm.installmentAmounts?.[i]).replace(',', '.'));
-          const instVal = !isNaN(customAmt) && customAmt > 0 ? customAmt : defaultInstVal;
-          const existingInst = existingInstList[i];
-          installments.push({
-            number: i + 1,
-            amount: instVal,
-            dueDate: ctForm.installmentDates?.[i] || `${selectedDreYear}-12-30`,
-            status: existingInst ? existingInst.status : 'Pendente',
-            paymentDate: existingInst?.paymentDate || existingInst?.paymentdate || null,
-            interestPaid: existingInst?.interestPaid || existingInst?.interestpaid || 0
-          });
-        }
+      for (let i = 0; i < nInstallments; i++) {
+        const customAmt = parseFloat(String(ctForm.installmentAmounts?.[i]).replace(',', '.'));
+        const instVal = !isNaN(customAmt) && customAmt > 0 ? customAmt : defaultInstVal;
+        
+        const existingInst = editingContract?.installmentsData?.[i] || editingContract?.installmentsdata?.[i];
+        installments.push({
+          number: i + 1,
+          amount: instVal,
+          dueDate: ctForm.installmentDates?.[i] || `${selectedDreYear}-12-30`,
+          status: existingInst ? existingInst.status : 'Pendente',
+          paymentDate: existingInst?.paymentDate || existingInst?.paymentdate || null,
+          interestPaid: existingInst?.interestPaid || existingInst?.interestpaid || 0
+        });
       }
 
       const contractData = {
@@ -1494,13 +1074,11 @@ export default function App() {
         service: ctForm.service,
         agency: ctForm.agency,
         status: ctForm.status,
-        contractvalue: finalContractVal,
-        receivedvalue: installments
-          .filter((i) => i.status === 'Pago')
-          .reduce((acc, cur) => acc + Number(cur.amount), 0),
-        directcosts: finalDirectVal,
-        installmentscount: String(installments.length),
-        paymentmethod: ctForm.paymentMethod || 'PIX',
+        contractvalue: contractVal,
+        receivedvalue: installments.filter(i => i.status === 'Pago').reduce((acc, cur) => acc + Number(cur.amount), 0),
+        directcosts: directVal,
+        installmentscount: String(nInstallments),
+        paymentmethod: ctForm.paymentMethod,
         installmentsdata: installments,
         observation: ctForm.observation || ''
       };
@@ -1509,14 +1087,14 @@ export default function App() {
         const { error } = await supabase.from('contracts').upsert([contractData]);
         if (error) {
           console.error('Erro Supabase Contrato:', error);
-          showToast('Erro ao salvar contrato na nuvem: ' + error.message, 'error');
+          alert('Erro ao salvar contrato na nuvem: ' + error.message);
           return;
         }
       }
 
-      setContracts((prev) => {
-        const exists = prev.some((c) => c.id === contractId);
-        return exists ? prev.map((c) => (c.id === contractId ? contractData : c)) : [...prev, contractData];
+      setContracts(prev => {
+        const exists = prev.some(c => c.id === contractId);
+        return exists ? prev.map(c => c.id === contractId ? contractData : c) : [...prev, contractData];
       });
 
       showToast('Contrato salvo permanentemente na nuvem!');
@@ -1525,44 +1103,38 @@ export default function App() {
       setShowAgencyManager(false);
     } catch (err) {
       console.error('Erro ao salvar contrato:', err);
-      showToast('Erro inesperado ao salvar contrato.', 'error');
+      alert('Erro inesperado ao salvar contrato.');
     }
   };
 
-  /**
-   * Dá baixa na parcela e lança automaticamente no Livro Caixa e DRE usando o Plano de Contas REAL do contrato.
-   */
   const handleConfirmReceiveInstallment = async () => {
     if (!receivingInstallmentData) return;
     const { contractId, installmentNumber } = receivingInstallmentData;
-
-    const contract = contracts.find((c) => c.id === contractId);
+    
+    const contract = contracts.find(c => c.id === contractId);
     if (!contract) return;
 
-    const instList = contract.installmentsData || contract.installmentsdata || [];
-    const targetInst = instList.find((i) => i.number === installmentNumber);
+    const targetInst = (contract.installmentsData || contract.installmentsdata).find(i => i.number === installmentNumber);
     if (!targetInst) return;
 
     const baseAmount = Number(targetInst.amount || 0);
     const interest = parseFloat(String(receiveForm.interestAmount).replace(',', '.')) || 0;
     const payDate = receiveForm.paymentDate || new Date().toISOString().split('T')[0];
 
-    const updatedInstallments = instList.map((inst) => {
+    const updatedInstallments = (contract.installmentsData || contract.installmentsdata).map(inst => {
       if (inst.number === installmentNumber) {
-        return {
-          ...inst,
-          status: 'Pago',
-          paymentDate: payDate,
+        return { 
+          ...inst, 
+          status: 'Pago', 
+          paymentDate: payDate, 
           interestPaid: interest,
-          totalPaid: baseAmount + interest
+          totalPaid: baseAmount + interest 
         };
       }
       return inst;
     });
 
-    const receivedSum = updatedInstallments
-      .filter((i) => i.status === 'Pago')
-      .reduce((acc, cur) => acc + Number(cur.amount), 0);
+    const receivedSum = updatedInstallments.filter(i => i.status === 'Pago').reduce((acc, cur) => acc + Number(cur.amount), 0);
 
     const updatedContract = {
       ...contract,
@@ -1570,99 +1142,89 @@ export default function App() {
       installmentsdata: updatedInstallments
     };
 
-    setContracts((prev) => prev.map((c) => (c.id === contractId ? updatedContract : c)));
+    setContracts(prev => prev.map(c => c.id === contractId ? updatedContract : c));
     if (supabase) {
       await supabase.from('contracts').upsert([updatedContract]);
     }
 
+    const monthNames = { '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez' };
     const monthNum = payDate.split('-')[1] || '12';
-    const monthStr = MONTH_NAMES_MAP[monthNum] || 'Dez';
-
-    // Resolve automaticamente o código e categoria da conta vinculada ao contrato!
-    const resolvedAccount = resolvePlanoContasFromService(contract.service, planoContasData);
-    const payMethod = contract.paymentmethod || contract.paymentMethod || 'PIX';
+    const monthStr = monthNames[monthNum] || 'Dez';
 
     const newTransactionsList = [];
 
+    const tId1 = `MT-${Date.now().toString().slice(-5)}`;
     const txPrincipal = {
-      id: generateUniqueId('MT'),
+      id: tId1,
       date: payDate,
       month: monthStr,
       type: 'Entrada',
-      planocontas: resolvedAccount.codigo,
-      category: resolvedAccount.nome,
+      planocontas: '1.1.01',
+      category: 'Licenciamento Ambiental (LP / LI / LO)',
       entity: contract.client,
       contractid: contractId,
-      description: `Parcela ${installmentNumber}/${instList.length} (${payMethod}) — Contrato ${contractId}`,
-      paymentmethod: payMethod,
+      description: `Parcela ${installmentNumber}/${(contract.installmentsData || contract.installmentsdata).length} (${contract.paymentmethod || contract.paymentMethod}) — Contrato ${contractId}`,
+      paymentmethod: contract.paymentmethod || contract.paymentMethod,
       status: 'Pago / Recebido',
       amount: baseAmount
     };
     newTransactionsList.push(txPrincipal);
 
     if (interest > 0) {
-      const interestAccount = planoContasData.receitas.find((r) => r.codigo === '1.2.01') || {
-        codigo: '1.2.01',
-        nome: '1.2.01 — Receitas Financeiras (Juros e Multas por Atraso)'
-      };
+      const tId2 = `MT-${(Date.now() + 1).toString().slice(-5)}`;
       const txJuros = {
-        id: generateUniqueId('MTJ'),
+        id: tId2,
         date: payDate,
         month: monthStr,
         type: 'Entrada',
-        planocontas: interestAccount.codigo,
-        category: interestAccount.nome,
+        planocontas: '1.2.01',
+        category: 'Receitas Financeiras (Juros e Multas por Atraso)',
         entity: contract.client,
         contractid: contractId,
         description: `Juros / Multa Parcela ${installmentNumber} — Contrato ${contractId}`,
-        paymentmethod: payMethod,
+        paymentmethod: contract.paymentmethod || contract.paymentMethod,
         status: 'Pago / Recebido',
         amount: interest
       };
       newTransactionsList.push(txJuros);
     }
 
-    setTransactions((prev) => [...prev, ...newTransactionsList]);
+    setTransactions(prev => [...prev, ...newTransactionsList]);
     if (supabase) {
       await supabase.from('transactions').upsert(newTransactionsList);
     }
 
     setViewingContractInstallments(updatedContract);
-    showToast(`Baixa registrada na conta ${resolvedAccount.codigo} (Livro Caixa e DRE atualizados)!`);
+    showToast(`Recebimento registrado com sucesso no Caixa!`);
     setReceivingInstallmentData(null);
     setReceiveForm({ paymentDate: new Date().toISOString().split('T')[0], interestAmount: '' });
   };
 
-  /**
-   * Estorna baixa de parcela e remove os lançamentos correspondentes em uma única operação batch no Supabase.
-   */
   const confirmCancelReceiveInstallment = async () => {
     if (!cancelInstallmentTarget) return;
     const { contractId, installmentNumber } = cancelInstallmentTarget;
 
-    const contract = contracts.find((c) => c.id === contractId);
+    const contract = contracts.find(c => c.id === contractId);
     if (!contract) return;
 
     const instList = contract.installmentsData || contract.installmentsdata || [];
     const descPrefix1 = `Parcela ${installmentNumber}/${instList.length}`;
     const descPrefix2 = `Juros / Multa Parcela ${installmentNumber} — Contrato ${contractId}`;
 
-    const updatedInstallments = instList.map((inst) => {
+    const updatedInstallments = instList.map(inst => {
       if (inst.number === installmentNumber) {
-        return {
-          ...inst,
-          status: 'Pendente',
-          paymentDate: null,
+        return { 
+          ...inst, 
+          status: 'Pendente', 
+          paymentDate: null, 
           interestPaid: 0,
-          totalPaid: 0
+          totalPaid: 0 
         };
       }
       return inst;
     });
 
-    const receivedSum = updatedInstallments
-      .filter((i) => i.status === 'Pago')
-      .reduce((acc, cur) => acc + Number(cur.amount), 0);
+    const receivedSum = updatedInstallments.filter(i => i.status === 'Pago').reduce((acc, cur) => acc + Number(cur.amount), 0);
 
     const updatedContract = {
       ...contract,
@@ -1670,33 +1232,31 @@ export default function App() {
       installmentsdata: updatedInstallments
     };
 
-    setContracts((prev) => prev.map((c) => (c.id === contractId ? updatedContract : c)));
+    setContracts(prev => prev.map(c => c.id === contractId ? updatedContract : c));
     if (supabase) {
       await supabase.from('contracts').upsert([updatedContract]);
     }
 
-    const txsToRemove = transactions.filter(
-      (t) =>
-        (t.contractid === contractId || t.contractId === contractId) &&
-        ((t.description || '').includes(descPrefix1) || (t.description || '').includes(descPrefix2))
-    );
-    const txIdsToRemove = txsToRemove.map((t) => t.id);
+    const txsToRemove = transactions.filter(t => (t.contractid === contractId || t.contractId === contractId) && (t.description.includes(descPrefix1) || t.description.includes(descPrefix2)));
+    const txIdsToRemove = txsToRemove.map(t => t.id);
 
-    setTransactions((prev) => prev.filter((t) => !txIdsToRemove.includes(t.id)));
+    setTransactions(prev => prev.filter(t => !txIdsToRemove.includes(t.id)));
 
     if (supabase && txIdsToRemove.length > 0) {
-      await supabase.from('transactions').delete().in('id', txIdsToRemove);
+      for (const tId of txIdsToRemove) {
+        await supabase.from('transactions').delete().eq('id', tId);
+      }
     }
 
     setViewingContractInstallments(updatedContract);
-    showToast(`Recebimento da Parcela ${installmentNumber} estornado do Caixa!`);
+    showToast(`Recebimento da Parcela ${installmentNumber} cancelado e estornado do Caixa!`);
     setCancelInstallmentTarget(null);
   };
 
   const confirmDeleteContract = async () => {
     if (!deleteContractTarget) return;
     const contractId = deleteContractTarget.id;
-    setContracts((prev) => prev.filter((c) => c.id !== contractId));
+    setContracts(prev => prev.filter(c => c.id !== contractId));
     if (supabase) {
       await supabase.from('contracts').delete().eq('id', contractId);
     }
@@ -1704,18 +1264,15 @@ export default function App() {
     setDeleteContractTarget(null);
   };
 
-  // ============================================================================
-  // AÇÕES DE CLIENTES (CRM)
-  // ============================================================================
   const handleSaveClient = async (e) => {
     e.preventDefault();
     if (!cliForm.name) {
-      showToast('Por favor, preencha a Razão Social / Nome.', 'error');
+      alert('Por favor, preencha a Razão Social / Nome.');
       return;
     }
 
     try {
-      const clientId = editingClient ? editingClient.id : generateUniqueId('CLI');
+      const clientId = editingClient ? editingClient.id : `CLI-${Date.now().toString().slice(-4)}`;
       const clientData = {
         id: clientId,
         name: cliForm.name,
@@ -1734,20 +1291,20 @@ export default function App() {
         const { error } = await supabase.from('clients').upsert([clientData]);
         if (error) {
           console.error('Erro detalhado do Supabase:', error);
-          showToast('Erro ao salvar no Supabase: ' + error.message, 'error');
+          alert('Erro ao salvar no Supabase: ' + error.message);
           return;
         }
       }
 
-      setClients((prev) => {
-        const exists = prev.some((c) => c.id === clientId);
-        return exists ? prev.map((c) => (c.id === clientId ? clientData : c)) : [...prev, clientData];
+      setClients(prev => {
+        const exists = prev.some(c => c.id === clientId);
+        return exists ? prev.map(c => c.id === clientId ? clientData : c) : [...prev, clientData];
       });
 
       setShowClientModal(false);
       setEditingClient(null);
       showToast('Cliente salvo com sucesso na nuvem!');
-
+      
       setCliForm({
         name: '',
         document: '',
@@ -1760,16 +1317,17 @@ export default function App() {
         mainProgram: 'Licenciamento Ambiental (LP / LI / LO)',
         status: availableStatuses[0]
       });
+
     } catch (err) {
       console.error('Erro crítico ao salvar:', err);
-      showToast('Erro ao processar o salvamento do cliente.', 'error');
+      alert('Erro ao processar o salvamento.');
     }
   };
 
   const confirmDeleteClient = async () => {
     if (!deleteClientTarget) return;
     const clientId = deleteClientTarget.id;
-    setClients((prev) => prev.filter((c) => c.id !== clientId));
+    setClients(prev => prev.filter(c => c.id !== clientId));
     if (supabase) {
       await supabase.from('clients').delete().eq('id', clientId);
     }
@@ -1777,18 +1335,15 @@ export default function App() {
     setDeleteClientTarget(null);
   };
 
-  // ============================================================================
-  // AÇÕES DE CONDICIONANTES AMBIENTAIS
-  // ============================================================================
   const handleSaveCondicionante = async (e) => {
     e.preventDefault();
     if (!condForm.client || !condForm.service) {
-      showToast('Preencha o cliente e o serviço/condicionante.', 'error');
+      alert('Preencha o cliente e o serviço/condicionante.');
       return;
     }
 
     try {
-      const condId = editingCond ? editingCond.id : generateUniqueId('COND');
+      const condId = editingCond ? editingCond.id : `COND-${Date.now().toString().slice(-4)}`;
       const condData = {
         id: condId,
         client: condForm.client,
@@ -1800,16 +1355,16 @@ export default function App() {
         status: condForm.status
       };
 
-      setCondicionantes((prev) => {
-        const exists = prev.some((c) => c.id === condId);
-        return exists ? prev.map((c) => (c.id === condId ? condData : c)) : [...prev, condData];
+      setCondicionantes(prev => {
+        const exists = prev.some(c => c.id === condId);
+        return exists ? prev.map(c => c.id === condId ? condData : c) : [...prev, condData];
       });
 
       if (supabase) {
         const { error } = await supabase.from('condicionantes').upsert([condData]);
         if (error) {
           console.error('Erro Supabase Condicionantes:', error);
-          showToast('Erro ao salvar condicionante na nuvem: ' + error.message, 'error');
+          alert('Erro ao salvar condicionante na nuvem: ' + error.message);
           return;
         }
       }
@@ -1828,7 +1383,7 @@ export default function App() {
       });
     } catch (err) {
       console.error(err);
-      showToast('Erro inesperado ao salvar condicionante.', 'error');
+      alert('Erro inesperado ao salvar condicionante.');
     }
   };
 
@@ -1836,13 +1391,13 @@ export default function App() {
     if (!deleteCondTarget) return;
     const id = deleteCondTarget.id;
 
-    setCondicionantes((prev) => prev.filter((c) => c.id !== id));
+    setCondicionantes(prev => prev.filter(c => c.id !== id));
 
     if (supabase) {
       const { error } = await supabase.from('condicionantes').delete().eq('id', id);
       if (error) {
         console.error('Erro ao excluir no Supabase:', error);
-        showToast('Erro ao excluir condicionante na nuvem: ' + error.message, 'error');
+        alert('Erro ao excluir condicionante na nuvem: ' + error.message);
         return;
       }
     }
@@ -1853,25 +1408,22 @@ export default function App() {
 
   const handleSort = (field) => {
     if (sortField === field) {
-      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
       setSortField(field);
       setSortDirection('asc');
     }
   };
 
-  // ============================================================================
-  // AÇÕES DE PERFIS DE ACESSO & PLANO DE CONTAS
-  // ============================================================================
   const handleSaveNewUserRole = async (e) => {
     e.preventDefault();
     if (!newRoleForm.name || !newRoleForm.holder || !newRoleForm.email) {
-      showToast('Preencha Nome do Perfil, Titular e E-mail.', 'error');
+      alert('Preencha Nome do Perfil, Titular e E-mail.');
       return;
     }
 
     const newRole = {
-      id: generateUniqueId('ROLE'),
+      id: `ROLE-${Date.now()}`,
       level: newRoleForm.level || 'Nível Especial — Colaborador',
       name: newRoleForm.name.trim(),
       holder: newRoleForm.holder.trim(),
@@ -1886,7 +1438,7 @@ export default function App() {
         const { error } = await supabase.from('user_roles').upsert([newRole]);
         if (error) {
           console.error('Erro Supabase ao salvar utilizador:', error);
-          showToast('Erro ao salvar utilizador na nuvem: ' + error.message, 'error');
+          alert('Erro ao salvar utilizador na nuvem: ' + error.message);
           return;
         }
       }
@@ -1904,7 +1456,7 @@ export default function App() {
       showToast('Novo utilizador cadastrado e salvo na nuvem!');
     } catch (err) {
       console.error('Erro inesperado:', err);
-      showToast('Erro ao processar o cadastro do utilizador.', 'error');
+      alert('Erro ao processar o cadastro do utilizador.');
     }
   };
 
@@ -1912,10 +1464,9 @@ export default function App() {
     let targetUpdated = null;
     const updatedRoles = accessRoles.map((role) => {
       if (role.id === roleId) {
-        const currentVal =
-          actionKey === 'viewValues'
-            ? role.permissions?.[moduleKey]?.viewValues !== false
-            : role.permissions?.[moduleKey]?.[actionKey] || false;
+        const currentVal = actionKey === 'viewValues'
+          ? role.permissions?.[moduleKey]?.viewValues !== false
+          : (role.permissions?.[moduleKey]?.[actionKey] || false);
         const updatedRole = {
           ...role,
           permissions: {
@@ -1943,7 +1494,7 @@ export default function App() {
         .upsert([{ id, level, name, holder, email, password, description, permissions }]);
       if (error) {
         console.error('Erro ao salvar permissão:', error);
-        showToast('Erro ao salvar permissão na nuvem: ' + error.message, 'error');
+        alert('Erro ao salvar permissão na nuvem: ' + error.message);
       }
     }
   };
@@ -1959,7 +1510,7 @@ export default function App() {
       const { error } = await supabase.from('user_roles').upsert([cleanRole]);
       if (error) {
         console.error('Erro ao editar perfil:', error);
-        showToast('Erro ao atualizar perfil na nuvem: ' + error.message, 'error');
+        alert('Erro ao atualizar perfil na nuvem: ' + error.message);
         return;
       }
     }
@@ -1969,184 +1520,72 @@ export default function App() {
     setEditingRoleTarget(null);
   };
 
-  const confirmDeleteRole = async () => {
-    if (!deleteRoleTarget) return;
+  const handleDeleteRole = async (roleId) => {
     if (accessRoles.length <= 1) {
-      showToast('Você não pode excluir o último perfil ativo do sistema.', 'error');
-      setDeleteRoleTarget(null);
+      alert('Você não pode excluir o último perfil ativo do sistema.');
       return;
     }
-    const roleId = deleteRoleTarget.id;
-    setAccessRoles((prev) => prev.filter((r) => r.id !== roleId));
-    if (supabase) {
-      await supabase.from('user_roles').delete().eq('id', roleId);
+    if (window.confirm('Deseja realmente excluir este perfil de acesso do sistema?')) {
+      setAccessRoles(prev => prev.filter(r => r.id !== roleId));
+      if (supabase) {
+        await supabase.from('user_roles').delete().eq('id', roleId);
+      }
+      showToast('Perfil excluído com sucesso!');
+      setEditingRoleTarget(null);
     }
-    showToast('Perfil excluído com sucesso!');
-    setDeleteRoleTarget(null);
-    setEditingRoleTarget(null);
   };
 
-  const confirmDeletePlanoAccount = async () => {
-    if (!deletePlanoTarget) return;
-    const { tipo, codigo } = deletePlanoTarget;
-    const updated = {
-      ...planoContasData,
-      [tipo]: planoContasData[tipo].filter((item) => item.codigo !== codigo)
-    };
-    setPlanoContasData(updated);
-    await syncSettingsToCloud(availableSegments, availableStatuses, updated, params, availableAgencies);
-    showToast(`Conta ${codigo} removida do plano de contas!`);
-    setDeletePlanoTarget(null);
-  };
-
-  const handleLogout = () => {
-    try {
-      sessionStorage.removeItem(SESSION_STORAGE_KEY);
-    } catch {
-      // ignora erro de storage indisponível
-    }
-    setAuthLoggedIn(false);
-    setAuthPasswordInput('');
-  };
-
-  // ============================================================================
-  // EXPORTAÇÃO DRE PARA CSV / EXCEL
-  // ============================================================================
   const exportDREToExcel = () => {
-    const {
-      selectedDreYear: year,
-      monthsFull,
-      receitasRows,
-      receitaBrutaTotalAnual,
-      impostosRows,
-      impostoTotalAnual,
-      receitaLiquidaTotalAnual,
-      custosDiretosRows,
-      custosDiretosTotalAnual,
-      despesasOpRows,
-      despesasOpTotalAnual,
-      lucroLiquidoTotalAnual
-    } = dreGerencialData;
-
-    let csv = '\uFEFF';
-    csv += `ESTRUTURA DRE — GRUPO MARTINS (${year}) (R$);` + monthsFull.join(';') + `;ACUMULADO ${year};AV %\n`;
-
-    csv +=
-      '1. RECEITA OPERACIONAL BRUTA;' +
-      monthsFull.map((m) => receitasRows.reduce((a, b) => a + (b.mensalValues[m] || 0), 0).toFixed(2)).join(';') +
-      ';' +
-      receitaBrutaTotalAnual.toFixed(2) +
-      ';100,0%\n';
-    receitasRows.forEach((r) => {
-      csv +=
-        '(+) ' +
-        r.nome +
-        ';' +
-        monthsFull.map((m) => (r.mensalValues[m] || 0).toFixed(2)).join(';') +
-        ';' +
-        r.totalAnual.toFixed(2) +
-        ';' +
-        (receitaBrutaTotalAnual > 0 ? ((r.totalAnual / receitaBrutaTotalAnual) * 100).toFixed(1) + '%' : '0,0%') +
-        '\n';
+    const { selectedDreYear, monthsFull, receitasRows, receitaBrutaTotalAnual, impostosRows, impostoTotalAnual, receitaLiquidaTotalAnual, custosDiretosRows, custosDiretosTotalAnual, despesasOpRows, despesasOpTotalAnual, lucroLiquidoTotalAnual } = dreGerencialData;
+    
+    let csv = "\uFEFF";
+    csv += `ESTRUTURA DRE — GRUPO MARTINS (${selectedDreYear}) (R$);` + monthsFull.join(";") + `;ACUMULADO ${selectedDreYear};AV %\n`;
+    
+    csv += "1. RECEITA OPERACIONAL BRUTA;" + monthsFull.map(m => receitasRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0).toFixed(2)).join(";") + ";" + receitaBrutaTotalAnual.toFixed(2) + ";100,0%\n";
+    receitasRows.forEach(r => {
+      csv += "(+) " + r.nome + ";" + monthsFull.map(m => (r.mensalValues[m]||0).toFixed(2)).join(";") + ";" + r.totalAnual.toFixed(2) + ";" + (receitaBrutaTotalAnual > 0 ? ((r.totalAnual/receitaBrutaTotalAnual)*100).toFixed(1)+"%" : "0,0%") + "\n";
     });
 
-    csv +=
-      '2. (-) DEDUÇÕES E IMPOSTOS SOBRE FATURAMENTO;' +
-      monthsFull.map((m) => impostosRows.reduce((a, b) => a + (b.mensalValues[m] || 0), 0).toFixed(2)).join(';') +
-      ';' +
-      impostoTotalAnual.toFixed(2) +
-      ';\n';
+    csv += "2. (-) DEDUÇÕES E IMPOSTOS SOBRE FATURAMENTO;" + monthsFull.map(m => impostosRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0).toFixed(2)).join(";") + ";" + impostoTotalAnual.toFixed(2) + ";\n";
+    
+    csv += "3. (=) RECEITA OPERACIONAL LÍQUIDA;" + monthsFull.map(m => (receitasRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0) - impostosRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0)).toFixed(2)).join(";") + ";" + receitaLiquidaTotalAnual.toFixed(2) + ";\n";
 
-    csv +=
-      '3. (=) RECEITA OPERACIONAL LÍQUIDA;' +
-      monthsFull
-        .map(
-          (m) =>
-            (
-              receitasRows.reduce((a, b) => a + (b.mensalValues[m] || 0), 0) -
-              impostosRows.reduce((a, b) => a + (b.mensalValues[m] || 0), 0)
-            ).toFixed(2)
-        )
-        .join(';') +
-      ';' +
-      receitaLiquidaTotalAnual.toFixed(2) +
-      ';\n';
-
-    csv +=
-      '4. (-) CUSTOS DIRETOS DE PROJETOS E CAMPO (CSP);' +
-      monthsFull.map((m) => custosDiretosRows.reduce((a, b) => a + (b.mensalValues[m] || 0), 0).toFixed(2)).join(';') +
-      ';' +
-      custosDiretosTotalAnual.toFixed(2) +
-      ';\n';
-    custosDiretosRows.forEach((r) => {
-      csv +=
-        '(-) ' +
-        r.nome +
-        ';' +
-        monthsFull.map((m) => (r.mensalValues[m] || 0).toFixed(2)).join(';') +
-        ';' +
-        r.totalAnual.toFixed(2) +
-        ';\n';
+    csv += "4. (-) CUSTOS DIRETOS DE PROJETOS E CAMPO (CSP);" + monthsFull.map(m => custosDiretosRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0).toFixed(2)).join(";") + ";" + custosDiretosTotalAnual.toFixed(2) + ";\n";
+    custosDiretosRows.forEach(r => {
+      csv += "(-) " + r.nome + ";" + monthsFull.map(m => (r.mensalValues[m]||0).toFixed(2)).join(";") + ";" + r.totalAnual.toFixed(2) + ";\n";
     });
 
-    csv +=
-      '5. (-) DESPESAS OPERACIONAIS, COMERCIAIS E PRÓ-LABORE;' +
-      monthsFull.map((m) => despesasOpRows.reduce((a, b) => a + (b.mensalValues[m] || 0), 0).toFixed(2)).join(';') +
-      ';' +
-      despesasOpTotalAnual.toFixed(2) +
-      ';\n';
-    despesasOpRows.forEach((r) => {
-      csv +=
-        '(-) ' +
-        r.nome +
-        ';' +
-        monthsFull.map((m) => (r.mensalValues[m] || 0).toFixed(2)).join(';') +
-        ';' +
-        r.totalAnual.toFixed(2) +
-        ';\n';
+    csv += "5. (-) DESPESAS OPERACIONAIS, COMERCIAIS E PRÓ-LABORE;" + monthsFull.map(m => despesasOpRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0).toFixed(2)).join(";") + ";" + despesasOpTotalAnual.toFixed(2) + ";\n";
+    despesasOpRows.forEach(r => {
+      csv += "(-) " + r.nome + ";" + monthsFull.map(m => (r.mensalValues[m]||0).toFixed(2)).join(";") + ";" + r.totalAnual.toFixed(2) + ";\n";
     });
 
-    csv +=
-      '6. (=) LUCRO LÍQUIDO DO EXERCÍCIO (APÓS PRÓ-LABORE);' +
-      monthsFull
-        .map((m) => {
-          const rec = receitasRows.reduce((a, b) => a + (b.mensalValues[m] || 0), 0);
-          const imp = impostosRows.reduce((a, b) => a + (b.mensalValues[m] || 0), 0);
-          const cus = custosDiretosRows.reduce((a, b) => a + (b.mensalValues[m] || 0), 0);
-          const des = despesasOpRows.reduce((a, b) => a + (b.mensalValues[m] || 0), 0);
-          return (rec - imp - cus - des).toFixed(2);
-        })
-        .join(';') +
-      ';' +
-      lucroLiquidoTotalAnual.toFixed(2) +
-      ';\n';
+    csv += "6. (=) LUCRO LÍQUIDO DO EXERCÍCIO (APÓS PRÓ-LABORE);" + monthsFull.map(m => {
+      const rec = receitasRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0);
+      const imp = impostosRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0);
+      const cus = custosDiretosRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0);
+      const des = despesasOpRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0);
+      return (rec - imp - cus - des).toFixed(2);
+    }).join(";") + ";" + lucroLiquidoTotalAnual.toFixed(2) + ";\n";
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `DRE_Gerencial_GrupoMartins_${year}.csv`);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `DRE_Gerencial_GrupoMartins_${selectedDreYear}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast(`Planilha DRE (${year}) exportada com sucesso!`);
+    showToast(`Planilha DRE (${selectedDreYear}) exportada com sucesso!`);
   };
 
-  // ============================================================================
-  // LISTAS FILTRADAS E ORDENADAS
-  // ============================================================================
   const filteredTransactions = useMemo(() => {
-    const list = transactions.filter((t) => {
-      const matchSearch =
-        (t.entity || '').toLowerCase().includes(txSearch.toLowerCase()) ||
-        (t.description || '').toLowerCase().includes(txSearch.toLowerCase()) ||
-        (t.id || '').toLowerCase().includes(txSearch.toLowerCase());
+    let list = transactions.filter(t => {
+      const matchSearch = (t.entity || '').toLowerCase().includes(txSearch.toLowerCase()) || 
+                          (t.description || '').toLowerCase().includes(txSearch.toLowerCase()) ||
+                          (t.id || '').toLowerCase().includes(txSearch.toLowerCase());
       const matchType = txTypeFilter === 'Todos' || t.type === txTypeFilter;
-      const matchCategory =
-        txCategoryFilter === 'Todas' ||
-        t.category === txCategoryFilter ||
-        t.planocontas === txCategoryFilter ||
-        t.planoContas === txCategoryFilter;
+      const matchCategory = txCategoryFilter === 'Todas' || t.category === txCategoryFilter || t.planocontas === txCategoryFilter || t.planoContas === txCategoryFilter;
       const matchStatus = txStatusFilter === 'Todos' || t.status === txStatusFilter;
       const txDay = String(t.date || '').slice(0, 10);
       const matchDate = (!txDateFrom || (txDay && txDay >= txDateFrom)) && (!txDateTo || (txDay && txDay <= txDateTo));
@@ -2174,13 +1613,12 @@ export default function App() {
 
     return list;
   }, [transactions, txSearch, txTypeFilter, txCategoryFilter, txStatusFilter, txDateFrom, txDateTo, sortField, sortDirection]);
-
+  
   const filteredContracts = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
 
-    const list = contracts.filter((c) => {
-      const matchSearch =
-        (c.client || '').toLowerCase().includes(ctSearch.toLowerCase()) ||
+    let list = contracts.filter(c => {
+      const matchSearch = (c.client || '').toLowerCase().includes(ctSearch.toLowerCase()) ||
         (c.service || '').toLowerCase().includes(ctSearch.toLowerCase()) ||
         (c.id || '').toLowerCase().includes(ctSearch.toLowerCase()) ||
         (c.agency || '').toLowerCase().includes(ctSearch.toLowerCase()) ||
@@ -2190,30 +1628,21 @@ export default function App() {
       let matchDueDate = true;
       if (ctDueDateFilter !== 'Todos') {
         const insts = c.installmentsData || c.installmentsdata || [];
-        const pendingInsts = insts.filter((i) => i.status !== 'Pago');
+        const pendingInsts = insts.filter(i => i.status !== 'Pago');
 
         if (ctDueDateFilter === 'Vencidos') {
-          matchDueDate = pendingInsts.some((i) => {
-            const d = String(i.dueDate || i.duedate || '').slice(0, 10);
-            return d && d < todayStr;
-          });
+          matchDueDate = pendingInsts.some(i => i.dueDate && i.dueDate < todayStr);
         } else if (ctDueDateFilter === 'Hoje') {
-          matchDueDate = pendingInsts.some((i) => {
-            const d = String(i.dueDate || i.duedate || '').slice(0, 10);
-            return d && d === todayStr;
-          });
+          matchDueDate = pendingInsts.some(i => i.dueDate && i.dueDate === todayStr);
         } else if (ctDueDateFilter === 'AVencer') {
-          matchDueDate = pendingInsts.some((i) => {
-            const d = String(i.dueDate || i.duedate || '').slice(0, 10);
-            return d && d > todayStr;
-          });
+          matchDueDate = pendingInsts.some(i => i.dueDate && i.dueDate > todayStr);
         }
       }
 
       let matchPeriod = true;
       if (ctDateFrom || ctDateTo) {
         const periodInsts = c.installmentsData || c.installmentsdata || [];
-        matchPeriod = periodInsts.some((i) => {
+        matchPeriod = periodInsts.some(i => {
           const d = String(i.dueDate || i.duedate || '').slice(0, 10);
           return d && (!ctDateFrom || d >= ctDateFrom) && (!ctDateTo || d <= ctDateTo);
         });
@@ -2244,7 +1673,7 @@ export default function App() {
   }, [contracts, ctSearch, ctStatusFilter, ctDueDateFilter, ctDateFrom, ctDateTo, sortField, sortDirection]);
 
   const filteredClients = useMemo(() => {
-    const list = clients.filter((cli) => (cli.name || '').toLowerCase().includes(cliSearch.toLowerCase()));
+    let list = clients.filter(cli => (cli.name || '').toLowerCase().includes(cliSearch.toLowerCase()));
     if (sortField) {
       list.sort((a, b) => {
         let valA = a[sortField] || a[sortField?.toLowerCase()] || '';
@@ -2261,12 +1690,11 @@ export default function App() {
   }, [clients, cliSearch, sortField, sortDirection]);
 
   const filteredCondicionantes = useMemo(() => {
-    const list = condicionantes.filter((cond) => {
-      const matchSearch =
-        (cond.client || '').toLowerCase().includes(condSearch.toLowerCase()) ||
-        (cond.service || '').toLowerCase().includes(condSearch.toLowerCase()) ||
-        (cond.license || '').toLowerCase().includes(condSearch.toLowerCase()) ||
-        (cond.responsible || '').toLowerCase().includes(condSearch.toLowerCase());
+    let list = condicionantes.filter(cond => {
+      const matchSearch = (cond.client || '').toLowerCase().includes(condSearch.toLowerCase()) ||
+                          (cond.service || '').toLowerCase().includes(condSearch.toLowerCase()) ||
+                          (cond.license || '').toLowerCase().includes(condSearch.toLowerCase()) ||
+                          (cond.responsible || '').toLowerCase().includes(condSearch.toLowerCase());
       const matchStatus = condStatusFilter === 'Todos' || cond.status === condStatusFilter;
 
       return matchSearch && matchStatus;
@@ -2288,47 +1716,19 @@ export default function App() {
     return list;
   }, [condicionantes, condSearch, condStatusFilter, sortField, sortDirection]);
 
-  const proLaboreTransactionsYear = useMemo(() => {
-    return transactions.filter((t) => {
-      if (!isProLaboreTx(t)) return false;
-      const y = extractYear(t.date);
-      return y === null || y === selectedDreYear;
-    });
-  }, [transactions, selectedDreYear, isProLaboreTx]);
-
   const PIE_COLORS = ['#1B3B2B', '#2D5A43', '#3B7A57', '#557A46', '#7A9A8B'];
 
-  // ============================================================================
-  // RENDERIZAÇÃO PRINCIPAL
-  // ============================================================================
   return (
     <div className="min-h-screen flex bg-[#F4F7F5] text-slate-800 font-sans">
-      {/* NOTIFICAÇÃO TOAST GLOBAL */}
-      {toast && (
-        <div
-          className={`fixed bottom-5 right-5 z-[60] flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-2xl border transition-all ${
-            toast.variant === 'error'
-              ? 'bg-rose-800 text-white border-rose-500'
-              : toast.variant === 'info'
-              ? 'bg-slate-800 text-white border-slate-600'
-              : 'bg-[#1B3B2B] text-[#F8F3EF] border-[#3B7A57]'
-          }`}
-        >
-          {toast.variant === 'error' ? (
-            <AlertCircle className="w-5 h-5 text-rose-300 shrink-0" />
-          ) : (
-            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-          )}
-          <span className="text-sm font-medium">{toast.msg}</span>
+      {toastMessage && (
+        <div className="fixed bottom-5 right-5 z-50 flex items-center gap-3 bg-[#1B3B2B] text-[#F8F3EF] px-5 py-3.5 rounded-xl shadow-2xl border border-[#3B7A57] animate-bounce">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+          <span className="text-sm font-medium">{toastMessage}</span>
         </div>
       )}
 
       {/* SIDEBAR */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-40 w-72 bg-[#1B3B2B] text-[#F8F3EF] flex flex-col justify-between transition-transform duration-300 lg:static lg:translate-x-0 ${
-          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
+      <aside className={`fixed inset-y-0 left-0 z-40 w-72 bg-[#1B3B2B] text-[#F8F3EF] flex flex-col justify-between transition-transform duration-300 lg:static lg:translate-x-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div>
           <div className="p-4 border-b border-[#2D5A43]">
             <GrupoMartinsLogo size="md" />
@@ -2336,7 +1736,7 @@ export default function App() {
 
           <div className="mx-4 mt-4 p-3.5 rounded-xl bg-[#244B38] border border-[#3B7A57]/50 flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-[#F8F3EF] text-[#1B3B2B] font-extrabold flex items-center justify-center text-sm shrink-0 shadow">
-              {currentRole.holder.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+              {currentRole.holder.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
             </div>
             <div className="overflow-hidden">
               <div className="text-[10px] text-emerald-300 font-semibold uppercase tracking-wider truncate flex items-center gap-1">
@@ -2362,7 +1762,7 @@ export default function App() {
                   key={item.id}
                   onClick={() => {
                     if (!allowed) {
-                      showToast(`Módulo "${item.label}" bloqueado para o perfil "${currentRole.name}".`, 'error');
+                      showToast(`Módulo "${item.label}" bloqueado para o perfil "${currentRole.name}".`);
                       return;
                     }
                     setActiveTab(item.id);
@@ -2397,7 +1797,7 @@ export default function App() {
 
         <div className="p-4 border-t border-[#2D5A43]">
           <div className="text-[11px] text-center text-emerald-200/70">
-            Grupo Martins ERP v4.1 • Realtime Sync
+            Grupo Martins ERP v4.0 • Realtime Sync
           </div>
         </div>
       </aside>
@@ -2431,7 +1831,7 @@ export default function App() {
                 {currentRole.name} ({currentRole.holder})
               </span>
               <button
-                onClick={handleLogout}
+                onClick={() => setAuthLoggedIn(false)}
                 className="ml-2 px-2 py-0.5 rounded bg-[#1B3B2B] text-white text-[10px] font-bold hover:bg-[#2D5A43] cursor-pointer"
               >
                 Sair
@@ -2441,15 +1841,14 @@ export default function App() {
             {hasPermission('lancamentos', 'create') && (
               <button
                 onClick={() => {
-                  const today = new Date().toISOString().split('T')[0];
                   setEditingTx(null);
                   setTxForm({
-                    date: today,
-                    month: MONTH_NAMES_MAP[today.split('-')[1]] || 'Nov',
+                    date: '2026-11-10',
+                    month: 'Nov',
                     type: 'Entrada',
-                    planoContas: planoContasData.receitas[0]?.codigo || '1.1.01',
-                    planocontas: planoContasData.receitas[0]?.codigo || '1.1.01',
-                    category: planoContasData.receitas[0]?.nome || '',
+                    planoContas: planoContasData.receitas[0].codigo,
+                    planocontas: planoContasData.receitas[0].codigo,
+                    category: planoContasData.receitas[0].nome,
                     entity: '',
                     contractId: '—',
                     description: '',
@@ -2481,9 +1880,6 @@ export default function App() {
             </div>
           ) : (
             <>
-              {/* ============================================================ */}
-              {/* ABA 1: PAINEL EXECUTIVO (COM SELETOR DE EXERCÍCIO)           */}
-              {/* ============================================================ */}
               {activeTab === 'dashboard' && (
                 <div className="space-y-6">
                   <div className="bg-gradient-to-r from-[#1B3B2B] via-[#244B38] to-[#2D5A43] rounded-2xl p-5 text-white shadow-lg flex flex-col lg:flex-row items-center justify-between gap-6">
@@ -2494,47 +1890,29 @@ export default function App() {
                           Sistema Integrado Supabase
                         </div>
                         <h2 className="text-xl sm:text-2xl font-extrabold mt-0.5">
-                          Painel Executivo Anual — Exercício {selectedDreYear}
+                          Painel Executivo Anual — Exercício 2026
                         </h2>
                         <p className="text-xs sm:text-sm text-emerald-100/90 mt-1">
                           Sócio-Diretor Responsável: <strong>{params.socioDiretor}</strong>
                         </p>
                       </div>
                     </div>
-
-                    <div className="flex flex-wrap items-center justify-center gap-3">
-                      {/* Seletor de Exercício sincronizado com DRE */}
-                      <div className="flex items-center gap-2 bg-white text-[#1B3B2B] px-3.5 py-2.5 rounded-xl shadow-md ring-2 ring-emerald-400/50">
-                        <Calendar className="w-4 h-4 text-[#1B3B2B]" />
-                        <span className="text-xs font-extrabold">Exercício:</span>
-                        <select
-                          value={selectedDreYear}
-                          onChange={(e) => setSelectedDreYear(Number(e.target.value))}
-                          className="bg-transparent font-black text-xs text-[#1B3B2B] outline-none cursor-pointer"
-                        >
-                          {ANOS_DRE.map((ano) => (
-                            <option key={ano} value={ano}>{ano}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="flex flex-wrap items-center justify-center gap-3 bg-[#132A1F]/80 px-4 py-3 rounded-xl border border-emerald-500/30">
-                        <div className="text-right">
-                          <div className="text-[11px] text-emerald-300 uppercase font-semibold">
-                            Saldo em Caixa
-                          </div>
-                          <div className="text-xl font-black text-white">
-                            {formatCurrency(financialData.saldoAtualCaixa)}
-                          </div>
+                    <div className="flex flex-wrap items-center justify-center gap-3 bg-[#132A1F]/80 px-4 py-3 rounded-xl border border-emerald-500/30">
+                      <div className="text-right">
+                        <div className="text-[11px] text-emerald-300 uppercase font-semibold">
+                          Saldo em Caixa
                         </div>
-                        <div className="h-9 w-[1px] bg-emerald-600/40 mx-1" />
-                        <div className="text-right">
-                          <div className="text-[11px] text-amber-300 uppercase font-semibold">
-                            Pró-Labore Pago ({selectedDreYear})
-                          </div>
-                          <div className="text-xl font-black text-amber-300">
-                            {formatCurrency(financialData.proLaborePago)}
-                          </div>
+                        <div className="text-xl font-black text-white">
+                          {formatCurrency(financialData.saldoAtualCaixa)}
+                        </div>
+                      </div>
+                      <div className="h-9 w-[1px] bg-emerald-600/40 mx-1" />
+                      <div className="text-right">
+                        <div className="text-[11px] text-amber-300 uppercase font-semibold">
+                          Pró-Labore Pago
+                        </div>
+                        <div className="text-xl font-black text-amber-300">
+                          {formatCurrency(financialData.proLaborePago)}
                         </div>
                       </div>
                     </div>
@@ -2542,49 +1920,44 @@ export default function App() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
                     <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-[#1B3B2B] shadow-sm">
-                      <div className="text-xs font-bold text-slate-500 uppercase">Receita Bruta ({selectedDreYear})</div>
+                      <div className="text-xs font-bold text-slate-500 uppercase">Receita Bruta</div>
                       <div className="text-lg font-black text-[#1B3B2B] mt-2">{formatCurrency(financialData.receitaBrutaAnual)}</div>
                     </div>
                     <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-rose-700 shadow-sm">
-                      <div className="text-xs font-bold text-slate-500 uppercase">Saídas Totais ({selectedDreYear})</div>
+                      <div className="text-xs font-bold text-slate-500 uppercase">Saídas Totais</div>
                       <div className="text-lg font-black text-rose-700 mt-2">{formatCurrency(financialData.saidasTotaisAnual)}</div>
                     </div>
                     <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-emerald-600 shadow-sm">
-                      <div className="text-xs font-bold text-slate-500 uppercase">Lucro Líquido ({selectedDreYear})</div>
+                      <div className="text-xs font-bold text-slate-500 uppercase">Lucro Líquido</div>
                       <div className="text-lg font-black text-emerald-700 mt-2">{formatCurrency(financialData.lucroLiquidoAnual)}</div>
                     </div>
                     <div
                       onClick={() => {
                         if (hasPermission('prolabore', 'view')) setActiveTab('prolabore');
-                        else showToast('Módulo Pró-Labore bloqueado para seu perfil.', 'error');
+                        else showToast('Módulo Pró-Labore bloqueado para seu perfil.');
                       }}
                       className="bg-[#F8F3EF] rounded-2xl p-4 border border-[#D5CFC7] border-t-4 border-t-[#2D5A43] shadow-sm cursor-pointer hover:shadow-md transition"
                     >
-                      <div className="text-xs font-bold text-[#1B3B2B] uppercase">Pró-Labore ({selectedDreYear})</div>
+                      <div className="text-xs font-bold text-[#1B3B2B] uppercase">Pró-Labore</div>
                       <div className="text-lg font-black text-[#1B3B2B] mt-2">{formatCurrency(financialData.proLaboreTotalAnual)}</div>
                     </div>
-                    <div className="bg-white rounded-2xl p-4 border-2 border-teal-700/30 border-t-4 border-t-teal-700 shadow-sm">
-                      <div className="flex items-center justify-between gap-1">
-                        <div className="text-xs font-bold text-teal-900 uppercase">Caixa Atual</div>
-                      </div>
-                      <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
-                        Acumulado Histórico
-                      </span>
-                      <div className="text-lg font-black text-teal-800 mt-1">{formatCurrency(financialData.saldoAtualCaixa)}</div>
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-teal-700 shadow-sm">
+                      <div className="text-xs font-bold text-slate-500 uppercase">Caixa Atual</div>
+                      <div className="text-lg font-black text-teal-800 mt-2">{formatCurrency(financialData.saldoAtualCaixa)}</div>
                     </div>
                     <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-amber-500 shadow-sm">
-                      <div className="text-xs font-bold text-slate-500 uppercase">A Receber ({selectedDreYear})</div>
+                      <div className="text-xs font-bold text-slate-500 uppercase">A Receber</div>
                       <div className="text-lg font-black text-amber-600 mt-2">{formatCurrency(financialData.contasAReceber)}</div>
                     </div>
                     <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-orange-600 shadow-sm">
-                      <div className="text-xs font-bold text-slate-500 uppercase">A Pagar ({selectedDreYear})</div>
+                      <div className="text-xs font-bold text-slate-500 uppercase">A Pagar</div>
                       <div className="text-lg font-black text-orange-700 mt-2">{formatCurrency(financialData.contasAPagar)}</div>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                      <h3 className="text-base font-extrabold text-[#1B3B2B] mb-4">Evolução Financeira Mensal ({selectedDreYear})</h3>
+                      <h3 className="text-base font-extrabold text-[#1B3B2B] mb-4">Evolução Financeira Mensal (2026)</h3>
                       <div className="h-80 w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <ComposedChart data={financialData.monthlySeries}>
@@ -2602,7 +1975,7 @@ export default function App() {
                     </div>
 
                     <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
-                      <h3 className="text-base font-extrabold text-[#1B3B2B]">Faturamento por Área ({selectedDreYear})</h3>
+                      <h3 className="text-base font-extrabold text-[#1B3B2B]">Faturamento por Área</h3>
                       <div className="h-56 w-full my-2">
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
@@ -2628,9 +2001,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* ============================================================ */}
-              {/* ABA 2: PRÓ-LABORE                                            */}
-              {/* ============================================================ */}
               {activeTab === 'prolabore' && (
                 <div className="space-y-6">
                   <div className="bg-[#F8F3EF] border-2 border-[#1B3B2B] rounded-2xl p-6 shadow-md flex flex-col lg:flex-row items-center justify-between gap-6">
@@ -2641,27 +2011,14 @@ export default function App() {
                           Conta Corrente Societária • Pró-Labore
                         </span>
                         <h2 className="text-2xl font-black text-[#1B3B2B] mt-2">Sócio-Diretor: {params.socioDiretor}</h2>
-                        <p className="text-sm text-slate-600 mt-0.5">Controle individualizado de retiradas (Conta 2.4.01) e emissão de recibos oficiais.</p>
+                        <p className="text-sm text-slate-600 mt-0.5">Controle individualizado de retiradas e emissão de recibos oficiais.</p>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-[#D5CFC7]">
-                      <Calendar className="w-4 h-4 text-[#1B3B2B]" />
-                      <span className="text-xs font-extrabold text-[#1B3B2B]">Exercício:</span>
-                      <select
-                        value={selectedDreYear}
-                        onChange={(e) => setSelectedDreYear(Number(e.target.value))}
-                        className="bg-transparent font-black text-xs text-[#1B3B2B] cursor-pointer"
-                      >
-                        {ANOS_DRE.map((ano) => (
-                          <option key={ano} value={ano}>{ano}</option>
-                        ))}
-                      </select>
                     </div>
                   </div>
 
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     <div className="px-6 py-4 bg-[#1B3B2B] text-white">
-                      <h3 className="text-sm font-bold uppercase">Histórico de Saques de Pró-Labore ({selectedDreYear})</h3>
+                      <h3 className="text-sm font-bold uppercase">Histórico de Saques de Pró-Labore (2026)</h3>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border-collapse text-xs sm:text-sm">
@@ -2676,28 +2033,20 @@ export default function App() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {proLaboreTransactionsYear.length === 0 ? (
-                            <tr>
-                              <td colSpan="6" className="py-8 text-center text-slate-400">
-                                Nenhum lançamento de Pró-Labore encontrado em {selectedDreYear}.
+                          {transactions.filter(t => (t.category || t.planocontas || t.planoContas || '').includes('Pró-Labore')).map((tx) => (
+                            <tr key={tx.id} className="hover:bg-[#F8F3EF]/50">
+                              <td className="py-3 px-4 font-mono font-bold text-[#1B3B2B]">{tx.id}</td>
+                              <td className="py-3 px-4">{tx.date}</td>
+                              <td className="py-3 px-4 font-bold">{tx.month}/2026</td>
+                              <td className="py-3 px-4">{tx.description}</td>
+                              <td className="py-3 px-4 text-center">
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${tx.status === 'Pago / Recebido' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                                  {tx.status}
+                                </span>
                               </td>
+                              <td className="py-3 px-4 text-right font-extrabold text-[#1B3B2B]">{formatCurrency(tx.amount)}</td>
                             </tr>
-                          ) : (
-                            proLaboreTransactionsYear.map((tx) => (
-                              <tr key={tx.id} className="hover:bg-[#F8F3EF]/50">
-                                <td className="py-3 px-4 font-mono font-bold text-[#1B3B2B]">{tx.id}</td>
-                                <td className="py-3 px-4">{tx.date}</td>
-                                <td className="py-3 px-4 font-bold">{tx.month}/{selectedDreYear}</td>
-                                <td className="py-3 px-4">{tx.description}</td>
-                                <td className="py-3 px-4 text-center">
-                                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${tx.status === 'Pago / Recebido' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                                    {tx.status}
-                                  </span>
-                                </td>
-                                <td className="py-3 px-4 text-right font-extrabold text-[#1B3B2B]">{formatCurrency(tx.amount)}</td>
-                              </tr>
-                            ))
-                          )}
+                          ))}
                         </tbody>
                       </table>
                     </div>
@@ -2705,9 +2054,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* ============================================================ */}
-              {/* ABA 3: DRE GERENCIAL                                         */}
-              {/* ============================================================ */}
               {activeTab === 'dre' && (
                 <div className="space-y-6">
                   <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
@@ -2715,7 +2061,7 @@ export default function App() {
                       <h3 className="text-base font-extrabold text-[#1B3B2B]">DRE Gerencial Consolidada (Exercício {selectedDreYear})</h3>
                       <p className="text-xs text-slate-500">Selecione o ano desejado (2026 a 2040) para visualizar a projeção e os lançamentos oficiais.</p>
                     </div>
-
+                    
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="flex items-center gap-2 bg-[#F8F3EF] px-3 py-1.5 rounded-xl border border-[#D5CFC7]">
                         <Calendar className="w-4 h-4 text-[#1B3B2B]" />
@@ -2725,7 +2071,7 @@ export default function App() {
                           onChange={(e) => setSelectedDreYear(Number(e.target.value))}
                           className="bg-white px-2.5 py-1 rounded-lg border font-bold text-xs text-[#1B3B2B] cursor-pointer"
                         >
-                          {ANOS_DRE.map((ano) => (
+                          {ANOS_DRE.map(ano => (
                             <option key={ano} value={ano}>{ano}</option>
                           ))}
                         </select>
@@ -2746,7 +2092,7 @@ export default function App() {
                         <thead>
                           <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
                             <th className="py-3 px-3 min-w-[280px]">ESTRUTURA DRE — GRUPO MARTINS (R$)</th>
-                            {dreGerencialData.monthsFull.map((m) => (
+                            {dreGerencialData.monthsFull.map(m => (
                               <th key={m} className="py-3 px-2 text-right">{m}/{String(selectedDreYear).slice(2)}</th>
                             ))}
                             <th className="py-3 px-3 text-right bg-[#132A1F]">ACUMULADO {selectedDreYear}</th>
@@ -2756,17 +2102,17 @@ export default function App() {
                         <tbody className="divide-y divide-slate-100 font-medium">
                           <tr className="bg-slate-100 font-extrabold text-[#1B3B2B]">
                             <td className="py-2.5 px-3">1. RECEITA OPERACIONAL BRUTA</td>
-                            {dreGerencialData.monthsFull.map((m) => {
+                            {dreGerencialData.monthsFull.map(m => {
                               const val = dreGerencialData.sumRowsMonth(dreGerencialData.receitasRows, m);
                               return <td key={m} className="py-2.5 px-2 text-right">{formatCurrency(val)}</td>;
                             })}
                             <td className="py-2.5 px-3 text-right">{formatCurrency(dreGerencialData.receitaBrutaTotalAnual)}</td>
                             <td className="py-2.5 px-3 text-center">100,0%</td>
                           </tr>
-                          {dreGerencialData.receitasRows.map((r) => (
+                          {dreGerencialData.receitasRows.map(r => (
                             <tr key={r.codigo} className="hover:bg-slate-50 text-slate-700">
                               <td className="py-2 px-4 pl-6"><i>(+) {r.nome}</i></td>
-                              {dreGerencialData.monthsFull.map((m) => (
+                              {dreGerencialData.monthsFull.map(m => (
                                 <td key={m} className="py-2 px-2 text-right">{formatCurrency(r.mensalValues[m] || 0)}</td>
                               ))}
                               <td className="py-2 px-3 text-right font-bold">{formatCurrency(r.totalAnual)}</td>
@@ -2778,7 +2124,7 @@ export default function App() {
 
                           <tr className="bg-rose-50 text-rose-900 font-bold">
                             <td className="py-2.5 px-3">2. (-) DEDUÇÕES E IMPOSTOS SOBRE FATURAMENTO</td>
-                            {dreGerencialData.monthsFull.map((m) => {
+                            {dreGerencialData.monthsFull.map(m => {
                               const val = dreGerencialData.sumRowsMonth(dreGerencialData.impostosRows, m);
                               return <td key={m} className="py-2.5 px-2 text-right text-rose-700">{formatCurrency(val)}</td>;
                             })}
@@ -2787,10 +2133,10 @@ export default function App() {
                               {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((dreGerencialData.impostoTotalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
                             </td>
                           </tr>
-                          {dreGerencialData.impostosRows.map((r) => (
+                          {dreGerencialData.impostosRows.map(r => (
                             <tr key={r.codigo} className="hover:bg-slate-50 text-slate-700">
                               <td className="py-2 px-4 pl-6"><i>(-) {r.nome}</i></td>
-                              {dreGerencialData.monthsFull.map((m) => (
+                              {dreGerencialData.monthsFull.map(m => (
                                 <td key={m} className="py-2 px-2 text-right">{formatCurrency(r.mensalValues[m] || 0)}</td>
                               ))}
                               <td className="py-2 px-3 text-right font-bold">{formatCurrency(r.totalAnual)}</td>
@@ -2800,7 +2146,7 @@ export default function App() {
 
                           <tr className="bg-slate-100 font-extrabold text-[#1B3B2B]">
                             <td className="py-2.5 px-3">3. (=) RECEITA OPERACIONAL LÍQUIDA</td>
-                            {dreGerencialData.monthsFull.map((m) => {
+                            {dreGerencialData.monthsFull.map(m => {
                               const rec = dreGerencialData.sumRowsMonth(dreGerencialData.receitasRows, m);
                               const imp = dreGerencialData.sumRowsMonth(dreGerencialData.impostosRows, m);
                               return <td key={m} className="py-2.5 px-2 text-right">{formatCurrency(rec - imp)}</td>;
@@ -2813,7 +2159,7 @@ export default function App() {
 
                           <tr className="bg-rose-50 text-rose-900 font-bold">
                             <td className="py-2.5 px-3">4. (-) CUSTOS DIRETOS DE PROJETOS E CAMPO (CSP)</td>
-                            {dreGerencialData.monthsFull.map((m) => {
+                            {dreGerencialData.monthsFull.map(m => {
                               const val = dreGerencialData.sumRowsMonth(dreGerencialData.custosDiretosRows, m);
                               return <td key={m} className="py-2.5 px-2 text-right text-rose-700">{formatCurrency(val)}</td>;
                             })}
@@ -2822,10 +2168,10 @@ export default function App() {
                               {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((dreGerencialData.custosDiretosTotalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
                             </td>
                           </tr>
-                          {dreGerencialData.custosDiretosRows.map((r) => (
+                          {dreGerencialData.custosDiretosRows.map(r => (
                             <tr key={r.codigo} className="hover:bg-slate-50 text-slate-700">
                               <td className="py-2 px-4 pl-6"><i>(-) {r.nome}</i></td>
-                              {dreGerencialData.monthsFull.map((m) => (
+                              {dreGerencialData.monthsFull.map(m => (
                                 <td key={m} className="py-2 px-2 text-right">{formatCurrency(r.mensalValues[m] || 0)}</td>
                               ))}
                               <td className="py-2 px-3 text-right font-bold">{formatCurrency(r.totalAnual)}</td>
@@ -2835,7 +2181,7 @@ export default function App() {
 
                           <tr className="bg-emerald-50 text-emerald-900 font-extrabold">
                             <td className="py-2.5 px-3">(=) LUCRO BRUTO</td>
-                            {dreGerencialData.monthsFull.map((m) => {
+                            {dreGerencialData.monthsFull.map(m => {
                               const rec = dreGerencialData.sumRowsMonth(dreGerencialData.receitasRows, m);
                               const imp = dreGerencialData.sumRowsMonth(dreGerencialData.impostosRows, m);
                               const cus = dreGerencialData.sumRowsMonth(dreGerencialData.custosDiretosRows, m);
@@ -2849,7 +2195,7 @@ export default function App() {
 
                           <tr className="bg-rose-50 text-rose-900 font-bold">
                             <td className="py-2.5 px-3">5. (-) DESPESAS OPERACIONAIS, COMERCIAIS E PRÓ-LABORE</td>
-                            {dreGerencialData.monthsFull.map((m) => {
+                            {dreGerencialData.monthsFull.map(m => {
                               const val = dreGerencialData.sumRowsMonth(dreGerencialData.despesasOpRows, m);
                               return <td key={m} className="py-2.5 px-2 text-right text-rose-700">{formatCurrency(val)}</td>;
                             })}
@@ -2858,10 +2204,10 @@ export default function App() {
                               {dreGerencialData.receitaBrutaTotalAnual > 0 ? ((dreGerencialData.despesasOpTotalAnual / dreGerencialData.receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%'}
                             </td>
                           </tr>
-                          {dreGerencialData.despesasOpRows.map((r) => (
+                          {dreGerencialData.despesasOpRows.map(r => (
                             <tr key={r.codigo} className="hover:bg-slate-50 text-slate-700">
                               <td className="py-2 px-4 pl-6"><i>{r.codigo.startsWith('2.4.01') ? '★ (-) ' : '(-) '} {r.nome}</i></td>
-                              {dreGerencialData.monthsFull.map((m) => (
+                              {dreGerencialData.monthsFull.map(m => (
                                 <td key={m} className="py-2 px-2 text-right">{formatCurrency(r.mensalValues[m] || 0)}</td>
                               ))}
                               <td className="py-2 px-3 text-right font-bold">{formatCurrency(r.totalAnual)}</td>
@@ -2871,7 +2217,7 @@ export default function App() {
 
                           <tr className="bg-[#1B3B2B] text-white font-black text-sm">
                             <td className="py-3 px-3">6. (=) LUCRO LÍQUIDO DO EXERCÍCIO (APÓS PRÓ-LABORE)</td>
-                            {dreGerencialData.monthsFull.map((m) => {
+                            {dreGerencialData.monthsFull.map(m => {
                               const rec = dreGerencialData.sumRowsMonth(dreGerencialData.receitasRows, m);
                               const imp = dreGerencialData.sumRowsMonth(dreGerencialData.impostosRows, m);
                               const cus = dreGerencialData.sumRowsMonth(dreGerencialData.custosDiretosRows, m);
@@ -2890,9 +2236,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* ============================================================ */}
-              {/* ABA 4: LIVRO CAIXA & LANÇAMENTOS                             */}
-              {/* ============================================================ */}
               {activeTab === 'lancamentos' && (
                 <div className="space-y-5">
                   <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
@@ -2910,15 +2253,14 @@ export default function App() {
                       {hasPermission('lancamentos', 'create') && (
                         <button
                           onClick={() => {
-                            const today = new Date().toISOString().split('T')[0];
                             setEditingTx(null);
                             setTxForm({
-                              date: today,
-                              month: MONTH_NAMES_MAP[today.split('-')[1]] || 'Nov',
+                              date: '2026-11-10',
+                              month: 'Nov',
                               type: 'Entrada',
-                              planoContas: planoContasData.receitas[0]?.codigo || '1.1.01',
-                              planocontas: planoContasData.receitas[0]?.codigo || '1.1.01',
-                              category: planoContasData.receitas[0]?.nome || '',
+                              planoContas: planoContasData.receitas[0].codigo,
+                              planocontas: planoContasData.receitas[0].codigo,
+                              category: planoContasData.receitas[0].nome,
                               entity: '',
                               contractId: '—',
                               description: '',
@@ -2939,7 +2281,7 @@ export default function App() {
                       <span className="font-bold text-slate-600 flex items-center gap-1">
                         <Filter className="w-3.5 h-3.5 text-[#1B3B2B]" /> Filtrar colunas:
                       </span>
-
+                      
                       <select
                         value={txTypeFilter}
                         onChange={(e) => setTxTypeFilter(e.target.value)}
@@ -2957,10 +2299,10 @@ export default function App() {
                       >
                         <option value="Todas">Plano de Contas: Todas</option>
                         <optgroup label="Receitas (1.X)">
-                          {planoContasData.receitas.map((r) => <option key={r.codigo} value={r.codigo}>{r.nome}</option>)}
+                          {planoContasData.receitas.map(r => <option key={r.codigo} value={r.codigo}>{r.nome}</option>)}
                         </optgroup>
                         <optgroup label="Despesas (2.X)">
-                          {planoContasData.despesas.map((d) => <option key={d.codigo} value={d.codigo}>{d.nome}</option>)}
+                          {planoContasData.despesas.map(d => <option key={d.codigo} value={d.codigo}>{d.nome}</option>)}
                         </optgroup>
                       </select>
 
@@ -3123,9 +2465,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* ============================================================ */}
-              {/* ABA 5: CONTRATOS AMBIENTAIS & SST (COM SITUAÇÃO PARCELA)     */}
-              {/* ============================================================ */}
               {activeTab === 'contratos' && (
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -3158,7 +2497,7 @@ export default function App() {
                         type="text"
                         value={ctSearch}
                         onChange={(e) => setCtSearch(e.target.value)}
-                        placeholder="Buscar por cliente, plano de contas, órgão, observação ou código..."
+                        placeholder="Buscar por cliente, fazenda, órgão, observação ou código..."
                         className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
                       />
                     </div>
@@ -3258,7 +2597,6 @@ export default function App() {
                             <th onClick={() => handleSort('agency')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
                               <div className="flex items-center gap-1">Órgão {sortField === 'agency' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
-                            <th className="py-3.5 px-3 text-center">Situação Parcela</th>
                             <th onClick={() => handleSort('observation')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
                               <div className="flex items-center gap-1">Observação {sortField === 'observation' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
@@ -3277,53 +2615,20 @@ export default function App() {
                         <tbody className="divide-y divide-slate-100">
                           {filteredContracts.length === 0 ? (
                             <tr>
-                              <td colSpan="12" className="py-8 text-center text-slate-400">Nenhum contrato cadastrado com os filtros selecionados.</td>
+                              <td colSpan="11" className="py-8 text-center text-slate-400">Nenhum contrato cadastrado com os filtros selecionados.</td>
                             </tr>
                           ) : (
                             filteredContracts.map((ct) => {
                               const val = Number(ct.contractvalue || ct.contractValue || 0);
                               const insts = ct.installmentsData || ct.installmentsdata || [];
-                              const rec = insts.filter((i) => i.status === 'Pago').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+                              const rec = insts.filter(i => i.status === 'Pago').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
                               const saldo = val - rec;
-                              const health = getContractInstallmentHealth(ct);
-
                               return (
                                 <tr key={ct.id} className="hover:bg-slate-50">
                                   <td className="py-3 px-3 font-mono font-bold text-[#1B3B2B]">{ct.id}</td>
                                   <td className="py-3 px-3 font-bold text-slate-900">{ct.client}</td>
-                                  <td className="py-3 px-3 text-slate-700 font-medium">{ct.service}</td>
+                                  <td className="py-3 px-3 text-slate-700">{ct.service}</td>
                                   <td className="py-3 px-3 font-semibold text-slate-600">{ct.agency || 'SEMA-MT'}</td>
-                                  <td className="py-3 px-3 text-center whitespace-nowrap">
-                                    {health.tone === 'vencida' && (
-                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200">
-                                        <span className="w-2 h-2 rounded-full bg-rose-600" />
-                                        {health.label}
-                                      </span>
-                                    )}
-                                    {health.tone === 'hoje' && (
-                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-200">
-                                        <span className="w-2 h-2 rounded-full bg-amber-500" />
-                                        {health.label}
-                                      </span>
-                                    )}
-                                    {health.tone === 'emdia' && (
-                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                                        {health.label}
-                                      </span>
-                                    )}
-                                    {health.tone === 'quitado' && (
-                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-900 border border-emerald-400">
-                                        <Check className="w-3 h-3" />
-                                        {health.label}
-                                      </span>
-                                    )}
-                                    {health.tone === 'slate' && (
-                                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500">
-                                        {health.label}
-                                      </span>
-                                    )}
-                                  </td>
                                   <td className="py-3 px-3 text-slate-500 max-w-xs truncate" title={ct.observation || ''}>{ct.observation || '—'}</td>
                                   <td className="py-3 px-3 text-center">
                                     <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
@@ -3338,7 +2643,7 @@ export default function App() {
                                       onClick={() => setViewingContractInstallments(ct)}
                                       className="px-3 py-1 rounded-lg bg-teal-800 text-white font-bold text-[10px] hover:bg-teal-900 cursor-pointer"
                                     >
-                                      Ver Parcelas ({insts.filter((i) => i.status === 'Pago').length}/{insts.length})
+                                      Ver Parcelas ({insts.filter(i => i.status === 'Pago').length}/{insts.length})
                                     </button>
                                   </td>
                                   <td className="py-3 px-3 text-center space-x-2">
@@ -3355,8 +2660,8 @@ export default function App() {
                                             contractValue: ct.contractvalue || ct.contractValue,
                                             directCosts: ct.directcosts || ct.directCosts,
                                             installmentsCount: ct.installmentscount || ct.installmentsCount || '1',
-                                            installmentDates: insts.map((i) => i.dueDate || i.duedate || '') || [`${selectedDreYear}-12-30`],
-                                            installmentAmounts: insts.map((i) => i.amount) || [''],
+                                            installmentDates: (ct.installmentsData || ct.installmentsdata)?.map(i => i.dueDate) || [`${selectedDreYear}-12-30`],
+                                            installmentAmounts: (ct.installmentsData || ct.installmentsdata)?.map(i => i.amount) || [''],
                                             paymentMethod: ct.paymentmethod || ct.paymentMethod || 'PIX',
                                             observation: ct.observation || ''
                                           });
@@ -3389,13 +2694,10 @@ export default function App() {
                 </div>
               )}
 
-              {/* ============================================================ */}
-              {/* ABA 6: CLIENTES (CRM)                                        */}
-              {/* ============================================================ */}
               {activeTab === 'clientes' && (
                 <div className="space-y-6">
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between gap-3 flex-wrap">
-                    <div className="relative flex-1 max-w-md min-w-[220px]">
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div className="relative flex-1 max-w-md">
                       <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                       <input
                         type="text"
@@ -3519,9 +2821,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* ============================================================ */}
-              {/* ABA 7: CONDICIONANTES AMBIENTAIS                             */}
-              {/* ============================================================ */}
               {activeTab === 'condicionantes' && (
                 <div className="space-y-6">
                   <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
@@ -3577,17 +2876,26 @@ export default function App() {
                       <table className="w-full text-left border-collapse text-xs">
                         <thead>
                           <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px]">
-                            <th onClick={() => handleSort('client')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                            <th 
+                              onClick={() => handleSort('client')} 
+                              className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none"
+                            >
                               <div className="flex items-center gap-1.5">
                                 Nome do Cliente {sortField === 'client' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}
                               </div>
                             </th>
-                            <th onClick={() => handleSort('service')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                            <th 
+                              onClick={() => handleSort('service')} 
+                              className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none"
+                            >
                               <div className="flex items-center gap-1.5">
                                 Condicionantes / Serviço {sortField === 'service' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}
                               </div>
                             </th>
-                            <th onClick={() => handleSort('duedate')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                            <th 
+                              onClick={() => handleSort('duedate')} 
+                              className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none"
+                            >
                               <div className="flex items-center gap-1.5">
                                 Vencimento Final {sortField === 'duedate' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}
                               </div>
@@ -3622,17 +2930,11 @@ export default function App() {
                                 <td className="py-3 px-3 font-bold text-slate-700">{cond.responsible}</td>
                                 <td className="py-3 px-3 text-slate-500 max-w-xs truncate">{cond.observation || '—'}</td>
                                 <td className="py-3 px-3 text-center">
-                                  <span
-                                    className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
-                                      cond.status === 'FINALIZADO'
-                                        ? 'bg-emerald-700 text-white'
-                                        : cond.status === 'ATENDIDO'
-                                        ? 'bg-emerald-600 text-white'
-                                        : cond.status === 'EM ANDAMENTO'
-                                        ? 'bg-amber-500 text-white'
-                                        : 'bg-amber-600 text-white'
-                                    }`}
-                                  >
+                                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
+                                    cond.status === 'FINALIZADO' ? 'bg-emerald-700 text-white' :
+                                    cond.status === 'ATENDIDO' ? 'bg-emerald-600 text-white' :
+                                    cond.status === 'EM ANDAMENTO' ? 'bg-amber-500 text-white' : 'bg-amber-600 text-white'
+                                  }`}>
                                     {cond.status}
                                   </span>
                                 </td>
@@ -3678,12 +2980,9 @@ export default function App() {
                 </div>
               )}
 
-              {/* ============================================================ */}
-              {/* ABA 8: ÁRVORE DE ACESSOS & PERFIS                            */}
-              {/* ============================================================ */}
               {activeTab === 'acessos' && (
                 <div className="space-y-6">
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between flex-wrap gap-3">
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
                     <div>
                       <h3 className="text-base font-extrabold text-[#1B3B2B]">Árvore de Acessos & Perfis</h3>
                       <p className="text-xs text-slate-500">Gerencie colaboradores, edite senhas e configure permissões granulares por módulo.</p>
@@ -3718,7 +3017,7 @@ export default function App() {
                               )}
                               {hasPermission('acessos', 'delete') && (
                                 <button
-                                  onClick={() => setDeleteRoleTarget(role)}
+                                  onClick={() => handleDeleteRole(role.id)}
                                   className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
                                   title="Excluir Perfil"
                                 >
@@ -3752,34 +3051,17 @@ export default function App() {
                 </div>
               )}
 
-              {/* ============================================================ */}
-              {/* ABA 9: PLANO DE CONTAS & METAS (SALVAMENTO OTIMIZADO)        */}
-              {/* ============================================================ */}
               {activeTab === 'config' && (
                 <div className="space-y-6">
                   <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <h2 className="text-base font-extrabold text-[#1B3B2B]">
-                          Parâmetros Financeiros e Metas — Grupo Martins ({selectedDreYear})
-                        </h2>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          Ajuste os parâmetros e clique em salvar (ou saia do campo) para sincronizar sem sobrecarregar a nuvem.
-                        </p>
-                      </div>
-                      <button
-                        onClick={handleSaveParamsToCloud}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition shadow cursor-pointer ${
-                          paramsDirty
-                            ? 'bg-emerald-700 text-white hover:bg-emerald-800 ring-2 ring-emerald-300'
-                            : 'bg-[#1B3B2B] text-white hover:bg-[#2D5A43]'
-                        }`}
-                      >
-                        <Save className="w-4 h-4" />
-                        {paramsDirty ? 'Salvar Alterações na Nuvem' : 'Parâmetros Sincronizados'}
-                      </button>
+                    <div>
+                      <h2 className="text-base font-extrabold text-[#1B3B2B]">
+                        Parâmetros Financeiros e Metas — Grupo Martins ({selectedDreYear})
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Ajuste o Saldo Inicial de Caixa, Meta de Faturamento e Pró-Labore Alvo do Sócio-Diretor Maikon Martins.
+                      </p>
                     </div>
-
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
                       <div>
                         <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider mb-1.5">
@@ -3789,10 +3071,10 @@ export default function App() {
                           type="number"
                           value={params.saldoInicialCaixa}
                           onChange={(e) => {
-                            setParams({ ...params, saldoInicialCaixa: Number(e.target.value) });
-                            setParamsDirty(true);
+                            const updated = { ...params, saldoInicialCaixa: Number(e.target.value) };
+                            setParams(updated);
+                            syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated, availableAgencies);
                           }}
-                          onBlur={handleSaveParamsToCloud}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
                         />
                       </div>
@@ -3804,10 +3086,10 @@ export default function App() {
                           type="number"
                           value={params.metaMensalReceita}
                           onChange={(e) => {
-                            setParams({ ...params, metaMensalReceita: Number(e.target.value) });
-                            setParamsDirty(true);
+                            const updated = { ...params, metaMensalReceita: Number(e.target.value) };
+                            setParams(updated);
+                            syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated, availableAgencies);
                           }}
-                          onBlur={handleSaveParamsToCloud}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
                         />
                       </div>
@@ -3819,10 +3101,10 @@ export default function App() {
                           type="number"
                           value={params.proLaboreAlvoMensal}
                           onChange={(e) => {
-                            setParams({ ...params, proLaboreAlvoMensal: Number(e.target.value) });
-                            setParamsDirty(true);
+                            const updated = { ...params, proLaboreAlvoMensal: Number(e.target.value) };
+                            setParams(updated);
+                            syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated, availableAgencies);
                           }}
-                          onBlur={handleSaveParamsToCloud}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
                         />
                       </div>
@@ -3834,10 +3116,10 @@ export default function App() {
                           type="text"
                           value={params.socioDiretor}
                           onChange={(e) => {
-                            setParams({ ...params, socioDiretor: e.target.value });
-                            setParamsDirty(true);
+                            const updated = { ...params, socioDiretor: e.target.value };
+                            setParams(updated);
+                            syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated, availableAgencies);
                           }}
-                          onBlur={handleSaveParamsToCloud}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
                         />
                       </div>
@@ -3845,7 +3127,7 @@ export default function App() {
                   </div>
 
                   <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-                    <div className="flex items-center justify-between border-b pb-3 flex-wrap gap-3">
+                    <div className="flex items-center justify-between border-b pb-3">
                       <div>
                         <h3 className="text-sm font-extrabold text-[#1B3B2B] uppercase">
                           Gerenciamento do Plano de Contas (DRE)
@@ -3854,7 +3136,6 @@ export default function App() {
                       </div>
                       <button
                         onClick={() => {
-                          setPlanoFromContractModal(false);
                           setPlanoForm({ tipo: 'receitas', codigo: '', nome: '', originalCodigo: null });
                           setShowPlanoModal(true);
                         }}
@@ -3874,7 +3155,6 @@ export default function App() {
                               <div className="flex items-center gap-1 shrink-0">
                                 <button
                                   onClick={() => {
-                                    setPlanoFromContractModal(false);
                                     setPlanoForm({ tipo: 'receitas', codigo: rev.codigo, nome: rev.nome, originalCodigo: rev.codigo });
                                     setShowPlanoModal(true);
                                   }}
@@ -3884,7 +3164,17 @@ export default function App() {
                                   <Edit3 className="w-3.5 h-3.5" />
                                 </button>
                                 <button
-                                  onClick={() => setDeletePlanoTarget({ tipo: 'receitas', codigo: rev.codigo, nome: rev.nome })}
+                                  onClick={() => {
+                                    if (window.confirm(`Deseja excluir a conta ${rev.codigo}?`)) {
+                                      const updated = {
+                                        ...planoContasData,
+                                        receitas: planoContasData.receitas.filter(r => r.codigo !== rev.codigo)
+                                      };
+                                      setPlanoContasData(updated);
+                                      syncSettingsToCloud(availableSegments, availableStatuses, updated, params, availableAgencies);
+                                      showToast('Conta removida do plano de contas!');
+                                    }
+                                  }}
                                   className="p-1 rounded text-rose-600 hover:bg-rose-100 cursor-pointer"
                                   title="Excluir"
                                 >
@@ -3905,7 +3195,6 @@ export default function App() {
                               <div className="flex items-center gap-1 shrink-0">
                                 <button
                                   onClick={() => {
-                                    setPlanoFromContractModal(false);
                                     setPlanoForm({ tipo: 'despesas', codigo: desp.codigo, nome: desp.nome, originalCodigo: desp.codigo });
                                     setShowPlanoModal(true);
                                   }}
@@ -3915,7 +3204,17 @@ export default function App() {
                                   <Edit3 className="w-3.5 h-3.5" />
                                 </button>
                                 <button
-                                  onClick={() => setDeletePlanoTarget({ tipo: 'despesas', codigo: desp.codigo, nome: desp.nome })}
+                                  onClick={() => {
+                                    if (window.confirm(`Deseja excluir a conta ${desp.codigo}?`)) {
+                                      const updated = {
+                                        ...planoContasData,
+                                        despesas: planoContasData.despesas.filter(d => d.codigo !== desp.codigo)
+                                      };
+                                      setPlanoContasData(updated);
+                                      syncSettingsToCloud(availableSegments, availableStatuses, updated, params, availableAgencies);
+                                      showToast('Conta removida do plano de contas!');
+                                    }
+                                  }}
                                   className="p-1 rounded text-rose-600 hover:bg-rose-100 cursor-pointer"
                                   title="Excluir"
                                 >
@@ -3936,10 +3235,81 @@ export default function App() {
       </div>
 
       {/* ========================================================================== */}
-      {/* MODAIS DO SISTEMA                                                          */}
+      {/* TODOS OS 13 MODAIS DO SISTEMA UNIFICADOS E ATIVOS                          */}
       {/* ========================================================================== */}
 
-      {/* 1. MODAL NOVO / EDITAR CONTRATO AMBIENTAL / SST */}
+      {/* 1. MODAL NOVO / EDITAR PLANO DE CONTAS */}
+      {showPlanoModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-base font-extrabold text-[#1B3B2B]">{planoForm.originalCodigo ? 'Editar Conta' : 'Novo Plano de Contas'}</h3>
+              <button onClick={() => setShowPlanoModal(false)} className="text-slate-500 hover:text-slate-700 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (!planoForm.codigo || !planoForm.nome) return;
+              const targetListKey = planoForm.tipo;
+              const list = planoContasData[targetListKey];
+              
+              let updatedList;
+              if (planoForm.originalCodigo) {
+                updatedList = list.map(item => item.codigo === planoForm.originalCodigo ? { codigo: planoForm.codigo, nome: planoForm.nome } : item);
+              } else {
+                updatedList = [...list, { codigo: planoForm.codigo, nome: planoForm.nome }];
+              }
+
+              const updatedPlano = { ...planoContasData, [targetListKey]: updatedList };
+              setPlanoContasData(updatedPlano);
+              syncSettingsToCloud(availableSegments, availableStatuses, updatedPlano, params, availableAgencies);
+              setShowPlanoModal(false);
+              showToast('Plano de Contas salvo e sincronizado!');
+            }} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold mb-1">Tipo de Conta</label>
+                <select
+                  value={planoForm.tipo}
+                  onChange={(e) => setPlanoForm({ ...planoForm, tipo: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border font-bold cursor-pointer"
+                >
+                  <option value="receitas">Receita (1.X)</option>
+                  <option value="despesas">Despesa / Custo (2.X)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold mb-1">Código da Conta</label>
+                <input
+                  type="text"
+                  value={planoForm.codigo}
+                  onChange={(e) => setPlanoForm({ ...planoForm, codigo: e.target.value })}
+                  placeholder="Ex: 1.1.06"
+                  className="w-full px-3 py-2 rounded-xl border font-mono font-bold"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold mb-1">Nome / Descrição da Conta</label>
+                <input
+                  type="text"
+                  value={planoForm.nome}
+                  onChange={(e) => setPlanoForm({ ...planoForm, nome: e.target.value })}
+                  placeholder="Ex: 1.1.06 — Consultoria Ambiental Especial"
+                  className="w-full px-3 py-2 rounded-xl border font-bold"
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <button type="button" onClick={() => setShowPlanoModal(false)} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar Conta</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 2. MODAL NOVO / EDITAR CONTRATO AMBIENTAL / SST */}
       {showContractModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[92vh] overflow-y-auto">
@@ -3963,46 +3333,35 @@ export default function App() {
                   required
                 />
                 <datalist id="client-list-ct">
-                  {clients.map((cli) => <option key={cli.id} value={cli.name} />)}
+                  {clients.map(cli => <option key={cli.id} value={cli.name} />)}
                 </datalist>
               </div>
 
-              {/* PLANO DE CONTAS (RECEITAS) COM ATALHO + NOVO PLANO E AVISO DE SINCRONIZAÇÃO */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="block font-bold text-slate-700 uppercase">PLANO DE CONTAS (RECEITAS)</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPlanoFromContractModal(true);
-                      setPlanoForm({ tipo: 'receitas', codigo: '', nome: '', originalCodigo: null });
-                      setShowPlanoModal(true);
-                    }}
-                    className="text-[11px] font-extrabold text-[#1B3B2B] hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Novo Plano
-                  </button>
-                </div>
-
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">PLANO DE CONTAS</label>
                 <select
                   value={ctForm.service}
                   onChange={(e) => setCtForm({ ...ctForm, service: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
                   required
                 >
-                  <option value="" disabled>Selecione um plano de contas de receita...</option>
-                  {ctForm.service && !planoContasData.receitas.some((r) => r.nome === ctForm.service) && (
-                    <option value={ctForm.service}>{ctForm.service}</option>
-                  )}
-                  {planoContasData.receitas.map((r) => (
-                    <option key={r.codigo} value={r.nome}>{r.nome}</option>
-                  ))}
+                  <option value="" disabled>Selecione um plano de contas...</option>
+                  {ctForm.service &&
+                    !planoContasData.receitas.some(r => r.nome === ctForm.service) &&
+                    !planoContasData.despesas.some(d => d.nome === ctForm.service) && (
+                      <option value={ctForm.service}>{ctForm.service}</option>
+                    )}
+                  <optgroup label="Receitas (1.X)">
+                    {planoContasData.receitas.map(r => (
+                      <option key={r.codigo} value={r.nome}>{r.nome}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Despesas (2.X)">
+                    {planoContasData.despesas.map(d => (
+                      <option key={d.codigo} value={d.nome}>{d.nome}</option>
+                    ))}
+                  </optgroup>
                 </select>
-
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-[11px] font-medium">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-                  <span>Sincronização automática: a baixa das parcelas lançará nesta conta na DRE.</span>
-                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -4026,7 +3385,7 @@ export default function App() {
                     onChange={(e) => setCtForm({ ...ctForm, agency: e.target.value })}
                     className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
                   >
-                    {availableAgencies.map((ag) => <option key={ag} value={ag}>{ag}</option>)}
+                    {availableAgencies.map(ag => <option key={ag} value={ag}>{ag}</option>)}
                   </select>
 
                   {showAgencyManager && (
@@ -4097,119 +3456,74 @@ export default function App() {
                 </div>
               </div>
 
-              {/* BLOCO FINANCEIRO DO CONTRATO (RESPEITA canViewContractValues) */}
-              {canViewContractValues ? (
-                <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    <div>
-                      <label className="block font-bold text-slate-700 uppercase mb-1">VALOR TOTAL (R$)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={ctForm.contractValue}
-                        onChange={(e) => setCtForm({ ...ctForm, contractValue: e.target.value })}
-                        placeholder="0.00"
-                        className="w-full px-3 py-2.5 rounded-xl border font-black text-[#1B3B2B]"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-bold text-slate-700 uppercase mb-1">CUSTOS DIRETOS (R$)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={ctForm.directCosts}
-                        onChange={(e) => setCtForm({ ...ctForm, directCosts: e.target.value })}
-                        placeholder="Taxas, laudos..."
-                        className="w-full px-3 py-2.5 rounded-xl border font-bold"
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-bold text-slate-700 uppercase mb-1">PARCELAS</label>
-                      <select
-                        value={ctForm.installmentsCount}
-                        onChange={(e) => setCtForm({ ...ctForm, installmentsCount: e.target.value })}
-                        className="w-full px-3 py-2.5 rounded-xl border font-bold bg-white cursor-pointer"
-                      >
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12].map((n) => <option key={n} value={n}>{n}x</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block font-bold text-slate-700 uppercase mb-1">PAGAMENTO</label>
-                      <select
-                        value={ctForm.paymentMethod}
-                        onChange={(e) => setCtForm({ ...ctForm, paymentMethod: e.target.value })}
-                        className="w-full px-3 py-2.5 rounded-xl border font-bold bg-white cursor-pointer"
-                      >
-                        {PAYMENT_METHODS.map((pm) => (
-                          <option key={pm} value={pm}>{pm}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 pt-2 border-t border-slate-100">
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <label className="block font-bold text-[#1B3B2B] uppercase">Vencimentos e Valores das Parcelas</label>
-                      {contractInstallmentsValidation.total > 0 && (
-                        <span
-                          className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
-                            contractInstallmentsValidation.isMismatch
-                              ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                              : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                          }`}
-                        >
-                          Soma: {formatCurrency(contractInstallmentsValidation.sum)} / {formatCurrency(contractInstallmentsValidation.total)}
-                        </span>
-                      )}
-                    </div>
-
-                    {contractInstallmentsValidation.isMismatch && (
-                      <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-[11px] font-semibold">
-                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                        <span>
-                          Atenção: a soma das parcelas difere em <strong>{formatCurrency(Math.abs(contractInstallmentsValidation.diff))}</strong> do valor total do contrato.
-                        </span>
-                      </div>
-                    )}
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
-                      {Array.from({ length: parseInt(ctForm.installmentsCount, 10) || 1 }).map((_, idx) => (
-                        <div key={idx} className="p-2 rounded-xl border bg-slate-50 flex items-center gap-2">
-                          <span className="font-bold text-slate-600 w-8">{idx + 1}ª:</span>
-                          <input
-                            type="date"
-                            value={ctForm.installmentDates?.[idx] || ''}
-                            onChange={(e) => {
-                              const newDates = [...(ctForm.installmentDates || [])];
-                              newDates[idx] = e.target.value;
-                              setCtForm({ ...ctForm, installmentDates: newDates });
-                            }}
-                            className="px-2 py-1 rounded border text-[11px] font-mono flex-1"
-                          />
-                          <input
-                            type="number"
-                            step="0.01"
-                            placeholder="Valor (auto)"
-                            value={ctForm.installmentAmounts?.[idx] || ''}
-                            onChange={(e) => {
-                              const newAmts = [...(ctForm.installmentAmounts || [])];
-                              newAmts[idx] = e.target.value;
-                              setCtForm({ ...ctForm, installmentAmounts: newAmts });
-                            }}
-                            className="px-2 py-1 rounded border text-[11px] w-24 font-bold"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-3 text-slate-500">
-                  <EyeOff className="w-4 h-4 shrink-0" />
-                  <span>Os campos financeiros e valores de parcelas estão ocultos para o seu perfil de acesso.</span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">VALOR TOTAL (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={ctForm.contractValue}
+                    onChange={(e) => setCtForm({ ...ctForm, contractValue: e.target.value })}
+                    placeholder="0.00"
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-black text-[#1B3B2B]"
+                    required
+                  />
                 </div>
-              )}
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">CUSTOS DIRETOS (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={ctForm.directCosts}
+                    onChange={(e) => setCtForm({ ...ctForm, directCosts: e.target.value })}
+                    placeholder="Taxas, laudos..."
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">PARCELAS</label>
+                  <select
+                    value={ctForm.installmentsCount}
+                    onChange={(e) => setCtForm({ ...ctForm, installmentsCount: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white cursor-pointer"
+                  >
+                    {[1,2,3,4,5,6,7,8,9,10,12].map(n => <option key={n} value={n}>{n}x</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <label className="block font-bold text-[#1B3B2B] uppercase">Vencimentos e Valores das Parcelas</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
+                  {Array.from({ length: parseInt(ctForm.installmentsCount) || 1 }).map((_, idx) => (
+                    <div key={idx} className="p-2 rounded-xl border bg-slate-50 flex items-center gap-2">
+                      <span className="font-bold text-slate-600 w-8">{idx + 1}ª:</span>
+                      <input
+                        type="date"
+                        value={ctForm.installmentDates?.[idx] || ''}
+                        onChange={(e) => {
+                          const newDates = [...(ctForm.installmentDates || [])];
+                          newDates[idx] = e.target.value;
+                          setCtForm({ ...ctForm, installmentDates: newDates });
+                        }}
+                        className="px-2 py-1 rounded border text-[11px] font-mono flex-1"
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Valor (auto)"
+                        value={ctForm.installmentAmounts?.[idx] || ''}
+                        onChange={(e) => {
+                          const newAmts = [...(ctForm.installmentAmounts || [])];
+                          newAmts[idx] = e.target.value;
+                          setCtForm({ ...ctForm, installmentAmounts: newAmts });
+                        }}
+                        className="px-2 py-1 rounded border text-[11px] w-24 font-bold"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
 
               <div>
                 <label className="block font-bold text-slate-700 uppercase mb-1">OBSERVAÇÃO</label>
@@ -4241,109 +3555,14 @@ export default function App() {
         </div>
       )}
 
-      {/* 2. MODAL NOVO / EDITAR PLANO DE CONTAS (FICA ACIMA DO MODAL DE CONTRATO COM Z-60) */}
-      {showPlanoModal && (
-        <div className="fixed inset-0 z-[55] bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="text-base font-extrabold text-[#1B3B2B]">{planoForm.originalCodigo ? 'Editar Conta' : 'Novo Plano de Contas'}</h3>
-              <button onClick={() => setShowPlanoModal(false)} className="text-slate-500 hover:text-slate-700 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!planoForm.codigo.trim() || !planoForm.nome.trim()) return;
-                const targetListKey = planoForm.tipo;
-                const list = planoContasData[targetListKey];
-                const cleanCode = planoForm.codigo.trim();
-                const cleanName = planoForm.nome.trim().startsWith(cleanCode)
-                  ? planoForm.nome.trim()
-                  : `${cleanCode} — ${planoForm.nome.trim()}`;
-
-                let updatedList;
-                if (planoForm.originalCodigo) {
-                  updatedList = list.map((item) =>
-                    item.codigo === planoForm.originalCodigo ? { codigo: cleanCode, nome: cleanName } : item
-                  );
-                } else {
-                  if (list.some((item) => item.codigo === cleanCode)) {
-                    showToast(`Já existe uma conta com o código ${cleanCode}.`, 'error');
-                    return;
-                  }
-                  updatedList = [...list, { codigo: cleanCode, nome: cleanName }];
-                }
-
-                const updatedPlano = { ...planoContasData, [targetListKey]: updatedList };
-                setPlanoContasData(updatedPlano);
-                syncSettingsToCloud(availableSegments, availableStatuses, updatedPlano, params, availableAgencies);
-
-                if (planoFromContractModal && targetListKey === 'receitas') {
-                  setCtForm((prev) => ({ ...prev, service: cleanName }));
-                }
-                setShowPlanoModal(false);
-                setPlanoFromContractModal(false);
-                showToast('Plano de Contas salvo e sincronizado!');
-              }}
-              className="space-y-3 text-xs"
-            >
-              <div>
-                <label className="block font-bold mb-1">Tipo de Conta</label>
-                <select
-                  value={planoForm.tipo}
-                  disabled={planoFromContractModal}
-                  onChange={(e) => setPlanoForm({ ...planoForm, tipo: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border font-bold cursor-pointer disabled:bg-slate-100"
-                >
-                  <option value="receitas">Receita (1.X)</option>
-                  <option value="despesas">Despesa / Custo (2.X)</option>
-                </select>
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Código da Conta</label>
-                <input
-                  type="text"
-                  value={planoForm.codigo}
-                  onChange={(e) => setPlanoForm({ ...planoForm, codigo: e.target.value })}
-                  placeholder="Ex: 1.1.06"
-                  className="w-full px-3 py-2 rounded-xl border font-mono font-bold"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Nome / Descrição da Conta</label>
-                <input
-                  type="text"
-                  value={planoForm.nome}
-                  onChange={(e) => setPlanoForm({ ...planoForm, nome: e.target.value })}
-                  placeholder="Ex: Consultoria Ambiental Especial"
-                  className="w-full px-3 py-2 rounded-xl border font-bold"
-                  required
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-3 border-t">
-                <button type="button" onClick={() => setShowPlanoModal(false)} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar Conta</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 3. MODAL VER PARCELAS DO CONTRATO (COM MÁSCARA DE VALORES) */}
+      {/* 3. MODAL VER PARCELAS DO CONTRATO */}
       {viewingContractInstallments && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
             <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-extrabold">Gerenciamento de Parcelas</h3>
-                <p className="text-xs text-emerald-300">
-                  Contrato: <strong>{viewingContractInstallments.id} — {viewingContractInstallments.client}</strong>
-                </p>
-                <p className="text-[11px] text-emerald-100/80 mt-0.5">
-                  Conta DRE: {viewingContractInstallments.service} • Forma: {viewingContractInstallments.paymentmethod || viewingContractInstallments.paymentMethod || 'PIX'}
-                </p>
+                <p className="text-xs text-emerald-300">Contrato: <strong>{viewingContractInstallments.id} — {viewingContractInstallments.client}</strong></p>
               </div>
               <button onClick={() => setViewingContractInstallments(null)} className="text-white hover:text-emerald-300 cursor-pointer">
                 <X className="w-5 h-5" />
@@ -4367,33 +3586,27 @@ export default function App() {
                       <tr key={inst.number} className="hover:bg-slate-50">
                         <td className="py-3 px-3 font-bold">Parcela {inst.number}</td>
                         <td className="py-3 px-3 font-mono">{inst.dueDate || inst.duedate}</td>
-                        <td className="py-3 px-3 text-right font-black text-[#1B3B2B]">
-                          <MaskedValue show={canViewContractValues} value={formatCurrency(inst.amount)} />
-                        </td>
+                        <td className="py-3 px-3 text-right font-black text-[#1B3B2B]">{formatCurrency(inst.amount)}</td>
                         <td className="py-3 px-3 text-center">
                           <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${inst.status === 'Pago' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
                             {inst.status}
                           </span>
                         </td>
                         <td className="py-3 px-3 text-center">
-                          {canViewContractValues ? (
-                            inst.status === 'Pago' ? (
-                              <button
-                                onClick={() => setCancelInstallmentTarget({ contractId: viewingContractInstallments.id, installmentNumber: inst.number })}
-                                className="px-3 py-1 rounded bg-rose-100 text-rose-700 font-bold text-[10px] hover:bg-rose-200 cursor-pointer"
-                              >
-                                Estornar Baixa
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => setReceivingInstallmentData({ contractId: viewingContractInstallments.id, installmentNumber: inst.number })}
-                                className="px-3 py-1 rounded bg-emerald-800 text-white font-bold text-[10px] hover:bg-emerald-900 cursor-pointer"
-                              >
-                                Baixar / Receber
-                              </button>
-                            )
+                          {inst.status === 'Pago' ? (
+                            <button
+                              onClick={() => setCancelInstallmentTarget({ contractId: viewingContractInstallments.id, installmentNumber: inst.number })}
+                              className="px-3 py-1 rounded bg-rose-100 text-rose-700 font-bold text-[10px] hover:bg-rose-200 cursor-pointer"
+                            >
+                              Estornar Baixa
+                            </button>
                           ) : (
-                            <span className="text-[10px] text-slate-400 font-semibold">Restrito</span>
+                            <button
+                              onClick={() => setReceivingInstallmentData({ contractId: viewingContractInstallments.id, installmentNumber: inst.number })}
+                              className="px-3 py-1 rounded bg-emerald-800 text-white font-bold text-[10px] hover:bg-emerald-900 cursor-pointer"
+                            >
+                              Baixar / Receber
+                            </button>
                           )}
                         </td>
                       </tr>
@@ -4417,10 +3630,10 @@ export default function App() {
 
       {/* 4. MODAL BAIXAR / RECEBER PARCELA */}
       {receivingInstallmentData && (
-        <div className="fixed inset-0 z-[55] bg-black/60 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl border">
             <h3 className="text-base font-extrabold text-[#1B3B2B]">Registrar Recebimento da Parcela</h3>
-            <p className="text-xs text-slate-600">Informe a data de recebimento e juros eventuais. O sistema lançará automaticamente na conta contábil do contrato na DRE e no Livro Caixa.</p>
+            <p className="text-xs text-slate-600">Informe a data de recebimento e juros eventuais. O sistema lançará automaticamente no Livro Caixa.</p>
             <div className="space-y-3 text-xs">
               <div>
                 <label className="block font-bold uppercase mb-1">Data do Recebimento</label>
@@ -4453,7 +3666,7 @@ export default function App() {
 
       {/* 5. MODAL CONFIRMAR ESTORNO DE PARCELA */}
       {cancelInstallmentTarget && (
-        <div className="fixed inset-0 z-[55] bg-black/60 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
             <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
               <RotateCcw className="w-6 h-6" />
@@ -4521,7 +3734,8 @@ export default function App() {
                     onChange={(e) => {
                       const dt = e.target.value;
                       const mNum = dt.split('-')[1];
-                      setTxForm({ ...txForm, date: dt, month: MONTH_NAMES_MAP[mNum] || 'Nov' });
+                      const mNames = { '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez' };
+                      setTxForm({ ...txForm, date: dt, month: mNames[mNum] || 'Nov' });
                     }}
                     className="w-full px-3.5 py-2.5 rounded-xl border font-bold"
                     required
@@ -4536,16 +3750,16 @@ export default function App() {
                   onChange={(e) => {
                     const code = e.target.value;
                     const allC = [...planoContasData.receitas, ...planoContasData.despesas];
-                    const found = allC.find((c) => c.codigo === code);
+                    const found = allC.find(c => c.codigo === code);
                     setTxForm({ ...txForm, planoContas: code, planocontas: code, category: found ? found.nome : txForm.category });
                   }}
                   className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
                 >
                   <optgroup label="Receitas (1.X)">
-                    {planoContasData.receitas.map((r) => <option key={r.codigo} value={r.codigo}>{r.nome}</option>)}
+                    {planoContasData.receitas.map(r => <option key={r.codigo} value={r.codigo}>{r.nome}</option>)}
                   </optgroup>
                   <optgroup label="Despesas (2.X)">
-                    {planoContasData.despesas.map((d) => <option key={d.codigo} value={d.codigo}>{d.nome}</option>)}
+                    {planoContasData.despesas.map(d => <option key={d.codigo} value={d.codigo}>{d.nome}</option>)}
                   </optgroup>
                 </select>
               </div>
@@ -4562,11 +3776,11 @@ export default function App() {
                   required
                 />
                 <datalist id="client-list-tx">
-                  {clients.map((cli) => <option key={cli.id} value={cli.name} />)}
+                  {clients.map(cli => <option key={cli.id} value={cli.name} />)}
                 </datalist>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase mb-1">VALOR (R$)</label>
                   <input
@@ -4578,16 +3792,6 @@ export default function App() {
                     className="w-full px-3.5 py-2.5 rounded-xl border font-black text-[#1B3B2B]"
                     required
                   />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">PAGAMENTO</label>
-                  <select
-                    value={txForm.paymentMethod}
-                    onChange={(e) => setTxForm({ ...txForm, paymentMethod: e.target.value })}
-                    className="w-full px-3 py-2.5 rounded-xl border font-bold bg-white cursor-pointer"
-                  >
-                    {PAYMENT_METHODS.map((pm) => <option key={pm} value={pm}>{pm}</option>)}
-                  </select>
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 uppercase mb-1">STATUS</label>
@@ -4666,14 +3870,16 @@ export default function App() {
             <form onSubmit={handleSaveClient} className="p-6 space-y-4 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 uppercase mb-1">CNPJ (BUSCA AUTOMÁTICA AO SAIR DO CAMPO)</label>
-                <input
-                  type="text"
-                  value={cliForm.document}
-                  onChange={(e) => setCliForm({ ...cliForm, document: e.target.value })}
-                  onBlur={(e) => { if (e.target.value) handleCnpjBlur(e.target.value); }}
-                  placeholder="Digite o CNPJ (apenas números)..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border font-mono font-bold"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={cliForm.document}
+                    onChange={(e) => setCliForm({ ...cliForm, document: e.target.value })}
+                    onBlur={(e) => { if (e.target.value) handleCnpjBlur(e.target.value); }}
+                    placeholder="Digite o CNPJ (apenas números)..."
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-mono font-bold"
+                  />
+                </div>
               </div>
 
               <div>
@@ -4709,7 +3915,7 @@ export default function App() {
                     onChange={(e) => setCliForm({ ...cliForm, segment: e.target.value })}
                     className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
                   >
-                    {availableSegments.map((seg) => <option key={seg} value={seg}>{seg}</option>)}
+                    {availableSegments.map(seg => <option key={seg} value={seg}>{seg}</option>)}
                   </select>
 
                   {showSegmentManager && (
@@ -4785,7 +3991,7 @@ export default function App() {
                     onChange={(e) => setCliForm({ ...cliForm, status: e.target.value })}
                     className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
                   >
-                    {availableStatuses.map((st) => <option key={st} value={st}>{st}</option>)}
+                    {availableStatuses.map(st => <option key={st} value={st}>{st}</option>)}
                   </select>
 
                   {showStatusManager && (
@@ -4890,12 +4096,7 @@ export default function App() {
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowClientModal(false);
-                    setEditingClient(null);
-                    setShowSegmentManager(false);
-                    setShowStatusManager(false);
-                  }}
+                  onClick={() => { setShowClientModal(false); setEditingClient(null); setShowSegmentManager(false); setShowStatusManager(false); }}
                   className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancelar
@@ -4955,7 +4156,7 @@ export default function App() {
                   required
                 />
                 <datalist id="client-list-cond">
-                  {clients.map((cli) => (
+                  {clients.map(cli => (
                     <option key={cli.id} value={cli.name} />
                   ))}
                 </datalist>
@@ -5063,14 +4264,14 @@ export default function App() {
               Deseja realmente remover a condicionante de <strong>{deleteCondTarget.client}</strong>?
             </p>
             <div className="flex justify-center gap-2 pt-2">
-              <button
-                onClick={() => setDeleteCondTarget(null)}
+              <button 
+                onClick={() => setDeleteCondTarget(null)} 
                 className="px-4 py-2 rounded-xl border font-bold text-xs text-slate-600 hover:bg-slate-50 cursor-pointer"
               >
                 Cancelar
               </button>
-              <button
-                onClick={confirmDeleteCondicionante}
+              <button 
+                onClick={confirmDeleteCondicionante} 
                 className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer"
               >
                 Sim, Excluir
@@ -5212,7 +4413,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 13C. MODAL EDITAR PERFIL / SENHA */}
+      {/* 13C. MODAL EDITAR PERFIL / SENHA / EXCLUIR */}
       {editingRoleTarget && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
@@ -5286,7 +4487,7 @@ export default function App() {
               <div className="flex items-center justify-between pt-3 border-t">
                 <button
                   type="button"
-                  onClick={() => setDeleteRoleTarget(editingRoleTarget)}
+                  onClick={() => handleDeleteRole(editingRoleTarget.id)}
                   className="px-4 py-2 rounded-xl bg-rose-100 text-rose-700 font-bold hover:bg-rose-200 cursor-pointer"
                 >
                   Excluir Perfil
@@ -5297,44 +4498,6 @@ export default function App() {
                 </div>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* 13D. MODAL CONFIRMAR EXCLUSÃO DE PERFIL DE ACESSO */}
-      {deleteRoleTarget && (
-        <div className="fixed inset-0 z-[55] bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
-            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <h3 className="text-base font-extrabold text-rose-700">Excluir Perfil de Acesso?</h3>
-            <p className="text-xs text-slate-600">
-              Deseja realmente remover o perfil <strong>{deleteRoleTarget.name} ({deleteRoleTarget.holder})</strong> do sistema?
-            </p>
-            <div className="flex justify-center gap-2 pt-2">
-              <button onClick={() => setDeleteRoleTarget(null)} className="px-4 py-2 rounded-xl border font-bold text-xs text-slate-600 cursor-pointer">Cancelar</button>
-              <button onClick={confirmDeleteRole} className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer">Sim, Excluir</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 13E. MODAL CONFIRMAR EXCLUSÃO DE CONTA DO PLANO DE CONTAS */}
-      {deletePlanoTarget && (
-        <div className="fixed inset-0 z-[55] bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
-            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <h3 className="text-base font-extrabold text-rose-700">Excluir Conta Contábil?</h3>
-            <p className="text-xs text-slate-600">
-              Deseja realmente remover a conta <strong>{deletePlanoTarget.nome}</strong> do Plano de Contas?
-            </p>
-            <div className="flex justify-center gap-2 pt-2">
-              <button onClick={() => setDeletePlanoTarget(null)} className="px-4 py-2 rounded-xl border font-bold text-xs text-slate-600 cursor-pointer">Cancelar</button>
-              <button onClick={confirmDeletePlanoAccount} className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer">Sim, Excluir</button>
-            </div>
           </div>
         </div>
       )}
@@ -5353,67 +4516,35 @@ export default function App() {
                 {authErrorMsg}
               </div>
             )}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                setAuthErrorMsg('');
-                const found = accessRoles.find(
-                  (r) => r.email && r.email.toLowerCase() === authEmailInput.trim().toLowerCase()
-                );
-                if (!found) {
-                  setAuthErrorMsg('E-mail não cadastrado.');
-                  return;
-                }
-                if (found.password && found.password !== authPasswordInput.trim()) {
-                  setAuthErrorMsg('Senha incorreta.');
-                  return;
-                }
-                try {
-                  sessionStorage.setItem(SESSION_STORAGE_KEY, found.id);
-                } catch {
-                  // ignora erro de storage indisponível
-                }
-                setActiveRoleId(found.id);
-                const isMasterUser =
-                  found.id === 'ROLE-01-PEDRO' || found.email.toLowerCase() === 'pedrosmelos@gmail.com';
-                const firstOpenTab = navItems.find(
-                  (item) =>
-                    (isMasterUser && item.permKey === 'acessos') ||
-                    Boolean(found.permissions?.[item.permKey]?.view)
-                );
-                if (firstOpenTab) setActiveTab(firstOpenTab.id);
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              setAuthErrorMsg('');
+              const found = accessRoles.find(r => r.email && r.email.toLowerCase() === authEmailInput.trim().toLowerCase());
+              if (!found) {
+                setAuthErrorMsg('E-mail não cadastrado.');
+                return;
+              }
+              if (found.password && found.password !== authPasswordInput.trim()) {
+                setAuthErrorMsg('Senha incorreta.');
+                return;
+              }
+              setActiveRoleId(found.id);
+              const isMasterUser = found.id === 'ROLE-01-PEDRO' || found.email.toLowerCase() === 'pedrosmelos@gmail.com';
+              const firstOpenTab = navItems.find(item => (isMasterUser && item.permKey === 'acessos') || Boolean(found.permissions?.[item.permKey]?.view));
+              if (firstOpenTab) setActiveTab(firstOpenTab.id);
 
-                setAuthLoggedIn(true);
-                showToast(`Bem-vindo(a), ${found.holder}! Acesso autorizado.`);
-              }}
-              className="space-y-4 text-left text-xs"
-            >
+              setAuthLoggedIn(true);
+              showToast(`Bem-vindo(a), ${found.holder}! Acesso autorizado.`);
+            }} className="space-y-4 text-left text-xs">
               <div>
                 <label className="block font-bold text-slate-700 uppercase mb-1">E-mail Corporativo</label>
-                <input
-                  type="email"
-                  value={authEmailInput}
-                  onChange={(e) => setAuthEmailInput(e.target.value)}
-                  placeholder="ex: maikon@grupomartins.eng.br"
-                  className="w-full px-3.5 py-2.5 rounded-xl border"
-                  required
-                />
+                <input type="email" value={authEmailInput} onChange={(e) => setAuthEmailInput(e.target.value)} placeholder="ex: maikon@grupomartins.eng.br" className="w-full px-3.5 py-2.5 rounded-xl border" required />
               </div>
               <div>
                 <label className="block font-bold text-slate-700 uppercase mb-1">Senha</label>
-                <input
-                  type="password"
-                  value={authPasswordInput}
-                  onChange={(e) => setAuthPasswordInput(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-3.5 py-2.5 rounded-xl border"
-                  required
-                />
+                <input type="password" value={authPasswordInput} onChange={(e) => setAuthPasswordInput(e.target.value)} placeholder="••••••••" className="w-full px-3.5 py-2.5 rounded-xl border" required />
               </div>
-              <button
-                type="submit"
-                className="w-full py-3 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
-              >
+              <button type="submit" className="w-full py-3 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer">
                 Entrar no ERP (Sincronizado)
               </button>
             </form>
