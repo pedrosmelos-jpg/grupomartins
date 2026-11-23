@@ -53,6 +53,8 @@ const supabaseUrl = "https://fhmgpgqqhcbxuqmpjrlh.supabase.co";
 const supabaseKey = "sb_publishable_P1Xy1OH2KBqp-oITOLz0_g_615LlpyM";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+const generateUniqueId = (prefix) => `${prefix}-${Date.now().toString(36).toUpperCase()}`;
+
 // ============================================================================
 // 1. COMPONENTE DA LOGO OFICIAL VETORIZADA — GRUPO MARTINS
 // ============================================================================
@@ -352,6 +354,25 @@ const MaskedValue = ({ show, value }) =>
     </span>
   );
 
+const getContractDueBadge = (contract) => {
+  const todayStr = new Date().toISOString().split('T')[0];
+  const insts = contract.installmentsData || contract.installmentsdata || [];
+  const pending = insts.filter(i => i.status !== 'Pago');
+
+  if (pending.length === 0) {
+    return { label: 'Quitado', className: 'bg-emerald-100 text-emerald-800 border-emerald-200' };
+  }
+  const hasOverdue = pending.some(i => (i.dueDate || i.duedate) && (i.dueDate || i.duedate) < todayStr);
+  if (hasOverdue) {
+    return { label: 'Vencido', className: 'bg-rose-100 text-rose-800 border-rose-300' };
+  }
+  const dueToday = pending.some(i => (i.dueDate || i.duedate) && (i.dueDate || i.duedate) === todayStr);
+  if (dueToday) {
+    return { label: 'Vence Hoje', className: 'bg-amber-100 text-amber-800 border-amber-300' };
+  }
+  return { label: 'A Vencer', className: 'bg-sky-100 text-sky-800 border-sky-200' };
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -367,10 +388,10 @@ export default function App() {
   const [planoContasData, setPlanoContasData] = useState(INITIAL_PLANO_CONTAS);
   const [showPlanoModal, setShowPlanoModal] = useState(false);
   const [planoForm, setPlanoForm] = useState({ tipo: 'receitas', codigo: '', nome: '', originalCodigo: null });
+  const [reopenContractAfterPlano, setReopenContractAfterPlano] = useState(false);
 
   const [editingRoleTarget, setEditingRoleTarget] = useState(null);
 
-  // Estados para Cadastro, Edição e Exclusão de Segmentos e Status do CRM
   const [availableSegments, setAvailableSegments] = useState(INITIAL_SEGMENTS);
   const [showSegmentManager, setShowSegmentManager] = useState(false);
   const [segmentInput, setSegmentInput] = useState('');
@@ -381,7 +402,6 @@ export default function App() {
   const [statusInput, setStatusInput] = useState('');
   const [editingStatusOriginal, setEditingStatusOriginal] = useState(null);
 
-  // Estados para Cadastro, Edição e Exclusão de Órgãos / Setores dos Contratos
   const [availableAgencies, setAvailableAgencies] = useState(INITIAL_AGENCIES);
   const [showAgencyManager, setShowAgencyManager] = useState(false);
   const [agencyInput, setAgencyInput] = useState('');
@@ -444,7 +464,7 @@ export default function App() {
   const [showTxModal, setShowTxModal] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
   const [deleteTxTarget, setDeleteTxTarget] = useState(null);
-  
+
   const [showContractModal, setShowContractModal] = useState(false);
   const [editingContract, setEditingContract] = useState(null);
   const [deleteContractTarget, setDeleteContractTarget] = useState(null);
@@ -511,7 +531,6 @@ export default function App() {
     status: INITIAL_STATUSES[0]
   });
 
-  // Salva configurações globais no Supabase em Tempo Real (incluindo Órgãos/Setores)
   const syncSettingsToCloud = async (newSegments, newStatuses, newPlano, newParams, newAgencies) => {
     if (!supabase) return;
     const payload = {
@@ -529,7 +548,6 @@ export default function App() {
     }
   };
 
-  // Funções de Gerenciamento de Órgãos / Setores dos Contratos
   const handleSaveAgency = async () => {
     const clean = agencyInput.trim();
     if (!clean) return;
@@ -569,7 +587,6 @@ export default function App() {
     showToast('Órgão removido!');
   };
 
-  // Funções de Gerenciamento de Segmentos do CRM
   const handleSaveSegment = async () => {
     const clean = segmentInput.trim();
     if (!clean) return;
@@ -609,7 +626,6 @@ export default function App() {
     showToast('Segmento removido!');
   };
 
-  // Funções de Gerenciamento de Status do CRM
   const handleSaveStatus = async () => {
     const clean = statusInput.trim();
     if (!clean) return;
@@ -691,7 +707,6 @@ export default function App() {
     }
   };
 
-  // Busca inicial completa do Supabase
   const fetchAllData = useCallback(async () => {
     if (!supabase) return;
     try {
@@ -699,7 +714,7 @@ export default function App() {
         supabase.from('transactions').select('*'),
         supabase.from('contracts').select('*'),
         supabase.from('clients').select('*'),
-        supabase.from('user_roles').select('*'),
+        supabase.from('user_roles').select('id, level, name, holder, email, description, permissions'),
         supabase.from('condicionantes').select('*'),
         supabase.from('erp_settings').select('*').eq('id', 'GLOBAL').maybeSingle()
       ]);
@@ -711,7 +726,14 @@ export default function App() {
       if (!ctRes.error && ctRes.data) setContracts(ctRes.data);
       if (!cliRes.error && cliRes.data) setClients(cliRes.data);
       if (!roleRes.error && roleRes.data && roleRes.data.length > 0) {
-        setAccessRoles(roleRes.data);
+        setAccessRoles((prev) => {
+          const prevById = Object.fromEntries(prev.map((r) => [r.id, r]));
+          return roleRes.data.map((row) => ({
+            ...prevById[row.id],
+            ...row,
+            password: row.password || prevById[row.id]?.password || ''
+          }));
+        });
       } else if (supabase && (!roleRes.data || roleRes.data.length === 0)) {
         await supabase.from('user_roles').upsert(INITIAL_ACCESS_ROLES);
       }
@@ -730,7 +752,6 @@ export default function App() {
     }
   }, []);
 
-  // Sincronização em Tempo Real Instantânea
   useEffect(() => {
     fetchAllData();
     if (!supabase) return;
@@ -757,7 +778,25 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, applyRealtimeChange(setTransactions))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contracts' }, applyRealtimeChange(setContracts))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, applyRealtimeChange(setClients))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_roles' }, applyRealtimeChange(setAccessRoles))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_roles' }, (payload) => {
+        const { eventType, new: newRow, old: oldRow } = payload;
+        setAccessRoles((prev) => {
+          if (eventType === 'INSERT' || eventType === 'UPDATE') {
+            if (!newRow || !newRow.id) return prev;
+            const { password: _omitted, ...safeRow } = newRow;
+            const exists = prev.some((item) => item.id === safeRow.id);
+            return exists
+              ? prev.map((item) => (item.id === safeRow.id ? { ...item, ...safeRow } : item))
+              : [...prev, safeRow];
+          }
+          if (eventType === 'DELETE') {
+            const deletedId = oldRow?.id;
+            if (!deletedId) return prev;
+            return prev.filter((item) => item.id !== deletedId);
+          }
+          return prev;
+        });
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'condicionantes' }, applyRealtimeChange(setCondicionantes))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'erp_settings' }, (payload) => {
         const data = payload.new;
@@ -833,7 +872,7 @@ export default function App() {
 
   const dreGerencialData = useMemo(() => {
     const monthsFull = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    
+
     const getVal = (codigoConta, mesStr, anoNum) => {
       return transactions
         .filter(t => t.status === 'Pago / Recebido' && (t.planocontas === codigoConta || t.planoContas === codigoConta || (t.category || '').includes(codigoConta)))
@@ -909,23 +948,32 @@ export default function App() {
   }, [transactions, planoContasData, selectedDreYear]);
 
   const financialData = useMemo(() => {
-    const receitaBrutaAnual = transactions.filter((t) => t.type === 'Entrada').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
-    const saidasTotaisAnual = transactions.filter((t) => t.type === 'Saída').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
-    const lucroLiquidoAnual = receitaBrutaAnual - saidasTotaisAnual;
-    
-    const proLaboreTotalAnual = transactions.filter((t) => (t.category || t.planocontas || t.planoContas || '').includes('Pró-Labore')).reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
-    const proLaborePago = transactions.filter((t) => (t.category || t.planocontas || t.planoContas || '').includes('Pró-Labore') && t.status === 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    const yearTxs = transactions.filter((t) => {
+      if (!t.date) return selectedDreYear === 2026;
+      const txYear = parseInt(String(t.date).split('-')[0], 10);
+      return txYear === selectedDreYear;
+    });
 
-    const entradasRealizadas = transactions.filter((t) => t.type === 'Entrada' && t.status === 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
-    const saidasRealizadas = transactions.filter((t) => t.type === 'Saída' && t.status === 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    const receitaBrutaAnual = yearTxs.filter((t) => t.type === 'Entrada').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    const saidasTotaisAnual = yearTxs.filter((t) => t.type === 'Saída').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    const lucroLiquidoAnual = receitaBrutaAnual - saidasTotaisAnual;
+
+    const proLaboreTotalAnual = yearTxs.filter((t) => (t.category || t.planocontas || t.planoContas || '').includes('Pró-Labore')).reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    const proLaborePago = yearTxs.filter((t) => (t.category || t.planocontas || t.planoContas || '').includes('Pró-Labore') && t.status === 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+
+    const entradasRealizadas = yearTxs.filter((t) => t.type === 'Entrada' && t.status === 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    const saidasRealizadas = yearTxs.filter((t) => t.type === 'Saída' && t.status === 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
     const saldoAtualCaixa = Number(params.saldoInicialCaixa || 0) + entradasRealizadas - saidasRealizadas;
 
-    const contasAReceber = transactions.filter((t) => t.type === 'Entrada' && t.status !== 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
-    const contasAPagar = transactions.filter((t) => t.type === 'Saída' && t.status !== 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    const contasAReceber = yearTxs.filter((t) => t.type === 'Entrada' && t.status !== 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    const contasAPagar = yearTxs.filter((t) => t.type === 'Saída' && t.status !== 'Pago / Recebido').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
 
     let runningBalance = Number(params.saldoInicialCaixa || 0);
     const monthlySeries = MONTHS.map((m) => {
-      const mTxs = transactions.filter((t) => t.month === m);
+      const mTxs = yearTxs.filter((t) => {
+        const txMonth = t.month || (t.date ? MONTH_NAMES_MAP[String(t.date).split('-')[1]] : '');
+        return txMonth === m;
+      });
       const entradas = mTxs.filter((t) => t.type === 'Entrada').reduce((a, b) => a + Number(b.amount || 0), 0);
       const saidas = mTxs.filter((t) => t.type === 'Saída').reduce((a, b) => a + Number(b.amount || 0), 0);
       const resultadoLiquido = entradas - saidas;
@@ -934,7 +982,7 @@ export default function App() {
     });
 
     const revenueByCategory = planoContasData.receitas.map((rev) => {
-      const value = transactions.filter(t => (t.planocontas === rev.codigo || t.planoContas === rev.codigo || t.category === rev.nome)).reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+      const value = yearTxs.filter(t => (t.planocontas === rev.codigo || t.planoContas === rev.codigo || t.category === rev.nome)).reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
       return { category: rev.nome, shortName: rev.nome.split(' — ')[1] || rev.nome, value, share: receitaBrutaAnual > 0 ? value / receitaBrutaAnual : 0 };
     }).sort((a, b) => b.value - a.value);
 
@@ -945,8 +993,8 @@ export default function App() {
       return acc + pagoInsts;
     }, 0);
     const saldoAFaturar = totalContratado - totalRecebidoContratos;
-    
-    let totalCustoContratos = contracts.reduce((acc, c) => acc + Number(c.directcosts || c.directCosts || 0), 0);
+
+    const totalCustoContratos = contracts.reduce((acc, c) => acc + Number(c.directcosts || c.directCosts || 0), 0);
     const margemMedia = totalContratado > 0 ? ((totalContratado - totalCustoContratos) / totalContratado) * 100 : 88.2;
 
     return {
@@ -965,7 +1013,7 @@ export default function App() {
       saldoAFaturar,
       margemMedia
     };
-  }, [transactions, contracts, params, planoContasData]);
+  }, [transactions, contracts, params, planoContasData, selectedDreYear]);
 
   const handleToggleStatus = async (id) => {
     if (!hasPermission('lancamentos', 'approve') && !hasPermission('lancamentos', 'edit')) {
@@ -990,9 +1038,9 @@ export default function App() {
     }
 
     try {
-      const txId = editingTx ? editingTx.id : `MT-${Date.now().toString().slice(-5)}`;
-      const txData = { 
-        id: txId, 
+      const txId = editingTx ? editingTx.id : generateUniqueId('MT');
+      const txData = {
+        id: txId,
         date: txForm.date,
         month: txForm.month,
         type: txForm.type,
@@ -1003,7 +1051,7 @@ export default function App() {
         description: txForm.description,
         paymentmethod: txForm.paymentMethod || txForm.paymentmethod || 'PIX',
         status: txForm.status,
-        amount: numericAmount 
+        amount: numericAmount
       };
 
       if (supabase) {
@@ -1048,15 +1096,15 @@ export default function App() {
     if (!ctForm.client || contractVal <= 0) return;
 
     try {
-      const contractId = editingContract ? editingContract.id : `CT-${selectedDreYear}-${Date.now().toString().slice(-4)}`;
-      
+      const contractId = editingContract ? editingContract.id : generateUniqueId(`CT-${selectedDreYear}`);
+
       let installments = [];
       const defaultInstVal = contractVal / nInstallments;
 
       for (let i = 0; i < nInstallments; i++) {
         const customAmt = parseFloat(String(ctForm.installmentAmounts?.[i]).replace(',', '.'));
         const instVal = !isNaN(customAmt) && customAmt > 0 ? customAmt : defaultInstVal;
-        
+
         const existingInst = editingContract?.installmentsData?.[i] || editingContract?.installmentsdata?.[i];
         installments.push({
           number: i + 1,
@@ -1110,25 +1158,25 @@ export default function App() {
   const handleConfirmReceiveInstallment = async () => {
     if (!receivingInstallmentData) return;
     const { contractId, installmentNumber } = receivingInstallmentData;
-    
+
     const contract = contracts.find(c => c.id === contractId);
     if (!contract) return;
 
-    const targetInst = (contract.installmentsData || contract.installmentsdata).find(i => i.number === installmentNumber);
+    const targetInst = (contract.installmentsData || contract.installmentsdata || []).find(i => i.number === installmentNumber);
     if (!targetInst) return;
 
     const baseAmount = Number(targetInst.amount || 0);
     const interest = parseFloat(String(receiveForm.interestAmount).replace(',', '.')) || 0;
     const payDate = receiveForm.paymentDate || new Date().toISOString().split('T')[0];
 
-    const updatedInstallments = (contract.installmentsData || contract.installmentsdata).map(inst => {
+    const updatedInstallments = (contract.installmentsData || contract.installmentsdata || []).map(inst => {
       if (inst.number === installmentNumber) {
-        return { 
-          ...inst, 
-          status: 'Pago', 
-          paymentDate: payDate, 
+        return {
+          ...inst,
+          status: 'Pago',
+          paymentDate: payDate,
           interestPaid: interest,
-          totalPaid: baseAmount + interest 
+          totalPaid: baseAmount + interest
         };
       }
       return inst;
@@ -1147,42 +1195,52 @@ export default function App() {
       await supabase.from('contracts').upsert([updatedContract]);
     }
 
-    const monthNames = { '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez' };
     const monthNum = payDate.split('-')[1] || '12';
-    const monthStr = monthNames[monthNum] || 'Dez';
+    const monthStr = MONTH_NAMES_MAP[monthNum] || 'Dez';
+
+    const matchedReceita =
+      planoContasData.receitas.find(
+        r =>
+          r.nome === contract.service ||
+          r.codigo === contract.service ||
+          r.codigo === contract.planocontas ||
+          (contract.service && contract.service.startsWith(r.codigo))
+      ) || planoContasData.receitas[0] || { codigo: '1.1.01', nome: '1.1.01 — Licenciamento Ambiental (LP / LI / LO)' };
 
     const newTransactionsList = [];
 
-    const tId1 = `MT-${Date.now().toString().slice(-5)}`;
     const txPrincipal = {
-      id: tId1,
+      id: generateUniqueId('MT'),
       date: payDate,
       month: monthStr,
       type: 'Entrada',
-      planocontas: '1.1.01',
-      category: 'Licenciamento Ambiental (LP / LI / LO)',
+      planocontas: matchedReceita.codigo,
+      category: matchedReceita.nome,
       entity: contract.client,
       contractid: contractId,
-      description: `Parcela ${installmentNumber}/${(contract.installmentsData || contract.installmentsdata).length} (${contract.paymentmethod || contract.paymentMethod}) — Contrato ${contractId}`,
-      paymentmethod: contract.paymentmethod || contract.paymentMethod,
+      description: `Parcela ${installmentNumber}/${(contract.installmentsData || contract.installmentsdata || []).length} (${contract.paymentmethod || contract.paymentMethod || 'PIX'}) — Contrato ${contractId}`,
+      paymentmethod: contract.paymentmethod || contract.paymentMethod || 'PIX',
       status: 'Pago / Recebido',
       amount: baseAmount
     };
     newTransactionsList.push(txPrincipal);
 
     if (interest > 0) {
-      const tId2 = `MT-${(Date.now() + 1).toString().slice(-5)}`;
+      const jurosConta = planoContasData.receitas.find(r => r.codigo === '1.2.01') || {
+        codigo: '1.2.01',
+        nome: '1.2.01 — Receitas Financeiras (Juros e Multas por Atraso)'
+      };
       const txJuros = {
-        id: tId2,
+        id: `${generateUniqueId('MT')}-J`,
         date: payDate,
         month: monthStr,
         type: 'Entrada',
-        planocontas: '1.2.01',
-        category: 'Receitas Financeiras (Juros e Multas por Atraso)',
+        planocontas: jurosConta.codigo,
+        category: jurosConta.nome,
         entity: contract.client,
         contractid: contractId,
         description: `Juros / Multa Parcela ${installmentNumber} — Contrato ${contractId}`,
-        paymentmethod: contract.paymentmethod || contract.paymentMethod,
+        paymentmethod: contract.paymentmethod || contract.paymentMethod || 'PIX',
         status: 'Pago / Recebido',
         amount: interest
       };
@@ -1195,7 +1253,7 @@ export default function App() {
     }
 
     setViewingContractInstallments(updatedContract);
-    showToast(`Recebimento registrado com sucesso no Caixa!`);
+    showToast(`Recebimento registrado na conta ${matchedReceita.codigo}!`);
     setReceivingInstallmentData(null);
     setReceiveForm({ paymentDate: new Date().toISOString().split('T')[0], interestAmount: '' });
   };
@@ -1213,12 +1271,12 @@ export default function App() {
 
     const updatedInstallments = instList.map(inst => {
       if (inst.number === installmentNumber) {
-        return { 
-          ...inst, 
-          status: 'Pendente', 
-          paymentDate: null, 
+        return {
+          ...inst,
+          status: 'Pendente',
+          paymentDate: null,
           interestPaid: 0,
-          totalPaid: 0 
+          totalPaid: 0
         };
       }
       return inst;
@@ -1272,7 +1330,7 @@ export default function App() {
     }
 
     try {
-      const clientId = editingClient ? editingClient.id : `CLI-${Date.now().toString().slice(-4)}`;
+      const clientId = editingClient ? editingClient.id : generateUniqueId('CLI');
       const clientData = {
         id: clientId,
         name: cliForm.name,
@@ -1304,7 +1362,7 @@ export default function App() {
       setShowClientModal(false);
       setEditingClient(null);
       showToast('Cliente salvo com sucesso na nuvem!');
-      
+
       setCliForm({
         name: '',
         document: '',
@@ -1343,7 +1401,7 @@ export default function App() {
     }
 
     try {
-      const condId = editingCond ? editingCond.id : `COND-${Date.now().toString().slice(-4)}`;
+      const condId = editingCond ? editingCond.id : generateUniqueId('COND');
       const condData = {
         id: condId,
         client: condForm.client,
@@ -1423,7 +1481,7 @@ export default function App() {
     }
 
     const newRole = {
-      id: `ROLE-${Date.now()}`,
+      id: generateUniqueId('ROLE'),
       level: newRoleForm.level || 'Nível Especial — Colaborador',
       name: newRoleForm.name.trim(),
       holder: newRoleForm.holder.trim(),
@@ -1488,10 +1546,10 @@ export default function App() {
 
     setAccessRoles(updatedRoles);
     if (supabase && targetUpdated) {
-      const { id, level, name, holder, email, password, description, permissions } = targetUpdated;
+      const { id, level, name, holder, email, description, permissions } = targetUpdated;
       const { error } = await supabase
         .from('user_roles')
-        .upsert([{ id, level, name, holder, email, password, description, permissions }]);
+        .upsert([{ id, level, name, holder, email, description, permissions }]);
       if (error) {
         console.error('Erro ao salvar permissão:', error);
         alert('Erro ao salvar permissão na nuvem: ' + error.message);
@@ -1537,17 +1595,17 @@ export default function App() {
 
   const exportDREToExcel = () => {
     const { selectedDreYear, monthsFull, receitasRows, receitaBrutaTotalAnual, impostosRows, impostoTotalAnual, receitaLiquidaTotalAnual, custosDiretosRows, custosDiretosTotalAnual, despesasOpRows, despesasOpTotalAnual, lucroLiquidoTotalAnual } = dreGerencialData;
-    
+
     let csv = "\uFEFF";
     csv += `ESTRUTURA DRE — GRUPO MARTINS (${selectedDreYear}) (R$);` + monthsFull.join(";") + `;ACUMULADO ${selectedDreYear};AV %\n`;
-    
+
     csv += "1. RECEITA OPERACIONAL BRUTA;" + monthsFull.map(m => receitasRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0).toFixed(2)).join(";") + ";" + receitaBrutaTotalAnual.toFixed(2) + ";100,0%\n";
     receitasRows.forEach(r => {
       csv += "(+) " + r.nome + ";" + monthsFull.map(m => (r.mensalValues[m]||0).toFixed(2)).join(";") + ";" + r.totalAnual.toFixed(2) + ";" + (receitaBrutaTotalAnual > 0 ? ((r.totalAnual/receitaBrutaTotalAnual)*100).toFixed(1)+"%" : "0,0%") + "\n";
     });
 
     csv += "2. (-) DEDUÇÕES E IMPOSTOS SOBRE FATURAMENTO;" + monthsFull.map(m => impostosRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0).toFixed(2)).join(";") + ";" + impostoTotalAnual.toFixed(2) + ";\n";
-    
+
     csv += "3. (=) RECEITA OPERACIONAL LÍQUIDA;" + monthsFull.map(m => (receitasRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0) - impostosRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0)).toFixed(2)).join(";") + ";" + receitaLiquidaTotalAnual.toFixed(2) + ";\n";
 
     csv += "4. (-) CUSTOS DIRETOS DE PROJETOS E CAMPO (CSP);" + monthsFull.map(m => custosDiretosRows.reduce((a,b)=>a+(b.mensalValues[m]||0),0).toFixed(2)).join(";") + ";" + custosDiretosTotalAnual.toFixed(2) + ";\n";
@@ -1581,7 +1639,7 @@ export default function App() {
 
   const filteredTransactions = useMemo(() => {
     let list = transactions.filter(t => {
-      const matchSearch = (t.entity || '').toLowerCase().includes(txSearch.toLowerCase()) || 
+      const matchSearch = (t.entity || '').toLowerCase().includes(txSearch.toLowerCase()) ||
                           (t.description || '').toLowerCase().includes(txSearch.toLowerCase()) ||
                           (t.id || '').toLowerCase().includes(txSearch.toLowerCase());
       const matchType = txTypeFilter === 'Todos' || t.type === txTypeFilter;
@@ -1613,7 +1671,7 @@ export default function App() {
 
     return list;
   }, [transactions, txSearch, txTypeFilter, txCategoryFilter, txStatusFilter, txDateFrom, txDateTo, sortField, sortDirection]);
-  
+
   const filteredContracts = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
 
@@ -1631,11 +1689,11 @@ export default function App() {
         const pendingInsts = insts.filter(i => i.status !== 'Pago');
 
         if (ctDueDateFilter === 'Vencidos') {
-          matchDueDate = pendingInsts.some(i => i.dueDate && i.dueDate < todayStr);
+          matchDueDate = pendingInsts.some(i => (i.dueDate || i.duedate) && (i.dueDate || i.duedate) < todayStr);
         } else if (ctDueDateFilter === 'Hoje') {
-          matchDueDate = pendingInsts.some(i => i.dueDate && i.dueDate === todayStr);
+          matchDueDate = pendingInsts.some(i => (i.dueDate || i.duedate) && (i.dueDate || i.duedate) === todayStr);
         } else if (ctDueDateFilter === 'AVencer') {
-          matchDueDate = pendingInsts.some(i => i.dueDate && i.dueDate > todayStr);
+          matchDueDate = pendingInsts.some(i => (i.dueDate || i.duedate) && (i.dueDate || i.duedate) > todayStr);
         }
       }
 
@@ -1843,12 +1901,12 @@ export default function App() {
                 onClick={() => {
                   setEditingTx(null);
                   setTxForm({
-                    date: '2026-11-10',
+                    date: `${selectedDreYear}-11-10`,
                     month: 'Nov',
                     type: 'Entrada',
-                    planoContas: planoContasData.receitas[0].codigo,
-                    planocontas: planoContasData.receitas[0].codigo,
-                    category: planoContasData.receitas[0].nome,
+                    planoContas: planoContasData.receitas[0]?.codigo || '1.1.01',
+                    planocontas: planoContasData.receitas[0]?.codigo || '1.1.01',
+                    category: planoContasData.receitas[0]?.nome || '',
                     entity: '',
                     contractId: '—',
                     description: '',
@@ -1889,9 +1947,24 @@ export default function App() {
                         <div className="text-xs uppercase tracking-widest text-emerald-300 font-semibold">
                           Sistema Integrado Supabase
                         </div>
-                        <h2 className="text-xl sm:text-2xl font-extrabold mt-0.5">
-                          Painel Executivo Anual — Exercício 2026
-                        </h2>
+                        <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 mt-0.5">
+                          <h2 className="text-xl sm:text-2xl font-extrabold">
+                            Painel Executivo Anual — Exercício {selectedDreYear}
+                          </h2>
+                          <div className="flex items-center gap-1.5 bg-[#132A1F] px-2.5 py-1 rounded-xl border border-emerald-400/30">
+                            <Calendar className="w-3.5 h-3.5 text-emerald-300" />
+                            <select
+                              value={selectedDreYear}
+                              onChange={(e) => setSelectedDreYear(Number(e.target.value))}
+                              className="bg-transparent text-white font-extrabold text-xs focus:outline-none cursor-pointer"
+                              aria-label="Selecionar ano do Painel Executivo"
+                            >
+                              {ANOS_DRE.map(ano => (
+                                <option key={ano} value={ano} className="text-slate-900">{ano}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
                         <p className="text-xs sm:text-sm text-emerald-100/90 mt-1">
                           Sócio-Diretor Responsável: <strong>{params.socioDiretor}</strong>
                         </p>
@@ -1900,7 +1973,7 @@ export default function App() {
                     <div className="flex flex-wrap items-center justify-center gap-3 bg-[#132A1F]/80 px-4 py-3 rounded-xl border border-emerald-500/30">
                       <div className="text-right">
                         <div className="text-[11px] text-emerald-300 uppercase font-semibold">
-                          Saldo em Caixa
+                          Saldo em Caixa ({selectedDreYear})
                         </div>
                         <div className="text-xl font-black text-white">
                           {formatCurrency(financialData.saldoAtualCaixa)}
@@ -1909,7 +1982,7 @@ export default function App() {
                       <div className="h-9 w-[1px] bg-emerald-600/40 mx-1" />
                       <div className="text-right">
                         <div className="text-[11px] text-amber-300 uppercase font-semibold">
-                          Pró-Labore Pago
+                          Pró-Labore Pago ({selectedDreYear})
                         </div>
                         <div className="text-xl font-black text-amber-300">
                           {formatCurrency(financialData.proLaborePago)}
@@ -1957,7 +2030,7 @@ export default function App() {
 
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                      <h3 className="text-base font-extrabold text-[#1B3B2B] mb-4">Evolução Financeira Mensal (2026)</h3>
+                      <h3 className="text-base font-extrabold text-[#1B3B2B] mb-4">Evolução Financeira Mensal ({selectedDreYear})</h3>
                       <div className="h-80 w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <ComposedChart data={financialData.monthlySeries}>
@@ -1975,7 +2048,7 @@ export default function App() {
                     </div>
 
                     <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
-                      <h3 className="text-base font-extrabold text-[#1B3B2B]">Faturamento por Área</h3>
+                      <h3 className="text-base font-extrabold text-[#1B3B2B]">Faturamento por Área ({selectedDreYear})</h3>
                       <div className="h-56 w-full my-2">
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
@@ -2018,7 +2091,7 @@ export default function App() {
 
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     <div className="px-6 py-4 bg-[#1B3B2B] text-white">
-                      <h3 className="text-sm font-bold uppercase">Histórico de Saques de Pró-Labore (2026)</h3>
+                      <h3 className="text-sm font-bold uppercase">Histórico de Saques de Pró-Labore ({selectedDreYear})</h3>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border-collapse text-xs sm:text-sm">
@@ -2037,7 +2110,7 @@ export default function App() {
                             <tr key={tx.id} className="hover:bg-[#F8F3EF]/50">
                               <td className="py-3 px-4 font-mono font-bold text-[#1B3B2B]">{tx.id}</td>
                               <td className="py-3 px-4">{tx.date}</td>
-                              <td className="py-3 px-4 font-bold">{tx.month}/2026</td>
+                              <td className="py-3 px-4 font-bold">{tx.month}/{selectedDreYear}</td>
                               <td className="py-3 px-4">{tx.description}</td>
                               <td className="py-3 px-4 text-center">
                                 <span className={`px-3 py-1 rounded-full text-xs font-bold ${tx.status === 'Pago / Recebido' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
@@ -2061,7 +2134,7 @@ export default function App() {
                       <h3 className="text-base font-extrabold text-[#1B3B2B]">DRE Gerencial Consolidada (Exercício {selectedDreYear})</h3>
                       <p className="text-xs text-slate-500">Selecione o ano desejado (2026 a 2040) para visualizar a projeção e os lançamentos oficiais.</p>
                     </div>
-                    
+
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="flex items-center gap-2 bg-[#F8F3EF] px-3 py-1.5 rounded-xl border border-[#D5CFC7]">
                         <Calendar className="w-4 h-4 text-[#1B3B2B]" />
@@ -2255,12 +2328,12 @@ export default function App() {
                           onClick={() => {
                             setEditingTx(null);
                             setTxForm({
-                              date: '2026-11-10',
+                              date: `${selectedDreYear}-11-10`,
                               month: 'Nov',
                               type: 'Entrada',
-                              planoContas: planoContasData.receitas[0].codigo,
-                              planocontas: planoContasData.receitas[0].codigo,
-                              category: planoContasData.receitas[0].nome,
+                              planoContas: planoContasData.receitas[0]?.codigo || '1.1.01',
+                              planocontas: planoContasData.receitas[0]?.codigo || '1.1.01',
+                              category: planoContasData.receitas[0]?.nome || '',
                               entity: '',
                               contractId: '—',
                               description: '',
@@ -2281,7 +2354,7 @@ export default function App() {
                       <span className="font-bold text-slate-600 flex items-center gap-1">
                         <Filter className="w-3.5 h-3.5 text-[#1B3B2B]" /> Filtrar colunas:
                       </span>
-                      
+
                       <select
                         value={txTypeFilter}
                         onChange={(e) => setTxTypeFilter(e.target.value)}
@@ -2603,6 +2676,7 @@ export default function App() {
                             <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
                               <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
+                            <th className="py-3.5 px-3 text-center">Vencimento</th>
                             <th onClick={() => handleSort('contractvalue')} className="py-3.5 px-3 text-right cursor-pointer hover:bg-[#2D5A43] transition select-none">
                               <div className="flex items-center justify-end gap-1">Valor Contrato {sortField === 'contractvalue' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
@@ -2615,7 +2689,7 @@ export default function App() {
                         <tbody className="divide-y divide-slate-100">
                           {filteredContracts.length === 0 ? (
                             <tr>
-                              <td colSpan="11" className="py-8 text-center text-slate-400">Nenhum contrato cadastrado com os filtros selecionados.</td>
+                              <td colSpan="12" className="py-8 text-center text-slate-400">Nenhum contrato cadastrado com os filtros selecionados.</td>
                             </tr>
                           ) : (
                             filteredContracts.map((ct) => {
@@ -2623,6 +2697,7 @@ export default function App() {
                               const insts = ct.installmentsData || ct.installmentsdata || [];
                               const rec = insts.filter(i => i.status === 'Pago').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
                               const saldo = val - rec;
+                              const dueBadge = getContractDueBadge(ct);
                               return (
                                 <tr key={ct.id} className="hover:bg-slate-50">
                                   <td className="py-3 px-3 font-mono font-bold text-[#1B3B2B]">{ct.id}</td>
@@ -2633,6 +2708,11 @@ export default function App() {
                                   <td className="py-3 px-3 text-center">
                                     <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
                                       {ct.status}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-3 text-center">
+                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold border ${dueBadge.className}`}>
+                                      {dueBadge.label}
                                     </span>
                                   </td>
                                   <td className="py-3 px-3 text-right font-bold text-[#1B3B2B]"><MaskedValue show={canViewContractValues} value={formatCurrency(val)} /></td>
@@ -2876,24 +2956,24 @@ export default function App() {
                       <table className="w-full text-left border-collapse text-xs">
                         <thead>
                           <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px]">
-                            <th 
-                              onClick={() => handleSort('client')} 
+                            <th
+                              onClick={() => handleSort('client')}
                               className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none"
                             >
                               <div className="flex items-center gap-1.5">
                                 Nome do Cliente {sortField === 'client' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}
                               </div>
                             </th>
-                            <th 
-                              onClick={() => handleSort('service')} 
+                            <th
+                              onClick={() => handleSort('service')}
                               className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none"
                             >
                               <div className="flex items-center gap-1.5">
                                 Condicionantes / Serviço {sortField === 'service' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}
                               </div>
                             </th>
-                            <th 
-                              onClick={() => handleSort('duedate')} 
+                            <th
+                              onClick={() => handleSort('duedate')}
                               className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none"
                             >
                               <div className="flex items-center gap-1.5">
@@ -3070,11 +3150,8 @@ export default function App() {
                         <input
                           type="number"
                           value={params.saldoInicialCaixa}
-                          onChange={(e) => {
-                            const updated = { ...params, saldoInicialCaixa: Number(e.target.value) };
-                            setParams(updated);
-                            syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated, availableAgencies);
-                          }}
+                          onChange={(e) => setParams({ ...params, saldoInicialCaixa: Number(e.target.value) })}
+                          onBlur={() => syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, params, availableAgencies)}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
                         />
                       </div>
@@ -3085,11 +3162,8 @@ export default function App() {
                         <input
                           type="number"
                           value={params.metaMensalReceita}
-                          onChange={(e) => {
-                            const updated = { ...params, metaMensalReceita: Number(e.target.value) };
-                            setParams(updated);
-                            syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated, availableAgencies);
-                          }}
+                          onChange={(e) => setParams({ ...params, metaMensalReceita: Number(e.target.value) })}
+                          onBlur={() => syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, params, availableAgencies)}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
                         />
                       </div>
@@ -3100,11 +3174,8 @@ export default function App() {
                         <input
                           type="number"
                           value={params.proLaboreAlvoMensal}
-                          onChange={(e) => {
-                            const updated = { ...params, proLaboreAlvoMensal: Number(e.target.value) };
-                            setParams(updated);
-                            syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated, availableAgencies);
-                          }}
+                          onChange={(e) => setParams({ ...params, proLaboreAlvoMensal: Number(e.target.value) })}
+                          onBlur={() => syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, params, availableAgencies)}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
                         />
                       </div>
@@ -3115,11 +3186,8 @@ export default function App() {
                         <input
                           type="text"
                           value={params.socioDiretor}
-                          onChange={(e) => {
-                            const updated = { ...params, socioDiretor: e.target.value };
-                            setParams(updated);
-                            syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, updated, availableAgencies);
-                          }}
+                          onChange={(e) => setParams({ ...params, socioDiretor: e.target.value })}
+                          onBlur={() => syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, params, availableAgencies)}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-800 bg-white"
                         />
                       </div>
@@ -3136,6 +3204,7 @@ export default function App() {
                       </div>
                       <button
                         onClick={() => {
+                          setReopenContractAfterPlano(false);
                           setPlanoForm({ tipo: 'receitas', codigo: '', nome: '', originalCodigo: null });
                           setShowPlanoModal(true);
                         }}
@@ -3155,6 +3224,7 @@ export default function App() {
                               <div className="flex items-center gap-1 shrink-0">
                                 <button
                                   onClick={() => {
+                                    setReopenContractAfterPlano(false);
                                     setPlanoForm({ tipo: 'receitas', codigo: rev.codigo, nome: rev.nome, originalCodigo: rev.codigo });
                                     setShowPlanoModal(true);
                                   }}
@@ -3195,6 +3265,7 @@ export default function App() {
                               <div className="flex items-center gap-1 shrink-0">
                                 <button
                                   onClick={() => {
+                                    setReopenContractAfterPlano(false);
                                     setPlanoForm({ tipo: 'despesas', codigo: desp.codigo, nome: desp.nome, originalCodigo: desp.codigo });
                                     setShowPlanoModal(true);
                                   }}
@@ -3244,7 +3315,16 @@ export default function App() {
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="text-base font-extrabold text-[#1B3B2B]">{planoForm.originalCodigo ? 'Editar Conta' : 'Novo Plano de Contas'}</h3>
-              <button onClick={() => setShowPlanoModal(false)} className="text-slate-500 hover:text-slate-700 cursor-pointer">
+              <button
+                onClick={() => {
+                  setShowPlanoModal(false);
+                  if (reopenContractAfterPlano) {
+                    setReopenContractAfterPlano(false);
+                    setShowContractModal(true);
+                  }
+                }}
+                className="text-slate-500 hover:text-slate-700 cursor-pointer"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -3253,18 +3333,27 @@ export default function App() {
               if (!planoForm.codigo || !planoForm.nome) return;
               const targetListKey = planoForm.tipo;
               const list = planoContasData[targetListKey];
-              
+              const newItem = { codigo: planoForm.codigo.trim(), nome: planoForm.nome.trim() };
+
               let updatedList;
               if (planoForm.originalCodigo) {
-                updatedList = list.map(item => item.codigo === planoForm.originalCodigo ? { codigo: planoForm.codigo, nome: planoForm.nome } : item);
+                updatedList = list.map(item => item.codigo === planoForm.originalCodigo ? newItem : item);
               } else {
-                updatedList = [...list, { codigo: planoForm.codigo, nome: planoForm.nome }];
+                updatedList = [...list, newItem];
               }
 
               const updatedPlano = { ...planoContasData, [targetListKey]: updatedList };
               setPlanoContasData(updatedPlano);
               syncSettingsToCloud(availableSegments, availableStatuses, updatedPlano, params, availableAgencies);
-              setShowPlanoModal(false);
+
+              if (targetListKey === 'receitas' && reopenContractAfterPlano) {
+                setCtForm(prev => ({ ...prev, service: newItem.nome }));
+                setReopenContractAfterPlano(false);
+                setShowPlanoModal(false);
+                setShowContractModal(true);
+              } else {
+                setShowPlanoModal(false);
+              }
               showToast('Plano de Contas salvo e sincronizado!');
             }} className="space-y-3 text-xs">
               <div>
@@ -3301,7 +3390,19 @@ export default function App() {
                 />
               </div>
               <div className="flex justify-end gap-2 pt-3 border-t">
-                <button type="button" onClick={() => setShowPlanoModal(false)} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPlanoModal(false);
+                    if (reopenContractAfterPlano) {
+                      setReopenContractAfterPlano(false);
+                      setShowContractModal(true);
+                    }
+                  }}
+                  className="px-4 py-2 rounded-xl border font-bold cursor-pointer"
+                >
+                  Cancelar
+                </button>
                 <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar Conta</button>
               </div>
             </form>
@@ -3338,29 +3439,31 @@ export default function App() {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">PLANO DE CONTAS</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold text-slate-700 uppercase">PLANO DE CONTAS (RECEITAS 1.X)</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowContractModal(false);
+                      setReopenContractAfterPlano(true);
+                      setPlanoForm({ tipo: 'receitas', codigo: '', nome: '', originalCodigo: null });
+                      setShowPlanoModal(true);
+                    }}
+                    className="text-[11px] font-extrabold text-[#1B3B2B] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> + Novo Plano
+                  </button>
+                </div>
                 <select
                   value={ctForm.service}
                   onChange={(e) => setCtForm({ ...ctForm, service: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
                   required
                 >
-                  <option value="" disabled>Selecione um plano de contas...</option>
-                  {ctForm.service &&
-                    !planoContasData.receitas.some(r => r.nome === ctForm.service) &&
-                    !planoContasData.despesas.some(d => d.nome === ctForm.service) && (
-                      <option value={ctForm.service}>{ctForm.service}</option>
-                    )}
-                  <optgroup label="Receitas (1.X)">
-                    {planoContasData.receitas.map(r => (
-                      <option key={r.codigo} value={r.nome}>{r.nome}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Despesas (2.X)">
-                    {planoContasData.despesas.map(d => (
-                      <option key={d.codigo} value={d.nome}>{d.nome}</option>
-                    ))}
-                  </optgroup>
+                  <option value="" disabled>Selecione uma conta de receita...</option>
+                  {planoContasData.receitas.map(r => (
+                    <option key={r.codigo} value={r.nome}>{r.nome}</option>
+                  ))}
                 </select>
               </div>
 
@@ -3633,7 +3736,7 @@ export default function App() {
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl border">
             <h3 className="text-base font-extrabold text-[#1B3B2B]">Registrar Recebimento da Parcela</h3>
-            <p className="text-xs text-slate-600">Informe a data de recebimento e juros eventuais. O sistema lançará automaticamente no Livro Caixa.</p>
+            <p className="text-xs text-slate-600">Informe a data de recebimento e juros eventuais. O sistema lançará automaticamente no Livro Caixa e na DRE do plano de contas do contrato.</p>
             <div className="space-y-3 text-xs">
               <div>
                 <label className="block font-bold uppercase mb-1">Data do Recebimento</label>
@@ -3734,8 +3837,7 @@ export default function App() {
                     onChange={(e) => {
                       const dt = e.target.value;
                       const mNum = dt.split('-')[1];
-                      const mNames = { '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez' };
-                      setTxForm({ ...txForm, date: dt, month: mNames[mNum] || 'Nov' });
+                      setTxForm({ ...txForm, date: dt, month: MONTH_NAMES_MAP[mNum] || 'Nov' });
                     }}
                     className="w-full px-3.5 py-2.5 rounded-xl border font-bold"
                     required
@@ -4264,14 +4366,14 @@ export default function App() {
               Deseja realmente remover a condicionante de <strong>{deleteCondTarget.client}</strong>?
             </p>
             <div className="flex justify-center gap-2 pt-2">
-              <button 
-                onClick={() => setDeleteCondTarget(null)} 
+              <button
+                onClick={() => setDeleteCondTarget(null)}
                 className="px-4 py-2 rounded-xl border font-bold text-xs text-slate-600 hover:bg-slate-50 cursor-pointer"
               >
                 Cancelar
               </button>
-              <button 
-                onClick={confirmDeleteCondicionante} 
+              <button
+                onClick={confirmDeleteCondicionante}
                 className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer"
               >
                 Sim, Excluir
@@ -4516,15 +4618,54 @@ export default function App() {
                 {authErrorMsg}
               </div>
             )}
-            <form onSubmit={(e) => {
+            <form onSubmit={async (e) => {
               e.preventDefault();
               setAuthErrorMsg('');
-              const found = accessRoles.find(r => r.email && r.email.toLowerCase() === authEmailInput.trim().toLowerCase());
+              const normalizedEmail = authEmailInput.trim().toLowerCase();
+              const cleanPassword = authPasswordInput.trim();
+
+              let rpcUser = null;
+              let rpcFailed = false;
+
+              if (supabase) {
+                const { data, error } = await supabase.rpc('check_user_login', {
+                  p_email: normalizedEmail,
+                  p_password: cleanPassword
+                });
+                if (error) {
+                  rpcFailed = true;
+                } else if (data) {
+                  rpcUser = Array.isArray(data) ? data[0] : data;
+                }
+              }
+
+              if (!rpcFailed) {
+                if (!rpcUser || !rpcUser.id) {
+                  setAuthErrorMsg('E-mail ou senha incorretos.');
+                  return;
+                }
+                setAccessRoles((prev) => {
+                  const exists = prev.some((r) => r.id === rpcUser.id);
+                  return exists
+                    ? prev.map((r) => (r.id === rpcUser.id ? { ...r, ...rpcUser } : r))
+                    : [...prev, rpcUser];
+                });
+                setActiveRoleId(rpcUser.id);
+                const isMasterUser = rpcUser.id === 'ROLE-01-PEDRO' || (rpcUser.email || '').toLowerCase() === 'pedrosmelos@gmail.com';
+                const firstOpenTab = navItems.find(item => (isMasterUser && item.permKey === 'acessos') || Boolean(rpcUser.permissions?.[item.permKey]?.view));
+                if (firstOpenTab) setActiveTab(firstOpenTab.id);
+
+                setAuthLoggedIn(true);
+                showToast(`Bem-vindo(a), ${rpcUser.holder}! Acesso autorizado.`);
+                return;
+              }
+
+              const found = accessRoles.find(r => r.email && r.email.toLowerCase() === normalizedEmail);
               if (!found) {
                 setAuthErrorMsg('E-mail não cadastrado.');
                 return;
               }
-              if (found.password && found.password !== authPasswordInput.trim()) {
+              if (found.password && found.password !== cleanPassword) {
                 setAuthErrorMsg('Senha incorreta.');
                 return;
               }
