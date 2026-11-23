@@ -417,10 +417,10 @@ export default function App() {
   const [ctSearch, setCtSearch] = useState('');
   const [ctStatusFilter, setCtStatusFilter] = useState('Todos');
   const [ctDueDateFilter, setCtDueDateFilter] = useState('Todos');
+  const [ctDateFrom, setCtDateFrom] = useState('');
+  const [ctDateTo, setCtDateTo] = useState('');
 
   const [cliSearch, setCliSearch] = useState('');
-  const [cliDateFrom, setCliDateFrom] = useState('');
-  const [cliDateTo, setCliDateTo] = useState('');
 
   const [condSearch, setCondSearch] = useState('');
   const [condStatusFilter, setCondStatusFilter] = useState('Todos');
@@ -1639,7 +1639,16 @@ export default function App() {
         }
       }
 
-      return matchSearch && matchStatus && matchDueDate;
+      let matchPeriod = true;
+      if (ctDateFrom || ctDateTo) {
+        const periodInsts = c.installmentsData || c.installmentsdata || [];
+        matchPeriod = periodInsts.some(i => {
+          const d = String(i.dueDate || i.duedate || '').slice(0, 10);
+          return d && (!ctDateFrom || d >= ctDateFrom) && (!ctDateTo || d <= ctDateTo);
+        });
+      }
+
+      return matchSearch && matchStatus && matchDueDate && matchPeriod;
     });
 
     if (sortField) {
@@ -1661,15 +1670,10 @@ export default function App() {
     }
 
     return list;
-  }, [contracts, ctSearch, ctStatusFilter, ctDueDateFilter, sortField, sortDirection]);
+  }, [contracts, ctSearch, ctStatusFilter, ctDueDateFilter, ctDateFrom, ctDateTo, sortField, sortDirection]);
 
   const filteredClients = useMemo(() => {
-    let list = clients.filter(cli => {
-      const matchName = (cli.name || '').toLowerCase().includes(cliSearch.toLowerCase());
-      const cliDay = String(cli.created_at || cli.createdat || cli.createdAt || '').slice(0, 10);
-      const matchDate = (!cliDateFrom || (cliDay && cliDay >= cliDateFrom)) && (!cliDateTo || (cliDay && cliDay <= cliDateTo));
-      return matchName && matchDate;
-    });
+    let list = clients.filter(cli => (cli.name || '').toLowerCase().includes(cliSearch.toLowerCase()));
     if (sortField) {
       list.sort((a, b) => {
         let valA = a[sortField] || a[sortField?.toLowerCase()] || '';
@@ -1683,7 +1687,7 @@ export default function App() {
       });
     }
     return list;
-  }, [clients, cliSearch, cliDateFrom, cliDateTo, sortField, sortDirection]);
+  }, [clients, cliSearch, sortField, sortDirection]);
 
   const filteredCondicionantes = useMemo(() => {
     let list = condicionantes.filter(cond => {
@@ -2520,6 +2524,34 @@ export default function App() {
                         <option value="Em Andamento">Em Andamento</option>
                         <option value="Concluído / Licença Emitida">Concluído / Licença Emitida</option>
                       </select>
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <span className="font-bold text-slate-600">Período:</span>
+                        <input
+                          type="date"
+                          value={ctDateFrom}
+                          max={ctDateTo || undefined}
+                          onChange={(e) => setCtDateFrom(e.target.value)}
+                          className="px-2.5 py-2 rounded-xl border border-slate-200 bg-white font-semibold cursor-pointer"
+                          title="Data inicial"
+                        />
+                        <span className="text-slate-500 font-semibold">até</span>
+                        <input
+                          type="date"
+                          value={ctDateTo}
+                          min={ctDateFrom || undefined}
+                          onChange={(e) => setCtDateTo(e.target.value)}
+                          className="px-2.5 py-2 rounded-xl border border-slate-200 bg-white font-semibold cursor-pointer"
+                          title="Data final"
+                        />
+                        {(ctDateFrom !== '' || ctDateTo !== '') && (
+                          <button
+                            onClick={() => { setCtDateFrom(''); setCtDateTo(''); }}
+                            className="text-rose-600 font-bold hover:underline ml-1 cursor-pointer"
+                          >
+                            Limpar
+                          </button>
+                        )}
+                      </div>
                       {hasPermission('contratos', 'create') && (
                         <button
                           onClick={() => {
@@ -2664,7 +2696,7 @@ export default function App() {
 
               {activeTab === 'clientes' && (
                 <div className="space-y-6">
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap gap-3 items-center justify-between">
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
                     <div className="relative flex-1 max-w-md">
                       <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                       <input
@@ -2674,34 +2706,6 @@ export default function App() {
                         placeholder="Buscar clientes..."
                         className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
                       />
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs">
-                      <span className="font-bold text-slate-600">Período:</span>
-                      <input
-                        type="date"
-                        value={cliDateFrom}
-                        max={cliDateTo || undefined}
-                        onChange={(e) => setCliDateFrom(e.target.value)}
-                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold cursor-pointer"
-                        title="Data inicial"
-                      />
-                      <span className="text-slate-500 font-semibold">até</span>
-                      <input
-                        type="date"
-                        value={cliDateTo}
-                        min={cliDateFrom || undefined}
-                        onChange={(e) => setCliDateTo(e.target.value)}
-                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold cursor-pointer"
-                        title="Data final"
-                      />
-                      {(cliDateFrom !== '' || cliDateTo !== '') && (
-                        <button
-                          onClick={() => { setCliDateFrom(''); setCliDateTo(''); }}
-                          className="text-rose-600 font-bold hover:underline ml-1 cursor-pointer"
-                        >
-                          Limpar
-                        </button>
-                      )}
                     </div>
                     {hasPermission('clientes', 'create') && (
                       <button
