@@ -1710,14 +1710,14 @@ export default function App() {
           return;
         }
 
-        const redirectUrl = typeof window !== 'undefined' ? window.location.href : '';
-        await supabase.auth.signUp({
-          email: normalizedEmail,
-          password: initialPassword
-        });
-        const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-          redirectTo: redirectUrl
-        });
+const redirectUrl =
+  window.location.hostname === 'localhost'
+    ? window.location.origin
+    : 'https://grupomartins.vercel.app'; // ou a URL exata do seu ERP
+
+await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+  redirectTo: redirectUrl,
+});
         if (resetError) {
           console.error('Erro ao enviar e-mail de definição de senha:', resetError);
         }
