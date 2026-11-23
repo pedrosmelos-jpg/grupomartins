@@ -411,12 +411,16 @@ export default function App() {
   const [txTypeFilter, setTxTypeFilter] = useState('Todos');
   const [txCategoryFilter, setTxCategoryFilter] = useState('Todas');
   const [txStatusFilter, setTxStatusFilter] = useState('Todos');
+  const [txDateFrom, setTxDateFrom] = useState('');
+  const [txDateTo, setTxDateTo] = useState('');
 
   const [ctSearch, setCtSearch] = useState('');
   const [ctStatusFilter, setCtStatusFilter] = useState('Todos');
   const [ctDueDateFilter, setCtDueDateFilter] = useState('Todos');
 
   const [cliSearch, setCliSearch] = useState('');
+  const [cliDateFrom, setCliDateFrom] = useState('');
+  const [cliDateTo, setCliDateTo] = useState('');
 
   const [condSearch, setCondSearch] = useState('');
   const [condStatusFilter, setCondStatusFilter] = useState('Todos');
@@ -1583,8 +1587,10 @@ export default function App() {
       const matchType = txTypeFilter === 'Todos' || t.type === txTypeFilter;
       const matchCategory = txCategoryFilter === 'Todas' || t.category === txCategoryFilter || t.planocontas === txCategoryFilter || t.planoContas === txCategoryFilter;
       const matchStatus = txStatusFilter === 'Todos' || t.status === txStatusFilter;
+      const txDay = String(t.date || '').slice(0, 10);
+      const matchDate = (!txDateFrom || (txDay && txDay >= txDateFrom)) && (!txDateTo || (txDay && txDay <= txDateTo));
 
-      return matchSearch && matchType && matchCategory && matchStatus;
+      return matchSearch && matchType && matchCategory && matchStatus && matchDate;
     });
 
     if (sortField) {
@@ -1606,7 +1612,7 @@ export default function App() {
     }
 
     return list;
-  }, [transactions, txSearch, txTypeFilter, txCategoryFilter, txStatusFilter, sortField, sortDirection]);
+  }, [transactions, txSearch, txTypeFilter, txCategoryFilter, txStatusFilter, txDateFrom, txDateTo, sortField, sortDirection]);
   
   const filteredContracts = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
@@ -1658,7 +1664,12 @@ export default function App() {
   }, [contracts, ctSearch, ctStatusFilter, ctDueDateFilter, sortField, sortDirection]);
 
   const filteredClients = useMemo(() => {
-    let list = clients.filter(cli => (cli.name || '').toLowerCase().includes(cliSearch.toLowerCase()));
+    let list = clients.filter(cli => {
+      const matchName = (cli.name || '').toLowerCase().includes(cliSearch.toLowerCase());
+      const cliDay = String(cli.created_at || cli.createdat || cli.createdAt || '').slice(0, 10);
+      const matchDate = (!cliDateFrom || (cliDay && cliDay >= cliDateFrom)) && (!cliDateTo || (cliDay && cliDay <= cliDateTo));
+      return matchName && matchDate;
+    });
     if (sortField) {
       list.sort((a, b) => {
         let valA = a[sortField] || a[sortField?.toLowerCase()] || '';
@@ -1672,7 +1683,7 @@ export default function App() {
       });
     }
     return list;
-  }, [clients, cliSearch, sortField, sortDirection]);
+  }, [clients, cliSearch, cliDateFrom, cliDateTo, sortField, sortDirection]);
 
   const filteredCondicionantes = useMemo(() => {
     let list = condicionantes.filter(cond => {
@@ -2301,13 +2312,36 @@ export default function App() {
                         <option value="Pendente">Pendente</option>
                       </select>
 
-                      {(txTypeFilter !== 'Todos' || txCategoryFilter !== 'Todas' || txStatusFilter !== 'Todos' || txSearch !== '') && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-slate-600">Período:</span>
+                        <input
+                          type="date"
+                          value={txDateFrom}
+                          max={txDateTo || undefined}
+                          onChange={(e) => setTxDateFrom(e.target.value)}
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold cursor-pointer"
+                          title="Data inicial"
+                        />
+                        <span className="text-slate-500 font-semibold">até</span>
+                        <input
+                          type="date"
+                          value={txDateTo}
+                          min={txDateFrom || undefined}
+                          onChange={(e) => setTxDateTo(e.target.value)}
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold cursor-pointer"
+                          title="Data final"
+                        />
+                      </div>
+
+                      {(txTypeFilter !== 'Todos' || txCategoryFilter !== 'Todas' || txStatusFilter !== 'Todos' || txSearch !== '' || txDateFrom !== '' || txDateTo !== '') && (
                         <button
                           onClick={() => {
                             setTxTypeFilter('Todos');
                             setTxCategoryFilter('Todas');
                             setTxStatusFilter('Todos');
                             setTxSearch('');
+                            setTxDateFrom('');
+                            setTxDateTo('');
                           }}
                           className="text-rose-600 font-bold hover:underline ml-auto cursor-pointer"
                         >
@@ -2630,7 +2664,7 @@ export default function App() {
 
               {activeTab === 'clientes' && (
                 <div className="space-y-6">
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap gap-3 items-center justify-between">
                     <div className="relative flex-1 max-w-md">
                       <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                       <input
@@ -2640,6 +2674,34 @@ export default function App() {
                         placeholder="Buscar clientes..."
                         className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
                       />
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <span className="font-bold text-slate-600">Período:</span>
+                      <input
+                        type="date"
+                        value={cliDateFrom}
+                        max={cliDateTo || undefined}
+                        onChange={(e) => setCliDateFrom(e.target.value)}
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold cursor-pointer"
+                        title="Data inicial"
+                      />
+                      <span className="text-slate-500 font-semibold">até</span>
+                      <input
+                        type="date"
+                        value={cliDateTo}
+                        min={cliDateFrom || undefined}
+                        onChange={(e) => setCliDateTo(e.target.value)}
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold cursor-pointer"
+                        title="Data final"
+                      />
+                      {(cliDateFrom !== '' || cliDateTo !== '') && (
+                        <button
+                          onClick={() => { setCliDateFrom(''); setCliDateTo(''); }}
+                          className="text-rose-600 font-bold hover:underline ml-1 cursor-pointer"
+                        >
+                          Limpar
+                        </button>
+                      )}
                     </div>
                     {hasPermission('clientes', 'create') && (
                       <button
