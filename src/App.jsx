@@ -354,24 +354,42 @@ const MaskedValue = ({ show, value }) =>
     </span>
   );
 
-const getContractDueBadge = (contract) => {
+const getInstallmentSituationBadge = (contract) => {
   const todayStr = new Date().toISOString().split('T')[0];
   const insts = contract.installmentsData || contract.installmentsdata || [];
   const pending = insts.filter(i => i.status !== 'Pago');
 
-  if (pending.length === 0) {
-    return { label: 'Quitado', className: 'bg-emerald-100 text-emerald-800 border-emerald-200' };
+  if (insts.length > 0 && pending.length === 0) {
+    return {
+      label: '✓ Quitado',
+      dotColor: null,
+      className: 'bg-emerald-100/90 text-emerald-800 border-emerald-200'
+    };
   }
-  const hasOverdue = pending.some(i => (i.dueDate || i.duedate) && (i.dueDate || i.duedate) < todayStr);
-  if (hasOverdue) {
-    return { label: 'Vencido', className: 'bg-rose-100 text-rose-800 border-rose-300' };
+  const overdueCount = pending.filter(i => (i.dueDate || i.duedate) && (i.dueDate || i.duedate) < todayStr).length;
+  if (overdueCount > 0) {
+    return {
+      label: `${overdueCount} ${overdueCount === 1 ? 'Vencida' : 'Vencidas'}`,
+      dotColor: 'bg-rose-600',
+      className: 'bg-rose-100/90 text-rose-700 border-rose-200'
+    };
   }
   const dueToday = pending.some(i => (i.dueDate || i.duedate) && (i.dueDate || i.duedate) === todayStr);
   if (dueToday) {
-    return { label: 'Vence Hoje', className: 'bg-amber-100 text-amber-800 border-amber-300' };
+    return {
+      label: 'Vence Hoje',
+      dotColor: 'bg-amber-500',
+      className: 'bg-amber-100/90 text-amber-800 border-amber-200'
+    };
   }
-  return { label: 'A Vencer', className: 'bg-sky-100 text-sky-800 border-sky-200' };
+  return {
+    label: 'Em Dia',
+    dotColor: 'bg-emerald-600',
+    className: 'bg-emerald-100/90 text-emerald-800 border-emerald-200'
+  };
 };
+
+const CONTRACTS_PER_PAGE = 6;
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -439,6 +457,7 @@ export default function App() {
   const [ctDueDateFilter, setCtDueDateFilter] = useState('Todos');
   const [ctDateFrom, setCtDateFrom] = useState('');
   const [ctDateTo, setCtDateTo] = useState('');
+  const [ctPage, setCtPage] = useState(1);
 
   const [cliSearch, setCliSearch] = useState('');
 
@@ -1730,6 +1749,17 @@ export default function App() {
     return list;
   }, [contracts, ctSearch, ctStatusFilter, ctDueDateFilter, ctDateFrom, ctDateTo, sortField, sortDirection]);
 
+  useEffect(() => {
+    setCtPage(1);
+  }, [ctSearch, ctStatusFilter, ctDueDateFilter, ctDateFrom, ctDateTo]);
+
+  const totalContractPages = Math.max(1, Math.ceil(filteredContracts.length / CONTRACTS_PER_PAGE));
+  const safeCtPage = Math.min(ctPage, totalContractPages);
+  const paginatedContracts = useMemo(() => {
+    const start = (safeCtPage - 1) * CONTRACTS_PER_PAGE;
+    return filteredContracts.slice(start, start + CONTRACTS_PER_PAGE);
+  }, [filteredContracts, safeCtPage]);
+
   const filteredClients = useMemo(() => {
     let list = clients.filter(cli => (cli.name || '').toLowerCase().includes(cliSearch.toLowerCase()));
     if (sortField) {
@@ -2539,57 +2569,46 @@ export default function App() {
               )}
 
               {activeTab === 'contratos' && (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">VALOR TOTAL CONTRATADO ({contracts.length} CONTRATOS)</div>
-                      <div className="text-2xl font-black text-[#1B3B2B] mt-2"><MaskedValue show={canViewContractValues} value={formatCurrency(financialData.totalContratado)} /></div>
-                      <div className="text-xs text-slate-500 mt-1">Carteira Ambiental SEMA-MT & SST</div>
-                    </div>
-                    <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">TOTAL JÁ RECEBIDO DOS CONTRATOS</div>
-                      <div className="text-2xl font-black text-emerald-700 mt-2"><MaskedValue show={canViewContractValues} value={formatCurrency(financialData.totalRecebidoContratos)} /></div>
-                      <div className="text-xs text-emerald-600 mt-1">Parcelas quitadas via baixa</div>
-                    </div>
-                    <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">SALDO A FATURAR / RECEBER</div>
-                      <div className="text-2xl font-black text-amber-600 mt-2"><MaskedValue show={canViewContractValues} value={formatCurrency(financialData.saldoAFaturar)} /></div>
-                      <div className="text-xs text-slate-500 mt-1">Parcelas pendentes de recebimento</div>
-                    </div>
-                    <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">MARGEM TÉCNICA MÉDIA DOS PROJETOS</div>
-                      <div className="text-2xl font-black text-[#1B3B2B] mt-2">{financialData.margemMedia.toFixed(1).replace('.', ',')}%</div>
-                      <div className="text-xs text-slate-500 mt-1">Após custos laboratoriais, drone e taxas</div>
+                <div className="space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-2xl sm:text-3xl font-extrabold text-[#1B3B2B] tracking-tight">
+                        Contratos Ambientais &amp; SST
+                      </h2>
+                      <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+                        Gestão de Contratos de Licenciamento Ambiental e SST
+                      </p>
                     </div>
                   </div>
 
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
-                    <div className="relative flex-1 min-w-[280px]">
-                      <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                      <input
-                        type="text"
-                        value={ctSearch}
-                        onChange={(e) => setCtSearch(e.target.value)}
-                        placeholder="Buscar por cliente, fazenda, órgão, observação ou código..."
-                        className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
-                      />
-                    </div>
-                    <div className="flex flex-wrap items-center gap-3">
+                  <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[260px]">
+                      <div className="relative flex-1 min-w-[200px] max-w-xs">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                        <input
+                          type="text"
+                          value={ctSearch}
+                          onChange={(e) => setCtSearch(e.target.value)}
+                          placeholder="Buscar cliente ou serviço..."
+                          className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:outline-none focus:border-[#1B3B2B]"
+                        />
+                      </div>
+
                       <select
                         value={ctDueDateFilter}
                         onChange={(e) => setCtDueDateFilter(e.target.value)}
-                        className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white text-[#1B3B2B] cursor-pointer"
+                        className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white text-slate-700 cursor-pointer"
                       >
                         <option value="Todos">Vencimento: Todos</option>
-                        <option value="Vencidos">🔴 Vencidos</option>
-                        <option value="Hoje">🟡 Vencendo Hoje</option>
-                        <option value="AVencer">🟢 A Vencer</option>
+                        <option value="Vencidos">Vencidos</option>
+                        <option value="Hoje">Vencendo Hoje</option>
+                        <option value="AVencer">A Vencer</option>
                       </select>
 
                       <select
                         value={ctStatusFilter}
                         onChange={(e) => setCtStatusFilter(e.target.value)}
-                        className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white cursor-pointer"
+                        className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white text-slate-700 cursor-pointer"
                       >
                         <option value="Todos">Status Técnico: Todos</option>
                         <option value="Em Elaboração Técnica">Em Elaboração Técnica</option>
@@ -2597,171 +2616,150 @@ export default function App() {
                         <option value="Em Andamento">Em Andamento</option>
                         <option value="Concluído / Licença Emitida">Concluído / Licença Emitida</option>
                       </select>
-                      <div className="flex items-center gap-1.5 text-xs">
-                        <span className="font-bold text-slate-600">Período:</span>
+
+                      <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                        <span className="font-medium">Período:</span>
                         <input
                           type="date"
                           value={ctDateFrom}
                           max={ctDateTo || undefined}
                           onChange={(e) => setCtDateFrom(e.target.value)}
-                          className="px-2.5 py-2 rounded-xl border border-slate-200 bg-white font-semibold cursor-pointer"
+                          className="px-2 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-medium cursor-pointer"
                           title="Data inicial"
                         />
-                        <span className="text-slate-500 font-semibold">até</span>
+                        <span className="text-slate-400">a</span>
                         <input
                           type="date"
                           value={ctDateTo}
                           min={ctDateFrom || undefined}
                           onChange={(e) => setCtDateTo(e.target.value)}
-                          className="px-2.5 py-2 rounded-xl border border-slate-200 bg-white font-semibold cursor-pointer"
+                          className="px-2 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-medium cursor-pointer"
                           title="Data final"
                         />
-                        {(ctDateFrom !== '' || ctDateTo !== '') && (
-                          <button
-                            onClick={() => { setCtDateFrom(''); setCtDateTo(''); }}
-                            className="text-rose-600 font-bold hover:underline ml-1 cursor-pointer"
-                          >
-                            Limpar
-                          </button>
-                        )}
                       </div>
-                      {hasPermission('contratos', 'create') && (
-                        <button
-                          onClick={() => {
-                            setEditingContract(null);
-                            setShowAgencyManager(false);
-                            setCtForm({
-                              client: '',
-                              service: planoContasData.receitas[0]?.nome || '',
-                              agency: availableAgencies[0] || 'SEMA-MT',
-                              status: 'Em Elaboração Técnica',
-                              contractValue: '',
-                              directCosts: '',
-                              installmentsCount: '1',
-                              installmentDates: [`${selectedDreYear}-12-30`, '', '', '', '', '', '', '', '', '', '', ''],
-                              installmentAmounts: ['', '', '', '', '', '', '', '', '', '', '', ''],
-                              paymentMethod: 'PIX',
-                              observation: ''
-                            });
-                            setShowContractModal(true);
-                          }}
-                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
-                        >
-                          <Plus className="w-4 h-4" /> Novo Contrato Ambiental / SST
-                        </button>
-                      )}
                     </div>
+
+                    {hasPermission('contratos', 'create') && (
+                      <button
+                        onClick={() => {
+                          setEditingContract(null);
+                          setShowAgencyManager(false);
+                          setCtForm({
+                            client: '',
+                            service: planoContasData.receitas[0]?.nome || '',
+                            agency: availableAgencies[0] || 'SEMA-MT',
+                            status: 'Em Elaboração Técnica',
+                            contractValue: '',
+                            directCosts: '',
+                            installmentsCount: '1',
+                            installmentDates: [`${selectedDreYear}-12-30`, '', '', '', '', '', '', '', '', '', '', ''],
+                            installmentAmounts: ['', '', '', '', '', '', '', '', '', '', '', ''],
+                            paymentMethod: 'PIX',
+                            observation: ''
+                          });
+                          setShowContractModal(true);
+                        }}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#244B38] shadow-sm cursor-pointer shrink-0"
+                      >
+                        <Plus className="w-4 h-4" /> Novo Contrato Ambiental / SST
+                      </button>
+                    )}
                   </div>
 
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border-collapse text-xs">
                         <thead>
-                          <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px]">
-                            <th onClick={() => handleSort('id')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Código {sortField === 'id' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                          <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px] tracking-wider">
+                            <th onClick={() => handleSort('id')} className="py-3.5 px-4 cursor-pointer hover:bg-[#244B38] transition select-none">
+                              <div className="flex items-center gap-1">CÓDIGO {sortField === 'id' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
-                            <th onClick={() => handleSort('client')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Cliente / Empreendimento {sortField === 'client' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            <th onClick={() => handleSort('client')} className="py-3.5 px-4 cursor-pointer hover:bg-[#244B38] transition select-none">
+                              <div className="flex items-center gap-1">CLIENTE / EMPREENDIMENTO {sortField === 'client' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
-                            <th onClick={() => handleSort('service')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Plano de Contas {sortField === 'service' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            <th onClick={() => handleSort('service')} className="py-3.5 px-4 cursor-pointer hover:bg-[#244B38] transition select-none">
+                              <div className="flex items-center gap-1">PLANO DE CONTAS {sortField === 'service' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
-                            <th onClick={() => handleSort('agency')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Órgão {sortField === 'agency' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            <th onClick={() => handleSort('agency')} className="py-3.5 px-4 cursor-pointer hover:bg-[#244B38] transition select-none">
+                              <div className="flex items-center gap-1">ÓRGÃO / SETOR {sortField === 'agency' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
-                            <th onClick={() => handleSort('observation')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Observação {sortField === 'observation' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                            <th className="py-3.5 px-4 text-center">SITUAÇÃO PARCELA</th>
+                            <th onClick={() => handleSort('contractvalue')} className="py-3.5 px-4 text-right cursor-pointer hover:bg-[#244B38] transition select-none">
+                              <div className="flex items-center justify-end gap-1">VALOR CONTRATO {sortField === 'contractvalue' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
-                            <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th className="py-3.5 px-3 text-center">Vencimento</th>
-                            <th onClick={() => handleSort('contractvalue')} className="py-3.5 px-3 text-right cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center justify-end gap-1">Valor Contrato {sortField === 'contractvalue' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th className="py-3.5 px-3 text-right">Já Recebido</th>
-                            <th className="py-3.5 px-3 text-right">Saldo a Receber</th>
-                            <th className="py-3.5 px-3 text-center">Gerenciar Parcelas</th>
-                            <th className="py-3.5 px-3 text-center">Ações</th>
+                            <th className="py-3.5 px-4 text-right">AÇÕES</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {filteredContracts.length === 0 ? (
+                          {paginatedContracts.length === 0 ? (
                             <tr>
-                              <td colSpan="12" className="py-8 text-center text-slate-400">Nenhum contrato cadastrado com os filtros selecionados.</td>
+                              <td colSpan="7" className="py-10 text-center text-slate-400">
+                                Nenhum contrato cadastrado com os filtros selecionados.
+                              </td>
                             </tr>
                           ) : (
-                            filteredContracts.map((ct) => {
+                            paginatedContracts.map((ct) => {
                               const val = Number(ct.contractvalue || ct.contractValue || 0);
-                              const insts = ct.installmentsData || ct.installmentsdata || [];
-                              const rec = insts.filter(i => i.status === 'Pago').reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
-                              const saldo = val - rec;
-                              const dueBadge = getContractDueBadge(ct);
+                              const sitBadge = getInstallmentSituationBadge(ct);
                               return (
-                                <tr key={ct.id} className="hover:bg-slate-50">
-                                  <td className="py-3 px-3 font-mono font-bold text-[#1B3B2B]">{ct.id}</td>
-                                  <td className="py-3 px-3 font-bold text-slate-900">{ct.client}</td>
-                                  <td className="py-3 px-3 text-slate-700">{ct.service}</td>
-                                  <td className="py-3 px-3 font-semibold text-slate-600">{ct.agency || 'SEMA-MT'}</td>
-                                  <td className="py-3 px-3 text-slate-500 max-w-xs truncate" title={ct.observation || ''}>{ct.observation || '—'}</td>
-                                  <td className="py-3 px-3 text-center">
-                                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
-                                      {ct.status}
+                                <tr key={ct.id} className="hover:bg-[#F8F3EF]/60 transition-colors">
+                                  <td className="py-4 px-4 font-mono font-medium text-slate-700 whitespace-nowrap">{ct.id}</td>
+                                  <td className="py-4 px-4 font-semibold text-slate-900">{ct.client}</td>
+                                  <td className="py-4 px-4 text-slate-700">{ct.service}</td>
+                                  <td className="py-4 px-4 font-medium text-slate-700 whitespace-nowrap">{ct.agency || 'SEMA-MT'}</td>
+                                  <td className="py-4 px-4 text-center whitespace-nowrap">
+                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border ${sitBadge.className}`}>
+                                      {sitBadge.dotColor && <span className={`w-1.5 h-1.5 rounded-full ${sitBadge.dotColor}`} />}
+                                      {sitBadge.label}
                                     </span>
                                   </td>
-                                  <td className="py-3 px-3 text-center">
-                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold border ${dueBadge.className}`}>
-                                      {dueBadge.label}
-                                    </span>
+                                  <td className="py-4 px-4 text-right font-bold text-slate-900 whitespace-nowrap">
+                                    <MaskedValue show={canViewContractValues} value={formatCurrency(val)} />
                                   </td>
-                                  <td className="py-3 px-3 text-right font-bold text-[#1B3B2B]"><MaskedValue show={canViewContractValues} value={formatCurrency(val)} /></td>
-                                  <td className="py-3 px-3 text-right text-emerald-700 font-semibold"><MaskedValue show={canViewContractValues} value={formatCurrency(rec)} /></td>
-                                  <td className="py-3 px-3 text-right text-amber-600 font-semibold"><MaskedValue show={canViewContractValues} value={formatCurrency(saldo)} /></td>
-                                  <td className="py-3 px-3 text-center">
-                                    <button
-                                      onClick={() => setViewingContractInstallments(ct)}
-                                      className="px-3 py-1 rounded-lg bg-teal-800 text-white font-bold text-[10px] hover:bg-teal-900 cursor-pointer"
-                                    >
-                                      Ver Parcelas ({insts.filter(i => i.status === 'Pago').length}/{insts.length})
-                                    </button>
-                                  </td>
-                                  <td className="py-3 px-3 text-center space-x-2">
-                                    {hasPermission('contratos', 'edit') && (
+                                  <td className="py-4 px-4 text-right whitespace-nowrap">
+                                    <div className="inline-flex items-center justify-end gap-1.5">
                                       <button
-                                        onClick={() => {
-                                          setEditingContract(ct);
-                                          setShowAgencyManager(false);
-                                          setCtForm({
-                                            client: ct.client,
-                                            service: ct.service,
-                                            agency: ct.agency || availableAgencies[0] || 'SEMA-MT',
-                                            status: ct.status,
-                                            contractValue: ct.contractvalue || ct.contractValue,
-                                            directCosts: ct.directcosts || ct.directCosts,
-                                            installmentsCount: ct.installmentscount || ct.installmentsCount || '1',
-                                            installmentDates: (ct.installmentsData || ct.installmentsdata)?.map(i => i.dueDate) || [`${selectedDreYear}-12-30`],
-                                            installmentAmounts: (ct.installmentsData || ct.installmentsdata)?.map(i => i.amount) || [''],
-                                            paymentMethod: ct.paymentmethod || ct.paymentMethod || 'PIX',
-                                            observation: ct.observation || ''
-                                          });
-                                          setShowContractModal(true);
-                                        }}
-                                        className="p-1.5 rounded-lg text-teal-700 hover:bg-teal-50 cursor-pointer"
-                                        title="Editar Contrato"
+                                        onClick={() => setViewingContractInstallments(ct)}
+                                        className="px-3.5 py-1.5 rounded-lg bg-[#1B3B2B] text-white font-bold text-xs hover:bg-[#244B38] cursor-pointer"
                                       >
-                                        <Edit3 className="w-4 h-4 inline" />
+                                        Ver Parcelas
                                       </button>
-                                    )}
-                                    {hasPermission('contratos', 'delete') && (
-                                      <button
-                                        onClick={() => setDeleteContractTarget(ct)}
-                                        className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
-                                        title="Excluir Contrato"
-                                      >
-                                        <Trash2 className="w-4 h-4 inline" />
-                                      </button>
-                                    )}
+                                      {hasPermission('contratos', 'edit') && (
+                                        <button
+                                          onClick={() => {
+                                            setEditingContract(ct);
+                                            setShowAgencyManager(false);
+                                            setCtForm({
+                                              client: ct.client,
+                                              service: ct.service,
+                                              agency: ct.agency || availableAgencies[0] || 'SEMA-MT',
+                                              status: ct.status,
+                                              contractValue: ct.contractvalue || ct.contractValue,
+                                              directCosts: ct.directcosts || ct.directCosts,
+                                              installmentsCount: ct.installmentscount || ct.installmentsCount || '1',
+                                              installmentDates: (ct.installmentsData || ct.installmentsdata)?.map(i => i.dueDate) || [`${selectedDreYear}-12-30`],
+                                              installmentAmounts: (ct.installmentsData || ct.installmentsdata)?.map(i => i.amount) || [''],
+                                              paymentMethod: ct.paymentmethod || ct.paymentMethod || 'PIX',
+                                              observation: ct.observation || ''
+                                            });
+                                            setShowContractModal(true);
+                                          }}
+                                          className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 cursor-pointer"
+                                          title="Editar Contrato"
+                                        >
+                                          <Edit3 className="w-4 h-4" />
+                                        </button>
+                                      )}
+                                      {hasPermission('contratos', 'delete') && (
+                                        <button
+                                          onClick={() => setDeleteContractTarget(ct)}
+                                          className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                          title="Excluir Contrato"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                      )}
+                                    </div>
                                   </td>
                                 </tr>
                               );
@@ -2769,6 +2767,35 @@ export default function App() {
                           )}
                         </tbody>
                       </table>
+                    </div>
+
+                    <div className="px-4 py-3 bg-[#F8F3EF]/50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+                      <div>
+                        Exibindo{' '}
+                        {filteredContracts.length === 0
+                          ? '0'
+                          : `${(safeCtPage - 1) * CONTRACTS_PER_PAGE + 1}-${Math.min(safeCtPage * CONTRACTS_PER_PAGE, filteredContracts.length)}`}{' '}
+                        de {filteredContracts.length} registros
+                      </div>
+                      <div className="flex items-center gap-3 font-medium">
+                        <button
+                          type="button"
+                          disabled={safeCtPage <= 1}
+                          onClick={() => setCtPage(p => Math.max(1, p - 1))}
+                          className="hover:text-[#1B3B2B] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                        >
+                          ◂ Anterior
+                        </button>
+                        <span className="font-bold text-slate-800">{safeCtPage}</span>
+                        <button
+                          type="button"
+                          disabled={safeCtPage >= totalContractPages}
+                          onClick={() => setCtPage(p => Math.min(totalContractPages, p + 1))}
+                          className="hover:text-[#1B3B2B] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                        >
+                          Próximo ▸
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -3064,7 +3091,7 @@ export default function App() {
                 <div className="space-y-6">
                   <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
                     <div>
-                      <h3 className="text-base font-extrabold text-[#1B3B2B]">Árvore de Acessos & Perfis</h3>
+                      <h3 className="text-base font-extrabold text-[#1B3B2B]">Árvore de Acessos &amp; Perfis</h3>
                       <p className="text-xs text-slate-500">Gerencie colaboradores, edite senhas e configure permissões granulares por módulo.</p>
                     </div>
                     {hasPermission('acessos', 'create') && (
@@ -4508,7 +4535,7 @@ export default function App() {
 
             <div className="flex justify-end pt-3 border-t">
               <button onClick={() => setEditingRolePermissions(null)} className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">
-                Concluir & Salvar
+                Concluir &amp; Salvar
               </button>
             </div>
           </div>
