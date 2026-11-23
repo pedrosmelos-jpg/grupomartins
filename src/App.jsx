@@ -29,7 +29,8 @@ import {
   Check,
   ArrowUp,
   ArrowDown,
-  EyeOff
+  EyeOff,
+  ClipboardCheck
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -303,6 +304,13 @@ const INITIAL_AGENCIES = [
   'CREA-MT'
 ];
 
+const INITIAL_TECHNICAL_STATUSES = [
+  'Em Andamento',
+  'Em Elaboração Técnica',
+  'Protocolado / SEMA',
+  'Concluído / Licença Emitida'
+];
+
 const DEFAULT_PERMISSIONS = {
   dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
   prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
@@ -389,6 +397,20 @@ const getInstallmentSituationBadge = (contract) => {
   };
 };
 
+const getTechnicalStatusBadgeClass = (status) => {
+  const normalized = String(status || '').toLowerCase();
+  if (normalized.includes('conclu') || normalized.includes('emitida') || normalized.includes('finalizado')) {
+    return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+  }
+  if (normalized.includes('protocolado')) {
+    return 'bg-sky-100 text-sky-800 border-sky-200';
+  }
+  if (normalized.includes('andamento')) {
+    return 'bg-amber-100 text-amber-800 border-amber-200';
+  }
+  return 'bg-slate-100 text-slate-800 border-slate-200';
+};
+
 const CONTRACTS_PER_PAGE = 6;
 
 export default function App() {
@@ -424,6 +446,13 @@ export default function App() {
   const [showAgencyManager, setShowAgencyManager] = useState(false);
   const [agencyInput, setAgencyInput] = useState('');
   const [editingAgencyOriginal, setEditingAgencyOriginal] = useState(null);
+
+  const [availableTechnicalStatuses, setAvailableTechnicalStatuses] = useState(INITIAL_TECHNICAL_STATUSES);
+  const [showTechStatusManager, setShowTechStatusManager] = useState(false);
+  const [techStatusInput, setTechStatusInput] = useState('');
+  const [editingTechStatusOriginal, setEditingTechStatusOriginal] = useState(null);
+  const [techSearch, setTechSearch] = useState('');
+  const [techStatusFilter, setTechStatusFilter] = useState('Todos');
 
   const [accessRoles, setAccessRoles] = useState(INITIAL_ACCESS_ROLES);
   const [activeRoleId, setActiveRoleId] = useState('ROLE-01-PEDRO');
@@ -527,7 +556,7 @@ export default function App() {
     client: '',
     service: INITIAL_PLANO_CONTAS.receitas[0].nome,
     agency: INITIAL_AGENCIES[0],
-    status: 'Em Elaboração Técnica',
+    status: 'Em Andamento',
     contractValue: '',
     directCosts: '',
     installmentsCount: '1',
@@ -551,7 +580,7 @@ export default function App() {
     observation: ''
   });
 
-  const syncSettingsToCloud = async (newSegments, newStatuses, newPlano, newParams, newAgencies) => {
+  const syncSettingsToCloud = async (newSegments, newStatuses, newPlano, newParams, newAgencies, newTechnicalStatuses) => {
     if (!supabase) return;
     const payload = {
       id: 'GLOBAL',
@@ -559,13 +588,77 @@ export default function App() {
       statuses: newStatuses || availableStatuses,
       plano_contas: newPlano || planoContasData,
       params: newParams || params,
-      agencies: newAgencies || availableAgencies
+      agencies: newAgencies || availableAgencies,
+      technical_statuses: newTechnicalStatuses || availableTechnicalStatuses
     };
     try {
       await supabase.from('erp_settings').upsert([payload]);
     } catch (err) {
       console.error('Erro ao sincronizar configurações:', err);
     }
+  };
+
+  const handleSaveTechnicalStatus = async () => {
+    const clean = techStatusInput.trim();
+    if (!clean) return;
+    let updatedList;
+    if (editingTechStatusOriginal) {
+      updatedList = availableTechnicalStatuses.map(s => s === editingTechStatusOriginal ? clean : s);
+      setContracts(prev => prev.map(c => c.status === editingTechStatusOriginal ? { ...c, status: clean } : c));
+      if (techStatusFilter === editingTechStatusOriginal) {
+        setTechStatusFilter(clean);
+      }
+      if (ctStatusFilter === editingTechStatusOriginal) {
+        setCtStatusFilter(clean);
+      }
+      if (supabase) {
+        await supabase.from('contracts').update({ status: clean }).eq('status', editingTechStatusOriginal);
+      }
+    } else {
+      if (availableTechnicalStatuses.some(s => s.toLowerCase() === clean.toLowerCase())) {
+        alert('Este status técnico já está cadastrado.');
+        return;
+      }
+      updatedList = [...availableTechnicalStatuses, clean];
+    }
+    setAvailableTechnicalStatuses(updatedList);
+    setTechStatusInput('');
+    setEditingTechStatusOriginal(null);
+    await syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, params, availableAgencies, updatedList);
+    showToast(editingTechStatusOriginal ? 'Status técnico atualizado!' : 'Novo status técnico cadastrado!');
+  };
+
+  const handleDeleteTechnicalStatus = async (stToDelete) => {
+    if (availableTechnicalStatuses.length <= 1) {
+      alert('Mantenha pelo menos 1 status técnico disponível.');
+      return;
+    }
+    const updatedList = availableTechnicalStatuses.filter(s => s !== stToDelete);
+    setAvailableTechnicalStatuses(updatedList);
+    if (techStatusFilter === stToDelete) {
+      setTechStatusFilter('Todos');
+    }
+    if (ctStatusFilter === stToDelete) {
+      setCtStatusFilter('Todos');
+    }
+    await syncSettingsToCloud(availableSegments, availableStatuses, planoContasData, params, availableAgencies, updatedList);
+    showToast('Status técnico removido!');
+  };
+
+  const handleUpdateContractTechnicalStatus = async (contractId, newStatus) => {
+    const target = contracts.find(c => c.id === contractId);
+    if (!target) return;
+    const updatedContract = { ...target, status: newStatus };
+    setContracts(prev => prev.map(c => c.id === contractId ? updatedContract : c));
+    if (supabase) {
+      const { error } = await supabase.from('contracts').update({ status: newStatus }).eq('id', contractId);
+      if (error) {
+        console.error('Erro ao atualizar status técnico:', error);
+        alert('Erro ao atualizar status técnico na nuvem: ' + error.message);
+        return;
+      }
+    }
+    showToast(`Status técnico atualizado para "${newStatus}"!`);
   };
 
   const handleSaveAgency = async () => {
@@ -764,6 +857,7 @@ export default function App() {
         if (settingsRes.data.segments?.length) setAvailableSegments(settingsRes.data.segments);
         if (settingsRes.data.statuses?.length) setAvailableStatuses(settingsRes.data.statuses);
         if (settingsRes.data.agencies?.length) setAvailableAgencies(settingsRes.data.agencies);
+        if (settingsRes.data.technical_statuses?.length) setAvailableTechnicalStatuses(settingsRes.data.technical_statuses);
         if (settingsRes.data.plano_contas) setPlanoContasData(settingsRes.data.plano_contas);
         if (settingsRes.data.params) setParams(settingsRes.data.params);
       }
@@ -824,6 +918,7 @@ export default function App() {
           if (data.segments?.length) setAvailableSegments(data.segments);
           if (data.statuses?.length) setAvailableStatuses(data.statuses);
           if (data.agencies?.length) setAvailableAgencies(data.agencies);
+          if (data.technical_statuses?.length) setAvailableTechnicalStatuses(data.technical_statuses);
           if (data.plano_contas) setPlanoContasData(data.plano_contas);
           if (data.params) setParams(data.params);
         }
@@ -867,6 +962,7 @@ export default function App() {
     { id: 'lancamentos', label: 'Livro Caixa & Lançamentos', icon: ArrowUpDown, badge: transactions.length, permKey: 'lancamentos' },
     { id: 'dre', label: 'DRE Gerencial Mensal', icon: FileSpreadsheet, badge: 'AV%', permKey: 'dre' },
     { id: 'contratos', label: 'Contratos Ambientais & SST', icon: Briefcase, badge: contracts.length, permKey: 'contratos' },
+    { id: 'status_tecnico', label: 'Status Técnico', icon: ClipboardCheck, badge: contracts.length, permKey: 'contratos' },
     { id: 'clientes', label: 'Cadastro de Clientes (CRM)', icon: Users, badge: clients.length, permKey: 'clientes' },
     { id: 'condicionantes', label: 'Controle de Condicionantes', icon: Leaf, badge: condicionantes.length, permKey: 'condicionantes' },
     { id: 'acessos', label: 'Árvore de Acessos & Perfis', icon: Network, badge: `${accessRoles.length} Nível`, permKey: 'acessos' },
@@ -1136,12 +1232,14 @@ export default function App() {
         });
       }
 
+      const contractStatus = editingContract ? (editingContract.status || 'Em Andamento') : 'Em Andamento';
+
       const contractData = {
         id: contractId,
         client: ctForm.client,
         service: ctForm.service,
         agency: ctForm.agency,
-        status: ctForm.status,
+        status: contractStatus,
         contractvalue: contractVal,
         receivedvalue: installments.filter(i => i.status === 'Pago').reduce((acc, cur) => acc + Number(cur.amount), 0),
         directcosts: directVal,
@@ -1165,7 +1263,7 @@ export default function App() {
         return exists ? prev.map(c => c.id === contractId ? contractData : c) : [...prev, contractData];
       });
 
-      showToast('Contrato salvo permanentemente na nuvem!');
+      showToast(editingContract ? 'Contrato atualizado com sucesso!' : 'Contrato salvo e enviado para Status Técnico como "Em Andamento"!');
       setShowContractModal(false);
       setEditingContract(null);
       setShowAgencyManager(false);
@@ -1668,7 +1766,9 @@ export default function App() {
       const matchCategory = txCategoryFilter === 'Todas' || t.category === txCategoryFilter || t.planocontas === txCategoryFilter || t.planoContas === txCategoryFilter;
       const matchStatus = txStatusFilter === 'Todos' || t.status === txStatusFilter;
       const txDay = String(t.date || '').slice(0, 10);
-      const matchDate = (!txDateFrom || (txDay && txDay >= txDateFrom)) && (!txDateTo || (txDay && txDay <= txDateTo));
+      const matchDate =
+        (!txDateFrom && !txDateTo) ||
+        (Boolean(txDay) && (!txDateFrom || txDay >= txDateFrom) && (!txDateTo || txDay <= txDateTo));
 
       return matchSearch && matchType && matchCategory && matchStatus && matchDate;
     });
@@ -1704,10 +1804,10 @@ export default function App() {
         (c.agency || '').toLowerCase().includes(ctSearch.toLowerCase()) ||
         (c.observation || '').toLowerCase().includes(ctSearch.toLowerCase());
       const matchStatus = ctStatusFilter === 'Todos' || c.status === ctStatusFilter;
+      const insts = c.installmentsData || c.installmentsdata || [];
 
       let matchDueDate = true;
       if (ctDueDateFilter !== 'Todos') {
-        const insts = c.installmentsData || c.installmentsdata || [];
         const pendingInsts = insts.filter(i => i.status !== 'Pago');
 
         if (ctDueDateFilter === 'Vencidos') {
@@ -1721,11 +1821,15 @@ export default function App() {
 
       let matchPeriod = true;
       if (ctDateFrom || ctDateTo) {
-        const periodInsts = c.installmentsData || c.installmentsdata || [];
-        matchPeriod = periodInsts.some(i => {
-          const d = String(i.dueDate || i.duedate || '').slice(0, 10);
-          return d && (!ctDateFrom || d >= ctDateFrom) && (!ctDateTo || d <= ctDateTo);
-        });
+        matchPeriod =
+          insts.length > 0 &&
+          insts.some(i => {
+            const d = String(i.dueDate || i.duedate || '').slice(0, 10);
+            if (!d) return false;
+            if (ctDateFrom && d < ctDateFrom) return false;
+            if (ctDateTo && d > ctDateTo) return false;
+            return true;
+          });
       }
 
       return matchSearch && matchStatus && matchDueDate && matchPeriod;
@@ -1751,6 +1855,29 @@ export default function App() {
 
     return list;
   }, [contracts, ctSearch, ctStatusFilter, ctDueDateFilter, ctDateFrom, ctDateTo, sortField, sortDirection]);
+
+  const technicalStatusOptions = useMemo(() => {
+    const merged = [...availableTechnicalStatuses];
+    contracts.forEach((c) => {
+      if (c.status && !merged.includes(c.status)) {
+        merged.push(c.status);
+      }
+    });
+    return merged;
+  }, [availableTechnicalStatuses, contracts]);
+
+  const filteredTechnicalContracts = useMemo(() => {
+    return contracts.filter((c) => {
+      const matchSearch =
+        (c.client || '').toLowerCase().includes(techSearch.toLowerCase()) ||
+        (c.service || '').toLowerCase().includes(techSearch.toLowerCase()) ||
+        (c.id || '').toLowerCase().includes(techSearch.toLowerCase()) ||
+        (c.agency || '').toLowerCase().includes(techSearch.toLowerCase()) ||
+        (c.observation || '').toLowerCase().includes(techSearch.toLowerCase());
+      const matchStatus = techStatusFilter === 'Todos' || (c.status || 'Em Andamento') === techStatusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [contracts, techSearch, techStatusFilter]);
 
   useEffect(() => {
     setCtPage(1);
@@ -2614,10 +2741,9 @@ export default function App() {
                         className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white text-slate-700 cursor-pointer"
                       >
                         <option value="Todos">Status Técnico: Todos</option>
-                        <option value="Em Elaboração Técnica">Em Elaboração Técnica</option>
-                        <option value="Protocolado / SEMA">Protocolado / SEMA</option>
-                        <option value="Em Andamento">Em Andamento</option>
-                        <option value="Concluído / Licença Emitida">Concluído / Licença Emitida</option>
+                        {technicalStatusOptions.map((st) => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
                       </select>
 
                       <div className="flex items-center gap-1.5 text-xs text-slate-600">
@@ -2651,7 +2777,7 @@ export default function App() {
                             client: '',
                             service: planoContasData.receitas[0]?.nome || '',
                             agency: availableAgencies[0] || 'SEMA-MT',
-                            status: 'Em Elaboração Técnica',
+                            status: 'Em Andamento',
                             contractValue: '',
                             directCosts: '',
                             installmentsCount: '1',
@@ -2736,7 +2862,7 @@ export default function App() {
                                               client: ct.client,
                                               service: ct.service,
                                               agency: ct.agency || availableAgencies[0] || 'SEMA-MT',
-                                              status: ct.status,
+                                              status: ct.status || 'Em Andamento',
                                               contractValue: ct.contractvalue || ct.contractValue,
                                               directCosts: ct.directcosts || ct.directCosts,
                                               installmentsCount: ct.installmentscount || ct.installmentsCount || '1',
@@ -2799,6 +2925,213 @@ export default function App() {
                           Próximo ▸
                         </button>
                       </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'status_tecnico' && (
+                <div className="space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-2xl sm:text-3xl font-extrabold text-[#1B3B2B] tracking-tight">
+                        Status Técnico
+                      </h2>
+                      <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+                        Acompanhamento e atualização do andamento técnico dos contratos cadastrados
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowTechStatusManager(!showTechStatusManager);
+                        setTechStatusInput('');
+                        setEditingTechStatusOriginal(null);
+                      }}
+                      className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#244B38] shadow-sm cursor-pointer shrink-0 self-start sm:self-auto"
+                    >
+                      <Plus className="w-4 h-4" />
+                      {showTechStatusManager ? 'Fechar Gerenciador de Status' : 'Cadastrar / Editar Status'}
+                    </button>
+                  </div>
+
+                  {showTechStatusManager && (
+                    <div className="bg-white p-4 rounded-2xl border border-[#B7DFC5] shadow-sm space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-extrabold uppercase text-[#1B3B2B]">
+                          {editingTechStatusOriginal ? `Editando status: ${editingTechStatusOriginal}` : 'Cadastrar Novo Status Técnico'}
+                        </span>
+                        {editingTechStatusOriginal && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingTechStatusOriginal(null);
+                              setTechStatusInput('');
+                            }}
+                            className="text-[11px] font-bold text-slate-500 hover:underline cursor-pointer"
+                          >
+                            Cancelar edição
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <input
+                          type="text"
+                          value={techStatusInput}
+                          onChange={(e) => setTechStatusInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleSaveTechnicalStatus();
+                            }
+                          }}
+                          placeholder="Ex: Aguardando Vistoria, Em Análise SEMA, Exigência Técnica..."
+                          className="flex-1 min-w-[220px] px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleSaveTechnicalStatus}
+                          className="px-4 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold text-xs hover:bg-[#244B38] cursor-pointer"
+                        >
+                          {editingTechStatusOriginal ? 'Salvar Alteração' : 'Adicionar Status'}
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
+                        {technicalStatusOptions.map((st) => (
+                          <div
+                            key={st}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 bg-[#F4F9F5] text-xs font-bold text-[#1B3B2B]"
+                          >
+                            <span>{st}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingTechStatusOriginal(st);
+                                setTechStatusInput(st);
+                              }}
+                              className="p-0.5 text-teal-700 hover:bg-teal-100 rounded cursor-pointer"
+                              title="Editar Status"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteTechnicalStatus(st)}
+                              className="p-0.5 text-rose-600 hover:bg-rose-100 rounded cursor-pointer"
+                              title="Excluir Status"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[260px]">
+                      <div className="relative flex-1 min-w-[220px] max-w-sm">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                        <input
+                          type="text"
+                          value={techSearch}
+                          onChange={(e) => setTechSearch(e.target.value)}
+                          placeholder="Buscar por código, cliente, serviço ou órgão..."
+                          className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:outline-none focus:border-[#1B3B2B]"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Filter className="w-3.5 h-3.5 text-[#1B3B2B]" />
+                        <select
+                          value={techStatusFilter}
+                          onChange={(e) => setTechStatusFilter(e.target.value)}
+                          className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white text-[#1B3B2B] cursor-pointer"
+                        >
+                          <option value="Todos">Filtrar por Status: Todos ({contracts.length})</option>
+                          {technicalStatusOptions.map((st) => (
+                            <option key={st} value={st}>
+                              {st} ({contracts.filter(c => (c.status || 'Em Andamento') === st).length})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {(techSearch !== '' || techStatusFilter !== 'Todos') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTechSearch('');
+                            setTechStatusFilter('Todos');
+                          }}
+                          className="text-xs text-rose-600 font-bold hover:underline cursor-pointer"
+                        >
+                          Limpar Filtros
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="text-xs font-semibold text-slate-500">
+                      Exibindo {filteredTechnicalContracts.length} de {contracts.length} contratos
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px] tracking-wider">
+                            <th className="py-3.5 px-4">CÓDIGO</th>
+                            <th className="py-3.5 px-4">CLIENTE / EMPREENDIMENTO</th>
+                            <th className="py-3.5 px-4">PLANO DE CONTAS</th>
+                            <th className="py-3.5 px-4">ÓRGÃO / SETOR</th>
+                            <th className="py-3.5 px-4">OBSERVAÇÃO</th>
+                            <th className="py-3.5 px-4 text-center">STATUS ATUAL</th>
+                            <th className="py-3.5 px-4 text-right">ALTERAR STATUS</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {filteredTechnicalContracts.length === 0 ? (
+                            <tr>
+                              <td colSpan="7" className="py-10 text-center text-slate-400">
+                                Nenhum contrato encontrado para o filtro selecionado.
+                              </td>
+                            </tr>
+                          ) : (
+                            filteredTechnicalContracts.map((ct) => {
+                              const currentTechStatus = ct.status || 'Em Andamento';
+                              return (
+                                <tr key={ct.id} className="hover:bg-[#F8F3EF]/60 transition-colors">
+                                  <td className="py-4 px-4 font-mono font-bold text-[#1B3B2B] whitespace-nowrap">{ct.id}</td>
+                                  <td className="py-4 px-4 font-semibold text-slate-900">{ct.client}</td>
+                                  <td className="py-4 px-4 text-slate-700">{ct.service}</td>
+                                  <td className="py-4 px-4 font-medium text-slate-700 whitespace-nowrap">{ct.agency || 'SEMA-MT'}</td>
+                                  <td className="py-4 px-4 text-slate-500 max-w-xs truncate" title={ct.observation || ''}>
+                                    {ct.observation || '—'}
+                                  </td>
+                                  <td className="py-4 px-4 text-center whitespace-nowrap">
+                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold border ${getTechnicalStatusBadgeClass(currentTechStatus)}`}>
+                                      {currentTechStatus}
+                                    </span>
+                                  </td>
+                                  <td className="py-4 px-4 text-right whitespace-nowrap">
+                                    <select
+                                      value={currentTechStatus}
+                                      disabled={!hasPermission('contratos', 'edit')}
+                                      onChange={(e) => handleUpdateContractTechnicalStatus(ct.id, e.target.value)}
+                                      className="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-bold bg-white text-[#1B3B2B] cursor-pointer disabled:opacity-50"
+                                    >
+                                      {technicalStatusOptions.map((st) => (
+                                        <option key={st} value={st}>{st}</option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 </div>
@@ -3013,16 +3346,16 @@ export default function App() {
                               </div>
                             </th>
                             <th onClick={() => handleSort('license')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Licença {sortField === 'license' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}</div>
+                              <div className="flex items-center gap-1">Licença {sortField === 'license' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
                             <th onClick={() => handleSort('responsible')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Responsável - Empresa {sortField === 'responsible' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}</div>
+                              <div className="flex items-center gap-1">Responsável - Empresa {sortField === 'responsible' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
                             <th onClick={() => handleSort('observation')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Observação {sortField === 'observation' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}</div>
+                              <div className="flex items-center gap-1">Observação {sortField === 'observation' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
                             <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}</div>
+                              <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
                             <th className="py-3.5 px-3 text-center">Ações</th>
                           </tr>
@@ -3499,96 +3832,80 @@ export default function App() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="block font-bold text-slate-700 uppercase">ÓRGÃO / SETOR</label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowAgencyManager(!showAgencyManager);
-                        setAgencyInput('');
-                        setEditingAgencyOriginal(null);
-                      }}
-                      className="text-[11px] font-extrabold text-[#1B3B2B] hover:underline flex items-center gap-1 cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> {showAgencyManager ? 'Fechar Opções' : 'Cadastrar / Editar'}
-                    </button>
-                  </div>
-                  <select
-                    value={ctForm.agency}
-                    onChange={(e) => setCtForm({ ...ctForm, agency: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-700 uppercase">ÓRGÃO / SETOR</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAgencyManager(!showAgencyManager);
+                      setAgencyInput('');
+                      setEditingAgencyOriginal(null);
+                    }}
+                    className="text-[11px] font-extrabold text-[#1B3B2B] hover:underline flex items-center gap-1 cursor-pointer"
                   >
-                    {availableAgencies.map(ag => <option key={ag} value={ag}>{ag}</option>)}
-                  </select>
+                    <Plus className="w-3.5 h-3.5" /> {showAgencyManager ? 'Fechar Opções' : 'Cadastrar / Editar'}
+                  </button>
+                </div>
+                <select
+                  value={ctForm.agency}
+                  onChange={(e) => setCtForm({ ...ctForm, agency: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
+                >
+                  {availableAgencies.map(ag => <option key={ag} value={ag}>{ag}</option>)}
+                </select>
 
-                  {showAgencyManager && (
-                    <div className="p-3 rounded-xl border border-[#B7DFC5] bg-[#F4F9F5] space-y-2.5">
-                      <div className="text-[10px] font-extrabold uppercase text-[#1B3B2B]">
-                        {editingAgencyOriginal ? `Editando: ${editingAgencyOriginal}` : 'Novo Órgão / Setor'}
-                      </div>
-                      <div className="flex gap-1.5">
-                        <input
-                          type="text"
-                          value={agencyInput}
-                          onChange={(e) => setAgencyInput(e.target.value)}
-                          placeholder="Ex: INCRA, ANM, SEMA..."
-                          className="flex-1 px-2.5 py-1.5 rounded-lg border bg-white text-xs font-semibold"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleSaveAgency}
-                          className="px-3 py-1.5 rounded-lg bg-[#1B3B2B] text-white font-bold text-xs hover:bg-[#2D5A43] cursor-pointer"
-                        >
-                          {editingAgencyOriginal ? 'Salvar' : 'Adicionar'}
-                        </button>
-                      </div>
-                      <div className="max-h-28 overflow-y-auto space-y-1 pt-1 border-t border-emerald-200/60">
-                        {availableAgencies.map((ag) => (
-                          <div key={ag} className="flex items-center justify-between text-[11px] bg-white px-2.5 py-1 rounded border border-slate-200">
-                            <span className="truncate font-medium pr-2">{ag}</span>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingAgencyOriginal(ag);
-                                  setAgencyInput(ag);
-                                }}
-                                className="p-0.5 text-teal-700 hover:bg-teal-50 rounded cursor-pointer"
-                                title="Editar Órgão"
-                              >
-                                <Edit3 className="w-3 h-3" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteAgency(ag)}
-                                className="p-0.5 text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
-                                title="Excluir Órgão"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                {showAgencyManager && (
+                  <div className="p-3 rounded-xl border border-[#B7DFC5] bg-[#F4F9F5] space-y-2.5">
+                    <div className="text-[10px] font-extrabold uppercase text-[#1B3B2B]">
+                      {editingAgencyOriginal ? `Editando: ${editingAgencyOriginal}` : 'Novo Órgão / Setor'}
                     </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">STATUS TÉCNICO</label>
-                  <select
-                    value={ctForm.status}
-                    onChange={(e) => setCtForm({ ...ctForm, status: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white cursor-pointer"
-                  >
-                    <option value="Em Elaboração Técnica">Em Elaboração Técnica</option>
-                    <option value="Protocolado / SEMA">Protocolado / SEMA</option>
-                    <option value="Em Andamento">Em Andamento</option>
-                    <option value="Concluído / Licença Emitida">Concluído / Licença Emitida</option>
-                  </select>
-                </div>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={agencyInput}
+                        onChange={(e) => setAgencyInput(e.target.value)}
+                        placeholder="Ex: INCRA, ANM, SEMA..."
+                        className="flex-1 px-2.5 py-1.5 rounded-lg border bg-white text-xs font-semibold"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveAgency}
+                        className="px-3 py-1.5 rounded-lg bg-[#1B3B2B] text-white font-bold text-xs hover:bg-[#2D5A43] cursor-pointer"
+                      >
+                        {editingAgencyOriginal ? 'Salvar' : 'Adicionar'}
+                      </button>
+                    </div>
+                    <div className="max-h-28 overflow-y-auto space-y-1 pt-1 border-t border-emerald-200/60">
+                      {availableAgencies.map((ag) => (
+                        <div key={ag} className="flex items-center justify-between text-[11px] bg-white px-2.5 py-1 rounded border border-slate-200">
+                          <span className="truncate font-medium pr-2">{ag}</span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingAgencyOriginal(ag);
+                                setAgencyInput(ag);
+                              }}
+                              className="p-0.5 text-teal-700 hover:bg-teal-50 rounded cursor-pointer"
+                              title="Editar Órgão"
+                            >
+                              <Edit3 className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAgency(ag)}
+                              className="p-0.5 text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                              title="Excluir Órgão"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
