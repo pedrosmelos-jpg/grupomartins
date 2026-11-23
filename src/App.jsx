@@ -317,6 +317,7 @@ const DEFAULT_PERMISSIONS = {
   lancamentos: { view: true, create: true, edit: true, delete: false, approve: true },
   dre: { view: true, create: false, edit: false, delete: false, approve: false },
   contratos: { view: true, create: true, edit: true, delete: false, approve: false },
+  status_tecnico: { view: true, create: false, edit: true, delete: false, approve: false },
   clientes: { view: true, create: true, edit: true, delete: false, approve: false },
   condicionantes: { view: true, create: true, edit: true, delete: true, approve: false },
   acessos: { view: false, create: false, edit: false, delete: false, approve: false }
@@ -337,6 +338,7 @@ const INITIAL_ACCESS_ROLES = [
       lancamentos: { view: true, create: true, edit: true, delete: true, approve: true },
       dre: { view: true, create: true, edit: true, delete: true, approve: true },
       contratos: { view: true, create: true, edit: true, delete: true, approve: true },
+      status_tecnico: { view: true, create: true, edit: true, delete: true, approve: true },
       clientes: { view: true, create: true, edit: true, delete: true, approve: true },
       condicionantes: { view: true, create: true, edit: true, delete: true, approve: true },
       acessos: { view: true, create: true, edit: true, delete: true, approve: true }
@@ -413,6 +415,12 @@ const getTechnicalStatusBadgeClass = (status) => {
 
 const CONTRACTS_PER_PAGE = 6;
 
+// Permissões de um módulo. Enquanto o perfil não tiver a chave "status_tecnico"
+// salva, ela herda a permissão de "contratos" (para ninguém perder acesso).
+const getModulePerms = (role, moduleKey) =>
+  role?.permissions?.[moduleKey] ||
+  (moduleKey === 'status_tecnico' ? role?.permissions?.contratos : undefined);
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -453,6 +461,18 @@ export default function App() {
   const [editingTechStatusOriginal, setEditingTechStatusOriginal] = useState(null);
   const [techSearch, setTechSearch] = useState('');
   const [techStatusFilter, setTechStatusFilter] = useState('Todos');
+
+  const [techSortField, setTechSortField] = useState(null);
+  const [techSortDirection, setTechSortDirection] = useState('desc');
+
+  const handleTechSort = (field) => {
+    if (techSortField === field) {
+      setTechSortDirection(prev => (prev === 'desc' ? 'asc' : 'desc'));
+    } else {
+      setTechSortField(field);
+      setTechSortDirection('desc');
+    }
+  };
 
   const [accessRoles, setAccessRoles] = useState(INITIAL_ACCESS_ROLES);
   const [activeRoleId, setActiveRoleId] = useState('ROLE-01-PEDRO');
@@ -947,8 +967,9 @@ export default function App() {
   const hasPermission = useCallback((moduleKey, actionKey = 'view') => {
     if (!currentRole) return false;
     if (isRootMaster && moduleKey === 'acessos') return true;
-    if (!currentRole.permissions || !currentRole.permissions[moduleKey]) return false;
-    return Boolean(currentRole.permissions[moduleKey][actionKey]);
+    const perms = getModulePerms(currentRole, moduleKey);
+    if (!perms) return false;
+    return Boolean(perms[actionKey]);
   }, [currentRole, isRootMaster]);
 
   const canViewContractValues = useMemo(() => {
@@ -962,7 +983,7 @@ export default function App() {
     { id: 'lancamentos', label: 'Livro Caixa & Lançamentos', icon: ArrowUpDown, badge: transactions.length, permKey: 'lancamentos' },
     { id: 'dre', label: 'DRE Gerencial Mensal', icon: FileSpreadsheet, badge: 'AV%', permKey: 'dre' },
     { id: 'contratos', label: 'Contratos Ambientais & SST', icon: Briefcase, badge: contracts.length, permKey: 'contratos' },
-    { id: 'status_tecnico', label: 'Status Técnico', icon: ClipboardCheck, badge: contracts.length, permKey: 'contratos' },
+    { id: 'status_tecnico', label: 'Status Técnico', icon: ClipboardCheck, badge: contracts.length, permKey: 'status_tecnico' },
     { id: 'clientes', label: 'Cadastro de Clientes (CRM)', icon: Users, badge: clients.length, permKey: 'clientes' },
     { id: 'condicionantes', label: 'Controle de Condicionantes', icon: Leaf, badge: condicionantes.length, permKey: 'condicionantes' },
     { id: 'acessos', label: 'Árvore de Acessos & Perfis', icon: Network, badge: `${accessRoles.length} Nível`, permKey: 'acessos' },
@@ -1644,13 +1665,13 @@ export default function App() {
       if (role.id === roleId) {
         const currentVal = actionKey === 'viewValues'
           ? role.permissions?.[moduleKey]?.viewValues !== false
-          : (role.permissions?.[moduleKey]?.[actionKey] || false);
+          : (getModulePerms(role, moduleKey)?.[actionKey] || false);
         const updatedRole = {
           ...role,
           permissions: {
             ...role.permissions,
             [moduleKey]: {
-              ...(role.permissions?.[moduleKey] || {}),
+              ...(getModulePerms(role, moduleKey) || {}),
               [actionKey]: !currentVal
             }
           }
@@ -1867,7 +1888,7 @@ export default function App() {
   }, [availableTechnicalStatuses, contracts]);
 
   const filteredTechnicalContracts = useMemo(() => {
-    return contracts.filter((c) => {
+    const list = contracts.filter((c) => {
       const matchSearch =
         (c.client || '').toLowerCase().includes(techSearch.toLowerCase()) ||
         (c.service || '').toLowerCase().includes(techSearch.toLowerCase()) ||
@@ -1877,7 +1898,20 @@ export default function App() {
       const matchStatus = techStatusFilter === 'Todos' || (c.status || 'Em Andamento') === techStatusFilter;
       return matchSearch && matchStatus;
     });
-  }, [contracts, techSearch, techStatusFilter]);
+
+    if (techSortField) {
+      const getVal = (c) => {
+        if (techSortField === 'status') return String(c.status || 'Em Andamento');
+        return String(c[techSortField] || '');
+      };
+      list.sort((a, b) => {
+        const cmp = getVal(a).localeCompare(getVal(b), 'pt-BR', { numeric: true, sensitivity: 'base' });
+        return techSortDirection === 'asc' ? cmp : -cmp;
+      });
+    }
+
+    return list;
+  }, [contracts, techSearch, techStatusFilter, techSortField, techSortDirection]);
 
   useEffect(() => {
     setCtPage(1);
@@ -3081,12 +3115,27 @@ export default function App() {
                       <table className="w-full text-left border-collapse text-xs">
                         <thead>
                           <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px] tracking-wider">
-                            <th className="py-3.5 px-4">CÓDIGO</th>
-                            <th className="py-3.5 px-4">CLIENTE / EMPREENDIMENTO</th>
-                            <th className="py-3.5 px-4">PLANO DE CONTAS</th>
-                            <th className="py-3.5 px-4">ÓRGÃO / SETOR</th>
-                            <th className="py-3.5 px-4">OBSERVAÇÃO</th>
-                            <th className="py-3.5 px-4 text-center">STATUS ATUAL</th>
+                            {[
+                              ['id', 'CÓDIGO', ''],
+                              ['client', 'CLIENTE / EMPREENDIMENTO', ''],
+                              ['service', 'PLANO DE CONTAS', ''],
+                              ['agency', 'ÓRGÃO / SETOR', ''],
+                              ['observation', 'OBSERVAÇÃO', ''],
+                              ['status', 'STATUS ATUAL', 'text-center justify-center']
+                            ].map(([field, label, extra]) => (
+                              <th
+                                key={field}
+                                onClick={() => handleTechSort(field)}
+                                className={`py-3.5 px-4 cursor-pointer hover:bg-[#244B38] transition select-none ${extra.includes('text-center') ? 'text-center' : ''}`}
+                              >
+                                <div className={`flex items-center gap-1 ${extra.includes('justify-center') ? 'justify-center' : ''}`}>
+                                  {label}
+                                  {techSortField === field && (techSortDirection === 'asc'
+                                    ? <ArrowUp className="w-3 h-3 text-emerald-300" />
+                                    : <ArrowDown className="w-3 h-3 text-emerald-300" />)}
+                                </div>
+                              </th>
+                            ))}
                             <th className="py-3.5 px-4 text-right">ALTERAR STATUS</th>
                           </tr>
                         </thead>
@@ -3117,7 +3166,7 @@ export default function App() {
                                   <td className="py-4 px-4 text-right whitespace-nowrap">
                                     <select
                                       value={currentTechStatus}
-                                      disabled={!hasPermission('contratos', 'edit')}
+                                      disabled={!hasPermission('status_tecnico', 'edit')}
                                       onChange={(e) => handleUpdateContractTechnicalStatus(ct.id, e.target.value)}
                                       className="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-bold bg-white text-[#1B3B2B] cursor-pointer disabled:opacity-50"
                                     >
@@ -4842,11 +4891,11 @@ export default function App() {
             </div>
 
             <div className="space-y-3 text-xs">
-              {Object.keys(editingRolePermissions.permissions || {}).map((modKey) => {
-                const modPerms = editingRolePermissions.permissions[modKey];
+              {Array.from(new Set([...Object.keys(DEFAULT_PERMISSIONS), ...Object.keys(editingRolePermissions.permissions || {})])).map((modKey) => {
+                const modPerms = getModulePerms(editingRolePermissions, modKey);
                 return (
                   <div key={modKey} className="p-3 rounded-xl border bg-slate-50 flex flex-wrap items-center justify-between gap-3">
-                    <span className="font-extrabold text-[#1B3B2B] uppercase w-32">{modKey}</span>
+                    <span className="font-extrabold text-[#1B3B2B] uppercase w-32">{modKey.replace('_', ' ')}</span>
                     <div className="flex flex-wrap items-center gap-4">
                       {['view', 'create', 'edit', 'delete', 'approve', ...(modKey === 'contratos' ? ['viewValues'] : [])].map((actKey) => (
                         <label key={actKey} className="flex items-center gap-1.5 cursor-pointer font-medium select-none">
@@ -5011,7 +5060,7 @@ export default function App() {
                 });
                 setActiveRoleId(rpcUser.id);
                 const isMasterUser = rpcUser.id === 'ROLE-01-PEDRO' || (rpcUser.email || '').toLowerCase() === 'pedrosmelos@gmail.com';
-                const firstOpenTab = navItems.find(item => (isMasterUser && item.permKey === 'acessos') || Boolean(rpcUser.permissions?.[item.permKey]?.view));
+                const firstOpenTab = navItems.find(item => (isMasterUser && item.permKey === 'acessos') || Boolean(getModulePerms(rpcUser, item.permKey)?.view));
                 if (firstOpenTab) setActiveTab(firstOpenTab.id);
 
                 setAuthLoggedIn(true);
@@ -5030,7 +5079,7 @@ export default function App() {
               }
               setActiveRoleId(found.id);
               const isMasterUser = found.id === 'ROLE-01-PEDRO' || found.email.toLowerCase() === 'pedrosmelos@gmail.com';
-              const firstOpenTab = navItems.find(item => (isMasterUser && item.permKey === 'acessos') || Boolean(found.permissions?.[item.permKey]?.view));
+              const firstOpenTab = navItems.find(item => (isMasterUser && item.permKey === 'acessos') || Boolean(getModulePerms(found, item.permKey)?.view));
               if (firstOpenTab) setActiveTab(firstOpenTab.id);
 
               setAuthLoggedIn(true);
