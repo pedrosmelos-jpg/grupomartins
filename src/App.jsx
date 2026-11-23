@@ -486,7 +486,7 @@ export default function App() {
 
   const [ctForm, setCtForm] = useState({
     client: '',
-    service: '',
+    service: INITIAL_PLANO_CONTAS.receitas[0].nome,
     agency: INITIAL_AGENCIES[0],
     status: 'Em Elaboração Técnica',
     contractValue: '',
@@ -2559,7 +2559,7 @@ export default function App() {
                             setShowAgencyManager(false);
                             setCtForm({
                               client: '',
-                              service: '',
+                              service: planoContasData.receitas[0]?.nome || '',
                               agency: availableAgencies[0] || 'SEMA-MT',
                               status: 'Em Elaboração Técnica',
                               contractValue: '',
@@ -2592,7 +2592,7 @@ export default function App() {
                               <div className="flex items-center gap-1">Cliente / Empreendimento {sortField === 'client' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
                             <th onClick={() => handleSort('service')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Escopo Técnico {sortField === 'service' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                              <div className="flex items-center gap-1">Plano de Contas {sortField === 'service' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
                             <th onClick={() => handleSort('agency')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
                               <div className="flex items-center gap-1">Órgão {sortField === 'agency' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
@@ -3338,15 +3338,30 @@ export default function App() {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">ESCOPO TÉCNICO / SERVIÇO</label>
-                <input
-                  type="text"
+                <label className="block font-bold text-slate-700 uppercase mb-1">PLANO DE CONTAS</label>
+                <select
                   value={ctForm.service}
                   onChange={(e) => setCtForm({ ...ctForm, service: e.target.value })}
-                  placeholder="Ex: Licenciamento LP/LI/LO para Fazenda..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border font-semibold"
+                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
                   required
-                />
+                >
+                  <option value="" disabled>Selecione um plano de contas...</option>
+                  {ctForm.service &&
+                    !planoContasData.receitas.some(r => r.nome === ctForm.service) &&
+                    !planoContasData.despesas.some(d => d.nome === ctForm.service) && (
+                      <option value={ctForm.service}>{ctForm.service}</option>
+                    )}
+                  <optgroup label="Receitas (1.X)">
+                    {planoContasData.receitas.map(r => (
+                      <option key={r.codigo} value={r.nome}>{r.nome}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Despesas (2.X)">
+                    {planoContasData.despesas.map(d => (
+                      <option key={d.codigo} value={d.nome}>{d.nome}</option>
+                    ))}
+                  </optgroup>
+                </select>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
