@@ -547,7 +547,8 @@ export default function App() {
     phone: '',
     email: '',
     mainProgram: 'Licenciamento Ambiental (LP / LI / LO)',
-    status: INITIAL_STATUSES[0]
+    status: INITIAL_STATUSES[0],
+    observation: ''
   });
 
   const syncSettingsToCloud = async (newSegments, newStatuses, newPlano, newParams, newAgencies) => {
@@ -1361,7 +1362,8 @@ export default function App() {
         phone: cliForm.phone || '',
         email: cliForm.email || '',
         mainprogram: cliForm.mainProgram || cliForm.mainprogram || 'Licenciamento Ambiental (LP / LI / LO)',
-        status: cliForm.status
+        status: cliForm.status,
+        observation: cliForm.observation || ''
       };
 
       if (supabase) {
@@ -1392,7 +1394,8 @@ export default function App() {
         phone: '',
         email: '',
         mainProgram: 'Licenciamento Ambiental (LP / LI / LO)',
-        status: availableStatuses[0]
+        status: availableStatuses[0],
+        observation: ''
       });
 
     } catch (err) {
@@ -1907,7 +1910,7 @@ export default function App() {
                 </span>
               </div>
               <h1 className="text-base sm:text-lg font-extrabold text-[#1B3B2B] mt-0.5">
-                GRUPO MARTINS — Soluções Ambientais & MS Segurança do Trabalho
+                GRUPO MARTINS — Soluções Ambientais &amp; MS Segurança do Trabalho
               </h1>
             </div>
           </div>
@@ -2828,7 +2831,8 @@ export default function App() {
                             phone: '',
                             email: '',
                             mainProgram: 'Licenciamento Ambiental (LP / LI / LO)',
-                            status: availableStatuses[0]
+                            status: availableStatuses[0],
+                            observation: ''
                           });
                           setShowClientModal(true);
                         }}
@@ -2898,7 +2902,8 @@ export default function App() {
                                           phone: cli.phone || '',
                                           email: cli.email || '',
                                           mainProgram: cli.mainProgram || cli.mainprogram || 'Licenciamento Ambiental',
-                                          status: cli.status || availableStatuses[0]
+                                          status: cli.status || availableStatuses[0],
+                                          observation: cli.observation || ''
                                         });
                                         setShowClientModal(true);
                                       }}
@@ -3008,16 +3013,16 @@ export default function App() {
                               </div>
                             </th>
                             <th onClick={() => handleSort('license')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Licença {sortField === 'license' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                              <div className="flex items-center gap-1">Licença {sortField === 'license' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}</div>
                             </th>
                             <th onClick={() => handleSort('responsible')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Responsável - Empresa {sortField === 'responsible' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                              <div className="flex items-center gap-1">Responsável - Empresa {sortField === 'responsible' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}</div>
                             </th>
                             <th onClick={() => handleSort('observation')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Observação {sortField === 'observation' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                              <div className="flex items-center gap-1">Observação {sortField === 'observation' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}</div>
                             </th>
                             <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                              <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}</div>
                             </th>
                             <th className="py-3.5 px-3 text-center">Ações</th>
                           </tr>
@@ -4220,6 +4225,16 @@ export default function App() {
                     className="w-full px-3.5 py-2.5 rounded-xl border font-bold"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">OBSERVAÇÃO</label>
+                <textarea
+                  value={cliForm.observation || ''}
+                  onChange={(e) => setCliForm({ ...cliForm, observation: e.target.value })}
+                  placeholder="Digite observações sobre o cliente..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border h-16 resize-none"
+                />
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t">
