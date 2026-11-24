@@ -1710,31 +1710,28 @@ export default function App() {
           return;
         }
 
-const redirectUrl =
-  window.location.hostname === 'localhost'
-    ? window.location.origin
-    : 'https://grupomartins.vercel.app'; // ou a URL exata do seu ERP
+const redirectUrl = 'https://grupomartins.vercel.app';
 
-await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-  redirectTo: redirectUrl,
+const { error: signUpError } = await supabase.auth.signUp({
+  email: normalizedEmail,
+  password: initialPassword
 });
-        if (resetError) {
-          console.error('Erro ao enviar e-mail de definição de senha:', resetError);
-        }
-      }
 
-      setAccessRoles((prev) => [...prev, newRole]);
-      setShowUserRoleModal(false);
-      setNewRoleForm({
-        level: 'Nível Especial — Colaborador',
-        name: '',
-        holder: '',
-        email: '',
-        password: 'martins2026',
-        description: ''
-      });
-      showToast('Novo utilizador cadastrado e e-mail de definição de senha disparado!');
-    } catch (err) {
+if (signUpError && !signUpError.message.toLowerCase().includes('already')) {
+  console.error('Erro no auth.signUp:', signUpError);
+}
+
+const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+  redirectTo: redirectUrl
+});
+
+if (resetError) {
+  console.error('Erro ao enviar e-mail de definição de senha:', resetError);
+  showToast('Utilizador salvo, mas houve falha ao enviar o e-mail (verifique o limite de envio).');
+} else {
+  showToast('Novo utilizador cadastrado e e-mail de definição de senha disparado!');
+}
+        catch (err) {
       console.error('Erro inesperado:', err);
       alert('Erro ao processar o cadastro do utilizador.');
     }
