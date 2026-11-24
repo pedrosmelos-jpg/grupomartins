@@ -481,13 +481,6 @@ export default function App() {
   const [authPasswordInput, setAuthPasswordInput] = useState('');
   const [authErrorMsg, setAuthErrorMsg] = useState('');
 
-  // Estado para modal de "Primeiro Acesso / Definir Senha" via PASSWORD_RECOVERY
-  const [showSetPasswordModal, setShowSetPasswordModal] = useState(false);
-  const [recoveryEmail, setRecoveryEmail] = useState('');
-  const [newPasswordInput, setNewPasswordInput] = useState('');
-  const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
-  const [savingNewPassword, setSavingNewPassword] = useState(false);
-
   const [params, setParams] = useState(INITIAL_PARAMETERS);
 
   const [showUserRoleModal, setShowUserRoleModal] = useState(false);
@@ -897,15 +890,6 @@ export default function App() {
     fetchAllData();
     if (!supabase) return;
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setRecoveryEmail(session?.user?.email || '');
-        setNewPasswordInput('');
-        setConfirmPasswordInput('');
-        setShowSetPasswordModal(true);
-      }
-    });
-
     const applyRealtimeChange = (setter) => (payload) => {
       const { eventType, new: newRow, old: oldRow } = payload;
       setter((prev) => {
@@ -964,59 +948,9 @@ export default function App() {
       });
 
     return () => {
-      authListener?.subscription?.unsubscribe();
       supabase.removeChannel(channel);
     };
   }, [fetchAllData]);
-
-  const handleConfirmSetPassword = async (e) => {
-    e.preventDefault();
-    if (!newPasswordInput || newPasswordInput.length < 6) {
-      alert('A senha deve ter pelo menos 6 caracteres.');
-      return;
-    }
-    if (newPasswordInput !== confirmPasswordInput) {
-      alert('As senhas não conferem. Digite novamente.');
-      return;
-    }
-
-    setSavingNewPassword(true);
-    try {
-      const { data: userData, error } = await supabase.auth.updateUser({
-        password: newPasswordInput
-      });
-      if (error) {
-        alert('Erro ao definir senha: ' + error.message);
-        setSavingNewPassword(false);
-        return;
-      }
-
-      const emailToSync = (userData?.user?.email || recoveryEmail || '').trim().toLowerCase();
-      if (emailToSync) {
-        setAccessRoles((prev) =>
-          prev.map((r) =>
-            r.email && r.email.toLowerCase() === emailToSync
-              ? { ...r, password: newPasswordInput }
-              : r
-          )
-        );
-        await supabase
-          .from('user_roles')
-          .update({ password: newPasswordInput })
-          .eq('email', emailToSync);
-      }
-
-      setShowSetPasswordModal(false);
-      setNewPasswordInput('');
-      setConfirmPasswordInput('');
-      showToast('Senha pessoal definida com sucesso!');
-    } catch (err) {
-      console.error('Erro ao definir senha:', err);
-      alert('Erro inesperado ao definir a senha.');
-    } finally {
-      setSavingNewPassword(false);
-    }
-  };
 
   const currentRole = useMemo(() => {
     return accessRoles.find((r) => r.id === activeRoleId) || accessRoles[0];
@@ -1680,23 +1614,20 @@ export default function App() {
     }
   };
 
-const handleSaveNewUserRole = async (e) => {
+  const handleSaveNewUserRole = async (e) => {
     e.preventDefault();
     if (!newRoleForm.name || !newRoleForm.holder || !newRoleForm.email) {
       alert('Preencha Nome do Perfil, Titular e E-mail.');
       return;
     }
 
-    const normalizedEmail = newRoleForm.email.trim().toLowerCase();
-    const initialPassword = newRoleForm.password || 'martins2026';
-
     const newRole = {
       id: generateUniqueId('ROLE'),
       level: newRoleForm.level || 'Nível Especial — Colaborador',
       name: newRoleForm.name.trim(),
       holder: newRoleForm.holder.trim(),
-      email: normalizedEmail,
-      password: initialPassword,
+      email: newRoleForm.email.trim().toLowerCase(),
+      password: newRoleForm.password || 'martins2026',
       description: newRoleForm.description || 'Perfil personalizado de acesso.',
       permissions: JSON.parse(JSON.stringify(DEFAULT_PERMISSIONS))
     };
@@ -1709,40 +1640,6 @@ const handleSaveNewUserRole = async (e) => {
           alert('Erro ao salvar utilizador na nuvem: ' + error.message);
           return;
         }
-
-        const redirectUrl = 'https://grupomartins.vercel.app';
-
-        const { error: signUpError } = await supabase.auth.signUp({
-          email: normalizedEmail,
-          password: initialPassword
-        });
-
-        if (signUpError && !signUpError.message.toLowerCase().includes('already')) {
-          console.error('Erro no auth.signUp:', signUpError);
-        }
-
-        const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-          redirectTo: redirectUrl
-        });
-
-        setAccessRoles((prev) => [...prev, newRole]);
-        setShowUserRoleModal(false);
-        setNewRoleForm({
-          level: 'Nível Especial — Colaborador',
-          name: '',
-          holder: '',
-          email: '',
-          password: 'martins2026',
-          description: ''
-        });
-
-        if (resetError) {
-          console.error('Erro ao enviar e-mail de definição de senha:', resetError);
-          showToast('Utilizador salvo, mas houve falha ao enviar o e-mail (verifique o limite de envio).');
-        } else {
-          showToast('Novo utilizador cadastrado e e-mail de definição de senha disparado!');
-        }
-        return;
       }
 
       setAccessRoles((prev) => [...prev, newRole]);
@@ -1755,38 +1652,12 @@ const handleSaveNewUserRole = async (e) => {
         password: 'martins2026',
         description: ''
       });
-      showToast('Novo utilizador cadastrado!');
+      showToast('Novo utilizador cadastrado e salvo na nuvem!');
     } catch (err) {
       console.error('Erro inesperado:', err);
       alert('Erro ao processar o cadastro do utilizador.');
     }
   };
-  
-  const redirectUrl = 'https://grupomartins.vercel.app';
-
-const { error: signUpError } = await supabase.auth.signUp({
-  email: normalizedEmail,
-  password: initialPassword
-});
-
-if (signUpError && !signUpError.message.toLowerCase().includes('already')) {
-  console.error('Erro no auth.signUp:', signUpError);
-}
-
-const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-  redirectTo: redirectUrl
-});
-
-if (resetError) {
-    console.error('Erro ao enviar e-mail de definição de senha:', resetError);
-    showToast('Utilizador salvo, mas houve falha ao enviar o e-mail (verifique o limite de envio).');
-  } else {
-    showToast('Novo utilizador cadastrado e e-mail de definição de senha disparado!');
-  }
-} catch (err) {
-  console.error('Erro inesperado:', err);
-  alert('Erro ao processar o cadastro do utilizador.');
-}
 
   const handlePermissionToggle = async (roleId, moduleKey, actionKey) => {
     let targetUpdated = null;
@@ -3524,16 +3395,16 @@ if (resetError) {
                               </div>
                             </th>
                             <th onClick={() => handleSort('license')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Licença {sortField === 'license' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}</div>
+                              <div className="flex items-center gap-1">Licença {sortField === 'license' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
                             <th onClick={() => handleSort('responsible')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Responsável - Empresa {sortField === 'responsible' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}</div>
+                              <div className="flex items-center gap-1">Responsável - Empresa {sortField === 'responsible' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
                             <th onClick={() => handleSort('observation')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Observação {sortField === 'observation' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}</div>
+                              <div className="flex items-center gap-1">Observação {sortField === 'observation' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
                             <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}</div>
+                              <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
                             </th>
                             <th className="py-3.5 px-3 text-center">Ações</th>
                           </tr>
@@ -3849,7 +3720,7 @@ if (resetError) {
       </div>
 
       {/* ========================================================================== */}
-      {/* TODOS OS 14 MODAIS DO SISTEMA UNIFICADOS E ATIVOS                          */}
+      {/* TODOS OS 13 MODAIS DO SISTEMA UNIFICADOS E ATIVOS                          */}
       {/* ========================================================================== */}
 
       {/* 1. MODAL NOVO / EDITAR PLANO DE CONTAS */}
@@ -5135,69 +5006,6 @@ if (resetError) {
                   <button type="button" onClick={() => setEditingRoleTarget(null)} className="px-4 py-2 rounded-xl border font-bold cursor-pointer">Cancelar</button>
                   <button type="submit" className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold cursor-pointer">Salvar Alterações</button>
                 </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 14. MODAL DEFINIR SENHA PESSOAL (PASSWORD_RECOVERY) */}
-      {showSetPasswordModal && (
-        <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-[#1B3B2B]">
-            <div className="flex items-center justify-between border-b pb-3">
-              <div>
-                <h3 className="text-base font-extrabold text-[#1B3B2B]">Primeiro Acesso — Definir Senha Pessoal</h3>
-                {recoveryEmail && (
-                  <p className="text-xs text-slate-500 mt-0.5">Conta: <strong>{recoveryEmail}</strong></p>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowSetPasswordModal(false)}
-                className="text-slate-500 hover:text-slate-700 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleConfirmSetPassword} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">Nova Senha Pessoal</label>
-                <input
-                  type="password"
-                  value={newPasswordInput}
-                  onChange={(e) => setNewPasswordInput(e.target.value)}
-                  placeholder="Digite sua nova senha..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">Confirmar Nova Senha</label>
-                <input
-                  type="password"
-                  value={confirmPasswordInput}
-                  onChange={(e) => setConfirmPasswordInput(e.target.value)}
-                  placeholder="Repita a nova senha..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold"
-                  required
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-3 border-t">
-                <button
-                  type="button"
-                  onClick={() => setShowSetPasswordModal(false)}
-                  className="px-4 py-2 rounded-xl border font-bold cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingNewPassword}
-                  className="px-5 py-2 rounded-xl bg-[#1B3B2B] text-white font-bold hover:bg-[#2D5A43] cursor-pointer disabled:opacity-50"
-                >
-                  {savingNewPassword ? 'Salvando...' : 'Confirmar Senha'}
-                </button>
               </div>
             </form>
           </div>
