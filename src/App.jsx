@@ -1680,7 +1680,7 @@ export default function App() {
     }
   };
 
-  const handleSaveNewUserRole = async (e) => {
+const handleSaveNewUserRole = async (e) => {
     e.preventDefault();
     if (!newRoleForm.name || !newRoleForm.holder || !newRoleForm.email) {
       alert('Preencha Nome do Perfil, Titular e E-mail.');
@@ -1710,7 +1710,59 @@ export default function App() {
           return;
         }
 
-const redirectUrl = 'https://grupomartins.vercel.app';
+        const redirectUrl = 'https://grupomartins.vercel.app';
+
+        const { error: signUpError } = await supabase.auth.signUp({
+          email: normalizedEmail,
+          password: initialPassword
+        });
+
+        if (signUpError && !signUpError.message.toLowerCase().includes('already')) {
+          console.error('Erro no auth.signUp:', signUpError);
+        }
+
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+          redirectTo: redirectUrl
+        });
+
+        setAccessRoles((prev) => [...prev, newRole]);
+        setShowUserRoleModal(false);
+        setNewRoleForm({
+          level: 'Nível Especial — Colaborador',
+          name: '',
+          holder: '',
+          email: '',
+          password: 'martins2026',
+          description: ''
+        });
+
+        if (resetError) {
+          console.error('Erro ao enviar e-mail de definição de senha:', resetError);
+          showToast('Utilizador salvo, mas houve falha ao enviar o e-mail (verifique o limite de envio).');
+        } else {
+          showToast('Novo utilizador cadastrado e e-mail de definição de senha disparado!');
+        }
+        return;
+      }
+
+      setAccessRoles((prev) => [...prev, newRole]);
+      setShowUserRoleModal(false);
+      setNewRoleForm({
+        level: 'Nível Especial — Colaborador',
+        name: '',
+        holder: '',
+        email: '',
+        password: 'martins2026',
+        description: ''
+      });
+      showToast('Novo utilizador cadastrado!');
+    } catch (err) {
+      console.error('Erro inesperado:', err);
+      alert('Erro ao processar o cadastro do utilizador.');
+    }
+  };
+  
+  const redirectUrl = 'https://grupomartins.vercel.app';
 
 const { error: signUpError } = await supabase.auth.signUp({
   email: normalizedEmail,
