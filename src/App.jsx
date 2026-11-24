@@ -481,6 +481,66 @@ export default function App() {
   const [authPasswordInput, setAuthPasswordInput] = useState('');
   const [authErrorMsg, setAuthErrorMsg] = useState('');
 
+  // Convite por e-mail: criação de senha pelo próprio funcionário
+  const [inviteByEmail, setInviteByEmail] = useState(true);
+  const [inviteToken, setInviteToken] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get('convite') || ''; } catch (e) { return ''; }
+  });
+  const [inviteInfo, setInviteInfo] = useState(null);
+  const [inviteStatus, setInviteStatus] = useState(inviteToken ? 'checking' : 'idle');
+  const [invitePass, setInvitePass] = useState('');
+  const [invitePass2, setInvitePass2] = useState('');
+  const [inviteMsg, setInviteMsg] = useState('');
+
+  useEffect(() => {
+    if (!inviteToken || !supabase) return;
+    (async () => {
+      const { data, error } = await supabase.rpc('validar_convite', { p_token: inviteToken });
+      const row = Array.isArray(data) ? data[0] : data;
+      if (error || !row) {
+        setInviteStatus('invalid');
+      } else {
+        setInviteInfo(row);
+        setInviteStatus('ready');
+      }
+    })();
+  }, [inviteToken]);
+
+  const handleDefinirSenhaConvite = async (e) => {
+    e.preventDefault();
+    setInviteMsg('');
+    if (invitePass.length < 8) { setInviteMsg('A senha deve ter no mínimo 8 caracteres.'); return; }
+    if (invitePass !== invitePass2) { setInviteMsg('As senhas não conferem.'); return; }
+    const { data, error } = await supabase.rpc('definir_senha_convite', { p_token: inviteToken, p_senha: invitePass });
+    if (error || data !== true) {
+      setInviteMsg(error?.message || 'Convite inválido ou expirado. Peça um novo ao administrador.');
+      return;
+    }
+    setInviteStatus('done');
+    setInvitePass('');
+    setInvitePass2('');
+    try { window.history.replaceState({}, '', window.location.pathname); } catch (err) { /* ignore */ }
+  };
+
+  const enviarConvite = async (userId) => {
+    try {
+      const res = await fetch(`${supabaseUrl}/functions/v1/enviar-convite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: supabaseKey },
+        body: JSON.stringify({ user_id: userId })
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert('Não foi possível enviar o convite: ' + (out.error || res.status));
+        return false;
+      }
+      return true;
+    } catch (err) {
+      alert('Não foi possível enviar o convite: ' + err.message);
+      return false;
+    }
+  };
+
   const [params, setParams] = useState(INITIAL_PARAMETERS);
 
   const [showUserRoleModal, setShowUserRoleModal] = useState(false);
@@ -847,7 +907,7 @@ export default function App() {
         supabase.from('transactions').select('*'),
         supabase.from('contracts').select('*'),
         supabase.from('clients').select('*'),
-        supabase.from('user_roles').select('id, level, name, holder, email, description, permissions'),
+        supabase.from('user_roles').select('id, level, name, holder, email, description, permissions, convite_pendente'),
         supabase.from('condicionantes').select('*'),
         supabase.from('erp_settings').select('*').eq('id', 'GLOBAL').maybeSingle()
       ]);
@@ -1627,9 +1687,12 @@ export default function App() {
       name: newRoleForm.name.trim(),
       holder: newRoleForm.holder.trim(),
       email: newRoleForm.email.trim().toLowerCase(),
-      password: newRoleForm.password || 'martins2026',
+      password: inviteByEmail
+        ? 'convite-' + generateUniqueId('PWD') + '-' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
+        : (newRoleForm.password || 'martins2026'),
       description: newRoleForm.description || 'Perfil personalizado de acesso.',
-      permissions: JSON.parse(JSON.stringify(DEFAULT_PERMISSIONS))
+      permissions: JSON.parse(JSON.stringify(DEFAULT_PERMISSIONS)),
+      ...(inviteByEmail ? { convite_pendente: true } : {})
     };
 
     try {
@@ -1642,7 +1705,8 @@ export default function App() {
         }
       }
 
-      setAccessRoles((prev) => [...prev, newRole]);
+      const { password: _pwd, ...newRoleSafe } = newRole;
+      setAccessRoles((prev) => [...prev, inviteByEmail ? { ...newRoleSafe, password: '' } : newRole]);
       setShowUserRoleModal(false);
       setNewRoleForm({
         level: 'Nível Especial — Colaborador',
@@ -1652,7 +1716,12 @@ export default function App() {
         password: 'martins2026',
         description: ''
       });
-      showToast('Novo utilizador cadastrado e salvo na nuvem!');
+      if (inviteByEmail) {
+        const ok = await enviarConvite(newRole.id);
+        showToast(ok ? 'Utilizador cadastrado e convite enviado por e-mail!' : 'Utilizador cadastrado, mas o convite não foi enviado. Use "Reenviar convite".');
+      } else {
+        showToast('Novo utilizador cadastrado e salvo na nuvem!');
+      }
     } catch (err) {
       console.error('Erro inesperado:', err);
       alert('Erro ao processar o cadastro do utilizador.');
@@ -3523,6 +3592,23 @@ export default function App() {
                           <h4 className="font-extrabold text-[#1B3B2B] text-sm">{role.name}</h4>
                           <div className="text-xs font-bold text-slate-700">👤 {role.holder}</div>
                           <div className="text-xs text-slate-500">✉️ {role.email}</div>
+                          {role.convite_pendente && (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Convite pendente</span>
+                              {hasPermission('acessos', 'edit') && (
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    const ok = await enviarConvite(role.id);
+                                    if (ok) showToast('Convite reenviado para ' + role.email);
+                                  }}
+                                  className="text-[10px] font-bold text-teal-800 underline cursor-pointer"
+                                >
+                                  Reenviar convite
+                                </button>
+                              )}
+                            </div>
+                          )}
                           <p className="text-[11px] text-slate-600 border-t pt-2 mt-2">{role.description}</p>
                         </div>
 
@@ -4848,6 +4934,19 @@ export default function App() {
                   required
                 />
               </div>
+              <label className="flex items-start gap-2 p-3 rounded-xl border bg-emerald-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={inviteByEmail}
+                  onChange={(e) => setInviteByEmail(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span className="font-bold text-teal-900">
+                  Enviar convite por e-mail
+                  <span className="block font-normal text-slate-600">O funcionário recebe um link e cria a própria senha.</span>
+                </span>
+              </label>
+              {!inviteByEmail && (
               <div>
                 <label className="block font-bold mb-1">Senha Inicial</label>
                 <input
@@ -4858,6 +4957,7 @@ export default function App() {
                   required
                 />
               </div>
+              )}
               <div>
                 <label className="block font-bold mb-1">Descrição das Alçadas</label>
                 <textarea
@@ -5008,6 +5108,62 @@ export default function App() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* TELA "DEFINA SUA SENHA" (link de convite) */}
+      {inviteToken && (
+        <div className="fixed inset-0 z-[60] bg-[#1B3B2B] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl border text-center space-y-5">
+            <GrupoMartinsLogo size="md" className="mx-auto" />
+            {inviteStatus === 'checking' && <p className="text-sm text-slate-500">Validando convite...</p>}
+            {inviteStatus === 'invalid' && (
+              <div className="space-y-3">
+                <h2 className="text-lg font-black text-[#1B3B2B]">Convite inválido ou expirado</h2>
+                <p className="text-xs text-slate-500">Peça ao administrador para reenviar o convite.</p>
+                <button
+                  type="button"
+                  onClick={() => { setInviteToken(''); try { window.history.replaceState({}, '', window.location.pathname); } catch (err) { /* ignore */ } }}
+                  className="w-full py-3 rounded-xl bg-[#1B3B2B] text-white font-extrabold cursor-pointer"
+                >
+                  Ir para o login
+                </button>
+              </div>
+            )}
+            {inviteStatus === 'ready' && (
+              <form onSubmit={handleDefinirSenhaConvite} className="space-y-4 text-left text-xs">
+                <div className="text-center">
+                  <h2 className="text-xl font-black text-[#1B3B2B]">Defina sua senha</h2>
+                  <p className="text-xs text-slate-500 mt-1">Olá, {inviteInfo?.holder}! Acesso: {inviteInfo?.email}</p>
+                </div>
+                {inviteMsg && <div className="p-3 rounded-xl bg-rose-100 text-rose-800 text-xs font-bold">{inviteMsg}</div>}
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Nova senha (mín. 8 caracteres)</label>
+                  <input type="password" value={invitePass} onChange={(e) => setInvitePass(e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl border" required minLength={8} />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Repita a senha</label>
+                  <input type="password" value={invitePass2} onChange={(e) => setInvitePass2(e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl border" required minLength={8} />
+                </div>
+                <button type="submit" className="w-full py-3 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer">
+                  Salvar senha
+                </button>
+              </form>
+            )}
+            {inviteStatus === 'done' && (
+              <div className="space-y-3">
+                <h2 className="text-lg font-black text-[#1B3B2B]">Senha criada com sucesso!</h2>
+                <p className="text-xs text-slate-500">Agora entre no ERP com seu e-mail e a nova senha.</p>
+                <button
+                  type="button"
+                  onClick={() => { if (inviteInfo?.email) setAuthEmailInput(inviteInfo.email); setInviteToken(''); }}
+                  className="w-full py-3 rounded-xl bg-[#1B3B2B] text-white font-extrabold cursor-pointer"
+                >
+                  Ir para o login
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
