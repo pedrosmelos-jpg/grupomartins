@@ -1726,16 +1726,15 @@ const { error: resetError } = await supabase.auth.resetPasswordForEmail(normaliz
 });
 
 if (resetError) {
-  console.error('Erro ao enviar e-mail de definição de senha:', resetError);
-  showToast('Utilizador salvo, mas houve falha ao enviar o e-mail (verifique o limite de envio).');
-} else {
-  showToast('Novo utilizador cadastrado e e-mail de definição de senha disparado!');
+    console.error('Erro ao enviar e-mail de definição de senha:', resetError);
+    showToast('Utilizador salvo, mas houve falha ao enviar o e-mail (verifique o limite de envio).');
+  } else {
+    showToast('Novo utilizador cadastrado e e-mail de definição de senha disparado!');
+  }
+} catch (err) {
+  console.error('Erro inesperado:', err);
+  alert('Erro ao processar o cadastro do utilizador.');
 }
-        catch (err) {
-      console.error('Erro inesperado:', err);
-      alert('Erro ao processar o cadastro do utilizador.');
-    }
-  };
 
   const handlePermissionToggle = async (roleId, moduleKey, actionKey) => {
     let targetUpdated = null;
