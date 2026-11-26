@@ -2492,73 +2492,105 @@ export default function App() {
     }
   };
 
-  const handleEmitirNfseApi = async (record, extra = {}) => {
-    if (!record.cliente_documento) {
-      alert('Informe o CNPJ/CPF do cliente antes de transmitir a NFS-e.');
-      return;
-    }
-    setEmittingNfseId(record.id);
+ const handleEmitirNfseApi = async (record, extra = {}) => {
+  if (!record.cliente_documento) {
+    alert('Informe o CNPJ/CPF do cliente antes de transmitir a NFS-e.');
+    return;
+  }
+  setEmittingNfseId(record.id);
+  try {
+    let savedSeq = 26;
     try {
-      const nextNum = Math.max(26, ...nfseList.map(n => parseInt(n.numero || '0', 10) || 0)) + 1;
-      const res = await fetch('/api/emitir-nfse', {
+      savedSeq = parseInt(localStorage.getItem('gm_nfse_last_dps_num') || '26', 10) || 26;
+    } catch {}
+
+    let candidateNum =
+      Math.max(
+        26,
+        savedSeq,
+        ...nfseList.map((n) => parseInt(n.numero || '0', 10) || 0)
+      ) + 1;
+
+    const ambiente = record.ambiente || 'homologacao';
+    const prestadorPayload = {
+      cnpj: '64904070000157',
+      codigoIbge: '5107602',
+      opSimpNac: extra.opSimpNac || '3',
+      regApTribSN: '1'
+    };
+    const tomadorPayload = {
+      nome: record.cliente_nome,
+      documento: record.cliente_documento,
+      email: record.cliente_email
+    };
+    const servicoPayload = {
+      codigoServico: record.codigo_servico || '17.01.01',
+      codigoNbs: extra.codigoNbs || '1.1806.40.00',
+      descricao: record.descricao_servico,
+      valor: Number(record.valor || 0),
+      aliquotaIss: Number(record.aliquota_iss || 0),
+      issRetido: Boolean(extra.issRetido),
+      dataCompetencia: record.data_emissao
+    };
+
+    let res;
+    let out = {};
+    const maxAttempts = 10;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        localStorage.setItem('gm_nfse_last_dps_num', String(candidateNum));
+      } catch {}
+
+      res = await fetch('/api/emitir-nfse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ambiente: record.ambiente || 'homologacao',
-          numeroDps: String(nextNum),
+          ambiente,
+          numeroDps: String(candidateNum),
           serieDps: '1',
-prestador: {
-  cnpj: '64904070000157',
-  codigoIbge: '5107602',
-  inscricaoMunicipal: '', // preencher com a IM se houver
-  opSimpNac: extra.opSimpNac || '3',
-  regApTribSN: '1'
-},
-          tomador: {
-            nome: record.cliente_nome,
-            documento: record.cliente_documento,
-            email: record.cliente_email
-          },
-          servico: {
-            codigoServico: record.codigo_servico || '17.01.01',
-            codigoNbs: extra.codigoNbs || '1.1806.40.00',
-            descricao: record.descricao_servico,
-            valor: Number(record.valor || 0),
-            aliquotaIss: Number(record.aliquota_iss || 0),
-            issRetido: Boolean(extra.issRetido),
-            dataCompetencia: record.data_emissao
-          }
+          prestador: prestadorPayload,
+          tomador: tomadorPayload,
+          servico: servicoPayload
         })
       });
 
-      const out = await res.json().catch(() => ({}));
-      if (!res.ok || !out.ok) {
-        const errMsg = out.error || `Falha HTTP ${res.status}`;
-        const failedRecord = { ...record, status: 'Erro', mensagem_erro: errMsg };
-        setNfseList(prev => prev.map(n => (n.id === record.id ? failedRecord : n)));
-        if (supabase) await supabase.from('nfse').upsert([failedRecord]);
-        alert('Não foi possível emitir a NFS-e:\n\n' + errMsg);
-        return;
+      out = await res.json().catch(() => ({}));
+      const errText = `${out.error || ''} ${out.sefinRaw || ''}`;
+      if (!res.ok && !out.ok && errText.includes('E0014')) {
+        candidateNum += 1;
+        continue;
       }
-
-      const okRecord = {
-        ...record,
-        numero: out.numero || String(nextNum),
-        chave_acesso: out.chaveAcesso || '',
-        pdf_url: out.pdfUrl || '',
-        xml_retorno: out.xmlRetorno || '',
-        status: 'Autorizada',
-        mensagem_erro: ''
-      };
-      setNfseList(prev => prev.map(n => (n.id === record.id ? okRecord : n)));
-      if (supabase) await supabase.from('nfse').upsert([okRecord]);
-      showToast(`NFS-e nº ${okRecord.numero} autorizada com sucesso!`);
-    } catch (err) {
-      alert('Erro de conexão com /api/emitir-nfse: ' + err.message);
-    } finally {
-      setEmittingNfseId(null);
+      break;
     }
-  };
+
+    if (!res.ok || !out.ok) {
+      const errMsg = out.error || `Falha HTTP ${res.status}`;
+      const failedRecord = { ...record, status: 'Erro', mensagem_erro: errMsg };
+      setNfseList((prev) => prev.map((n) => (n.id === record.id ? failedRecord : n)));
+      if (supabase) await supabase.from('nfse').upsert([failedRecord]);
+      alert('Não foi possível emitir a NFS-e:\n\n' + errMsg);
+      return;
+    }
+
+    const okRecord = {
+      ...record,
+      numero: out.numero || String(candidateNum),
+      chave_acesso: out.chaveAcesso || '',
+      pdf_url: out.pdfUrl || '',
+      xml_retorno: out.xmlRetorno || '',
+      status: 'Autorizada',
+      mensagem_erro: ''
+    };
+    setNfseList((prev) => prev.map((n) => (n.id === record.id ? okRecord : n)));
+    if (supabase) await supabase.from('nfse').upsert([okRecord]);
+    showToast(`NFS-e nº ${okRecord.numero} autorizada com sucesso!`);
+  } catch (err) {
+    alert('Erro de conexão com /api/emitir-nfse: ' + err.message);
+  } finally {
+    setEmittingNfseId(null);
+  }
+};
 
   const confirmDeleteNfse = async () => {
     if (!deleteNfseTarget) return;
