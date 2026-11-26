@@ -119,7 +119,7 @@ const GrupoMartinsLogo = ({ size = 'md', theme = 'cream', className = '' }) => {
           />
           <path d="M75 50 L64 55" stroke={bgBadge} strokeWidth="2.2" strokeLinecap="round" />
         </svg>
-        ="leading-tight overflow-hidden">
+        <div className="leading-tight overflow-hidden">
           <div
             className="text-[9px] tracking-[0.28em] font-semibold uppercase"
             style={{ color: secondaryColor }}
