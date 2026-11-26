@@ -3607,24 +3607,42 @@ export default function App() {
                           </div>
                           <h4 className="font-extrabold text-[#1B3B2B] text-sm">{role.name}</h4>
                           <div className="text-xs font-bold text-slate-700">👤 {role.holder}</div>
-                          <div className="text-xs text-slate-500">✉️ {role.email}</div>
-                          {role.convite_pendente && (
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Convite pendente</span>
-                              {hasPermission('acessos', 'edit') && (
-                                <button
-                                  type="button"
-                                  onClick={async () => {
-                                    const ok = await enviarConvite(role.id);
-                                    if (ok) showToast('Convite reenviado para ' + role.email);
-                                  }}
-                                  className="text-[10px] font-bold text-teal-800 underline cursor-pointer"
-                                >
-                                  Reenviar convite
-                                </button>
-                              )}
-                            </div>
-                          )}
+<div className="text-xs text-slate-500">✉️ {role.email}</div>
+                          <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                            {role.convite_pendente ? (
+                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                                Convite pendente
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                                Senha ativa
+                              </span>
+                            )}
+                            {hasPermission('acessos', 'edit') && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (!role.convite_pendente && !window.confirm(`Enviar um novo link para ${role.holder} (${role.email}) redefinir a senha?`)) {
+                                    return;
+                                  }
+                                  const ok = await enviarConvite(role.id);
+                                  if (ok) {
+                                    setAccessRoles((prev) =>
+                                      prev.map((r) => (r.id === role.id ? { ...r, convite_pendente: true } : r))
+                                    );
+                                    showToast(
+                                      role.convite_pendente
+                                        ? 'Convite reenviado para ' + role.email
+                                        : 'Link de redefinição de senha enviado para ' + role.email
+                                    );
+                                  }
+                                }}
+                                className="text-[10px] font-bold text-teal-800 underline hover:text-teal-950 cursor-pointer"
+                              >
+                                {role.convite_pendente ? 'Reenviar convite' : 'Enviar link de redefinição de senha'}
+                              </button>
+                            )}
+                          </div>
                           <p className="text-[11px] text-slate-600 border-t pt-2 mt-2">{role.description}</p>
                         </div>
 
