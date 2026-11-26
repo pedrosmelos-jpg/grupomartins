@@ -785,7 +785,7 @@ const formatCepDoc = (cep) => {
 };
 
 const openLocalDanfsePrint = (nfseRecord, params = INITIAL_PARAMETERS) => {
-  const win = window.open('', '_blank', 'width=960,height=840');
+  const win = window.open('', '_blank', 'width=980,height=860');
   if (!win) {
     alert('Permita pop-ups no navegador para visualizar/imprimir o DANFSe.');
     return;
@@ -793,19 +793,19 @@ const openLocalDanfsePrint = (nfseRecord, params = INITIAL_PARAMETERS) => {
 
   const xml = nfseRecord.xml_retorno || '';
   const chaveXml = extractTagXml(xml, 'chNFSe');
-  const chave = nfseRecord.chave_acesso || chaveXml || '51076022264904070000157000000000000126110357446285';
+  const chave = nfseRecord.chave_acesso || chaveXml || '';
 
   const nNfseXml = extractTagXml(xml, 'nNFSe');
   const nDpsXml = extractTagXml(xml, 'nDPS');
   const serieXml = extractTagXml(xml, 'serie');
   const nDpsFromKey = chave && chave.length >= 42 ? String(parseInt(chave.slice(27, 42), 10) || '') : '';
 
-  const numNfse = nfseRecord.numero || nNfseXml || nDpsFromKey || '1';
-  const numDps = nDpsXml || nDpsFromKey || numNfse || '27';
+  const numNfse = nfseRecord.numero || nNfseXml || nDpsFromKey || '—';
+  const numDps = nDpsXml || nDpsFromKey || (numNfse !== '—' ? numNfse : '—');
   const serieDps = serieXml || '1';
 
   const dCompetRaw = extractTagXml(xml, 'dCompet') || nfseRecord.data_emissao || '';
-  const competenciaStr = formatDateBR(dCompetRaw) || '26/11/2026';
+  const competenciaStr = formatDateBR(dCompetRaw) || '—';
 
   const dhProcRaw = extractTagXml(xml, 'dhProc') || extractTagXml(xml, 'dhEmi') || '';
   const emissaoStr = dhProcRaw
@@ -816,7 +816,7 @@ const openLocalDanfsePrint = (nfseRecord, params = INITIAL_PARAMETERS) => {
         const tStr = dt.toLocaleTimeString('pt-BR', { timeZone: 'America/Cuiaba', hour12: false });
         return `${dStr} ${tStr}`;
       })()
-    : `${competenciaStr} 16:56:36`;
+    : `${competenciaStr} 00:00:00`;
 
   const tpAmbXml = extractTagXml(xml, 'tpAmb');
   const tipoAmbiente = tpAmbXml || (nfseRecord.ambiente === 'producao' ? '1' : '2');
@@ -827,29 +827,29 @@ const openLocalDanfsePrint = (nfseRecord, params = INITIAL_PARAMETERS) => {
   const descServico =
     nfseRecord.descricao_servico ||
     extractTagXml(xml, 'xDescServ') ||
-    'Referente a Serviços Ambientais. Chave PIX: 64.904.070/0001-57 Martins Soluções Ambientais e Segurança do Trabalho Banco Santander';
+    '';
 
   const vServXml = Number(extractTagXml(xml, 'vServ'));
   const vRec = Number(nfseRecord.valor);
   const valorServico = Number.isFinite(vRec) && vRec > 0 ? vRec : (Number.isFinite(vServXml) ? vServXml : 0);
 
   const aliqNum = Number(nfseRecord.aliquota_iss || 0);
-  const aliqFormatada = Number.isFinite(aliqNum) && aliqNum > 0
+  const aliqText = Number.isFinite(aliqNum) && aliqNum > 0
     ? `${aliqNum.toFixed(2).replace('.', ',')}%`
-    : '6,00%';
+    : '-';
 
   const tomaNome = nfseRecord.cliente_nome || extractTagXml(xml, 'xNome') || '—';
   const tomaDoc = formatCpfCnpjDoc(nfseRecord.cliente_documento || extractTagXml(xml, 'CNPJ') || extractTagXml(xml, 'CPF'));
-  const tomaEmail = nfseRecord.cliente_email || extractTagXml(xml, 'email') || '—';
+  const tomaEmail = nfseRecord.cliente_email || extractTagXml(xml, 'email') || '-';
   const tomaEnd = [
     extractTagXml(xml, 'xLgr'),
     extractTagXml(xml, 'nro'),
     extractTagXml(xml, 'xBairro')
   ]
     .filter(Boolean)
-    .join(', ') || 'AVENIDA CUIABA, 829, CENTRO';
+    .join(', ') || '-';
   const tomaMun = extractTagXml(xml, 'xMun') || 'Rondonópolis / MT';
-  const tomaCep = formatCepDoc(extractTagXml(xml, 'CEP')) || '78700-090';
+  const tomaCep = formatCepDoc(extractTagXml(xml, 'CEP')) || '-';
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -860,223 +860,224 @@ const openLocalDanfsePrint = (nfseRecord, params = INITIAL_PARAMETERS) => {
     @page { size: A4 portrait; margin: 8mm 9mm; }
     * { box-sizing: border-box; }
     body {
-      font-family: Arial, Helvetica, sans-serif;
+      font-family: Helvetica, Arial, sans-serif;
       color: #111827;
       margin: 0;
       padding: 4px;
-      font-size: 8.5px;
-      line-height: 1.25;
+      font-size: 9px;
+      line-height: 1.3;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
-    .sheet {
-      max-width: 790px;
+    .wrap {
+      width: 100%;
+      max-width: 780px;
       margin: 0 auto;
-      border: 1.5px solid #111827;
-      padding: 6px 8px;
-      background: #ffffff;
     }
-    .top-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      border-bottom: 1.5px solid #111827;
-      padding-bottom: 4px;
-      margin-bottom: 4px;
-    }
-    .t-main { font-size: 13px; font-weight: 800; color: #111827; }
-    .t-sub { font-size: 7.8px; color: #374151; margin-top: 1px; }
-    .t-right { text-align: right; }
-    .t-v2 { font-size: 11px; font-weight: 800; color: #111827; }
-    .meta-row {
-      display: grid;
-      grid-template-columns: repeat(6, 1fr);
-      border: 1px solid #374151;
-      margin-bottom: 4px;
-    }
-    .chave-row {
-      border: 1px solid #374151;
-      padding: 3px 5px;
+    table.danfse-tbl {
+      width: 100%;
+      border-collapse: collapse;
       margin-bottom: 5px;
+      table-layout: fixed;
     }
-    .sec-title {
-      background: #e5e7eb;
+    table.danfse-tbl th,
+    table.danfse-tbl td {
       border: 1px solid #374151;
-      border-bottom: none;
-      padding: 2px 5px;
-      font-size: 7.5px;
-      font-weight: 800;
-      text-transform: uppercase;
+      padding: 3.5px 5px;
+      vertical-align: top;
+      word-wrap: break-word;
     }
-    .box {
-      border: 1px solid #374151;
-      margin-bottom: 5px;
-    }
-    .grid-2 { display: grid; grid-template-columns: 1fr 1.6fr; }
-    .grid-3 { display: grid; grid-template-columns: 1.15fr 1.15fr 1fr; }
-    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); }
-    .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); background: #f3f4f6; }
-    .cell {
-      padding: 3px 5px;
-      border-right: 1px solid #9ca3af;
-      border-bottom: 1px solid #9ca3af;
-      min-width: 0;
-    }
-    .box > :last-child .cell,
-    .box > .cell:last-child { border-bottom: none; }
-    .cell:last-child { border-right: none; }
-    .meta-row .cell { border-bottom: none; }
-    .grid-5 .cell { border-bottom: none; }
-    .lbl {
-      font-size: 6.6px;
+    .sec-bar {
+      background-color: #e5e7eb !important;
       font-weight: 700;
+      font-size: 8px;
       text-transform: uppercase;
-      color: #374151;
+      text-align: left;
+    }
+    .lbl {
+      display: block;
+      font-size: 7px;
+      font-weight: 700;
+      color: #4b5563;
+      text-transform: uppercase;
+      margin-bottom: 1px;
     }
     .val {
-      font-size: 8.2px;
+      display: block;
+      font-size: 8.8px;
       font-weight: 700;
       color: #111827;
-      margin-top: 1px;
-      word-break: break-word;
     }
-    .mono { font-family: "Courier New", monospace; }
-    .desc-txt {
-      padding: 4px 5px;
-      font-size: 8.2px;
-      white-space: pre-wrap;
-      word-break: break-word;
+    .val-normal {
+      display: block;
+      font-size: 8.6px;
+      font-weight: 400;
+      color: #111827;
     }
-    .foot-line {
-      display: flex;
-      justify-content: space-between;
-      border-top: 1px solid #374151;
-      padding-top: 3px;
-      margin-top: 4px;
-      font-size: 7.4px;
+    .mono {
+      font-family: "Liberation Mono", "DejaVu Sans Mono", Arial, sans-serif;
+      font-size: 8.6px;
+    }
+    .hdr-left-title {
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .hdr-right-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-align: right;
+    }
+    .hdr-sub {
+      font-size: 7.8px;
       color: #374151;
     }
-    @media print {
-      body { padding: 0; }
-      .sheet { max-width: 100%; }
+    .hdr-right-sub {
+      font-size: 8px;
+      color: #374151;
+      text-align: right;
+    }
+    .tot-box {
+      background-color: #f3f4f6 !important;
+      font-weight: 700;
+    }
+    .foot-note {
+      display: flex;
+      justify-content: space-between;
+      font-size: 7.6px;
+      color: #374151;
+      border-top: 1px solid #374151;
+      padding-top: 3px;
+      margin-top: 2px;
     }
   </style>
 </head>
 <body>
-  <div class="sheet">
-    <div class="top-head">
-      <div>
-        <div class="t-main">NFSe Nota Fiscal de Serviço Eletrônica</div>
-        <div class="t-sub">Simples Nacional na Data de Competência • Ambiente Gerador: ${escapeHtml(ambienteGerador)} • Tipo de Ambiente: ${escapeHtml(tipoAmbiente)}</div>
-      </div>
-      <div class="t-right">
-        <div class="t-v2">DANFSe v2.0</div>
-        <div class="t-sub">Documento Auxiliar da NFS-e</div>
-      </div>
-    </div>
+  <div class="wrap">
+    <table class="danfse-tbl">
+      <tr>
+        <td style="width: 68%; border-left: none; border-top: none; border-right: none;">
+          <div class="hdr-left-title">NFSe Nota Fiscal de Serviço Eletrônica</div>
+          <div class="hdr-sub">Simples Nacional na Data de Competência • Ambiente Gerador: ${escapeHtml(ambienteGerador)} • Tipo de Ambiente: ${escapeHtml(tipoAmbiente)}</div>
+        </td>
+        <td style="width: 32%; border-right: none; border-top: none; border-left: none;">
+          <div class="hdr-right-title">DANFSe v2.0</div>
+          <div class="hdr-right-sub">Documento Auxiliar da NFS-e</div>
+        </td>
+      </tr>
+    </table>
 
-    <div class="meta-row">
-      <div class="cell"><div class="lbl">NÚMERO DA NFS-E</div><div class="val mono">${escapeHtml(numNfse)}</div></div>
-      <div class="cell"><div class="lbl">NÚMERO DA DPS</div><div class="val mono">${escapeHtml(numDps)}</div></div>
-      <div class="cell"><div class="lbl">SÉRIE DA DPS</div><div class="val mono">${escapeHtml(serieDps)}</div></div>
-      <div class="cell"><div class="lbl">COMPETÊNCIA</div><div class="val">${escapeHtml(competenciaStr)}</div></div>
-      <div class="cell"><div class="lbl">DATA/HORA EMISSÃO</div><div class="val">${escapeHtml(emissaoStr)}</div></div>
-      <div class="cell"><div class="lbl">SITUAÇÃO DA NFS-E</div><div class="val">NFS-e Gerada</div></div>
-    </div>
+    <table class="danfse-tbl">
+      <tr>
+        <td style="width: 15%;"><span class="lbl">NÚMERO DA NFS-e</span><span class="val mono">${escapeHtml(numNfse)}</span></td>
+        <td style="width: 15%;"><span class="lbl">NÚMERO DA DPS</span><span class="val mono">${escapeHtml(numDps)}</span></td>
+        <td style="width: 13%;"><span class="lbl">SÉRIE DA DPS</span><span class="val mono">${escapeHtml(serieDps)}</span></td>
+        <td style="width: 16%;"><span class="lbl">COMPETÊNCIA DA NFS-e</span><span class="val">${escapeHtml(competenciaStr)}</span></td>
+        <td style="width: 23%;"><span class="lbl">DATA E HORA DA EMISSÃO</span><span class="val">${escapeHtml(emissaoStr)}</span></td>
+        <td style="width: 18%;"><span class="lbl">SITUAÇÃO DA NFS-e</span><span class="val">NFS-e Gerada</span></td>
+      </tr>
+      <tr>
+        <td colspan="6">
+          <span class="lbl">CHAVE DE ACESSO DA NFS-e</span>
+          <span class="val mono">${escapeHtml(chave || '—')}</span>
+        </td>
+      </tr>
+    </table>
 
-    <div class="chave-row">
-      <div class="lbl">CHAVE DE ACESSO DA NFS-E</div>
-      <div class="val mono" style="letter-spacing: 0.04em;">${escapeHtml(chave)}</div>
-    </div>
+    <table class="danfse-tbl">
+      <tr><th colspan="3" class="sec-bar">EMITENTE DA NFS-e — PRESTADOR / FORNECEDOR</th></tr>
+      <tr>
+        <td style="width: 26%;"><span class="lbl">CNPJ / CPF / NIF</span><span class="val mono">64.904.070/0001-57</span></td>
+        <td colspan="2"><span class="lbl">Nome / Nome Empresarial</span><span class="val">MARTINS SOLUCOES AMBIENTAIS E SEGURANCA DO TRABALHO LTDA</span></td>
+      </tr>
+      <tr>
+        <td><span class="lbl">Endereço</span><span class="val-normal">AVENIDA CUIABA, 829, CENTRO</span></td>
+        <td style="width: 37%;"><span class="lbl">Município / Sigla UF • IBGE / CEP</span><span class="val-normal">Rondonópolis / MT • 51.07602 / 78.700-090</span></td>
+        <td style="width: 37%;"><span class="lbl">Telefone / E-mail</span><span class="val-normal">(65) 9607-5863 • MWAGRONOMIA@GMAIL.COM</span></td>
+      </tr>
+      <tr>
+        <td><span class="lbl">Enquadramento Simples Nacional</span><span class="val-normal">Optante - Microempresa ou Empresa de Pequeno Porte (ME/EPP)</span></td>
+        <td colspan="2"><span class="lbl">Regime de Apuração Tributária pelo SN</span><span class="val-normal">Regime de apuração dos tributos federais e municipal pelo Simples Nacional</span></td>
+      </tr>
+    </table>
 
-    <div class="sec-title">EMITENTE DA NFS-E - PRESTADOR/FORNECEDOR</div>
-    <div class="box">
-      <div class="grid-2">
-        <div class="cell"><div class="lbl">CNPJ/CPF/NIF</div><div class="val mono">64.904.070/0001-57</div></div>
-        <div class="cell"><div class="lbl">NOME/NOME EMPRESARIAL</div><div class="val">MARTINS SOLUCOES AMBIENTAIS E SEGURANCA DO TRABALHO LTDA</div></div>
-      </div>
-      <div class="grid-3">
-        <div class="cell"><div class="lbl">ENDEREÇO</div><div class="val">AVENIDA CUIABA, 829, CENTRO</div></div>
-        <div class="cell"><div class="lbl">MUNICÍPIO / UF IBGE/CEP</div><div class="val">Rondonópolis / MT 51.07602 / 78.700-090</div></div>
-        <div class="cell"><div class="lbl">TELEFONE/E-MAIL</div><div class="val">(65) 9607-5863 • MWAGRONOMIA@GMAIL.COM</div></div>
-      </div>
-      <div class="grid-2">
-        <div class="cell"><div class="lbl">ENQUADRAMENTO SIMPLES NACIONAL</div><div class="val">Optante - Microempresa ou Empresa de Pequeno Porte (ME/EPP)</div></div>
-        <div class="cell"><div class="lbl">REGIME DE APURAÇÃO TRIBUTÁRIA PELO SN</div><div class="val">Regime de apuração dos tributos federais e municipal pelo Simples Nacional</div></div>
-      </div>
-    </div>
+    <table class="danfse-tbl">
+      <tr><th colspan="3" class="sec-bar">TOMADOR / ADQUIRENTE DO SERVIÇO</th></tr>
+      <tr>
+        <td style="width: 26%;"><span class="lbl">CNPJ / CPF / NIF</span><span class="val mono">${escapeHtml(tomaDoc)}</span></td>
+        <td colspan="2"><span class="lbl">Nome / Nome Empresarial</span><span class="val">${escapeHtml(tomaNome)}</span></td>
+      </tr>
+      <tr>
+        <td><span class="lbl">Endereço</span><span class="val-normal">${escapeHtml(tomaEnd)}</span></td>
+        <td style="width: 37%;"><span class="lbl">Município / Sigla UF • CEP</span><span class="val-normal">${escapeHtml(tomaMun)} • ${escapeHtml(tomaCep)}</span></td>
+        <td style="width: 37%;"><span class="lbl">E-mail</span><span class="val-normal">${escapeHtml(tomaEmail)}</span></td>
+      </tr>
+    </table>
 
-    <div class="sec-title">TOMADOR/ADQUIRENTE DO SERVIÇO</div>
-    <div class="box">
-      <div class="grid-2">
-        <div class="cell"><div class="lbl">CNPJ/CPF/NIF</div><div class="val mono">${escapeHtml(tomaDoc)}</div></div>
-        <div class="cell"><div class="lbl">NOME / NOME EMPRESARIAL</div><div class="val">${escapeHtml(tomaNome)}</div></div>
-      </div>
-      <div class="grid-3">
-        <div class="cell"><div class="lbl">ENDEREÇO</div><div class="val">${escapeHtml(tomaEnd)}</div></div>
-        <div class="cell"><div class="lbl">MUNICÍPIO/UF • CEP</div><div class="val">${escapeHtml(tomaMun)} • ${escapeHtml(tomaCep)}</div></div>
-        <div class="cell"><div class="lbl">E-MAIL</div><div class="val">${escapeHtml(tomaEmail)}</div></div>
-      </div>
-    </div>
+    <table class="danfse-tbl">
+      <tr>
+        <th style="width: 50%;" class="sec-bar">DESTINATÁRIO DA OPERAÇÃO</th>
+        <th style="width: 50%;" class="sec-bar">INTERMEDIÁRIO DA OPERAÇÃO</th>
+      </tr>
+      <tr>
+        <td><span class="val-normal">Não identificado na NFS-e</span></td>
+        <td><span class="val-normal">Não identificado na NFS-e</span></td>
+      </tr>
+    </table>
 
-    <div class="grid-2" style="gap: 5px; margin-bottom: 5px;">
-      <div class="box" style="margin-bottom: 0;">
-        <div class="sec-title" style="border:none; border-bottom:1px solid #9ca3af;">DESTINATÁRIO DA OPERAÇÃO</div>
-        <div class="cell" style="border:none;"><div class="val">Não identificado na NFS-e</div></div>
-      </div>
-      <div class="box" style="margin-bottom: 0;">
-        <div class="sec-title" style="border:none; border-bottom:1px solid #9ca3af;">INTERMEDIÁRIO DA OPERAÇÃO</div>
-        <div class="cell" style="border:none;"><div class="val">Não identificado na NFS-e</div></div>
-      </div>
-    </div>
+    <table class="danfse-tbl">
+      <tr><th colspan="3" class="sec-bar">SERVIÇO PRESTADO</th></tr>
+      <tr>
+        <td style="width: 28%;"><span class="lbl">Código de Tributação Nacional / NBS</span><span class="val mono">${escapeHtml(codServico)} / ${escapeHtml(codNbs)}</span></td>
+        <td style="width: 28%;"><span class="lbl">Local da Prestação / Sigla UF / País</span><span class="val-normal">Rondonópolis / MT / Brasil</span></td>
+        <td style="width: 44%;"><span class="lbl">Item da Lista</span><span class="val-normal">Assessoria ou consultoria de qualquer natureza, não contida em outros itens desta lista.</span></td>
+      </tr>
+      <tr>
+        <td colspan="3">
+          <span class="lbl">Descrição do Serviço</span>
+          <span class="val-normal" style="white-space: pre-wrap;">${escapeHtml(descServico)}</span>
+        </td>
+      </tr>
+    </table>
 
-    <div class="sec-title">SERVIÇO PRESTADO</div>
-    <div class="box">
-      <div class="grid-3">
-        <div class="cell"><div class="lbl">CÓD. TRIBUTAÇÃO NACIONAL/NBS</div><div class="val mono">${escapeHtml(codServico)}/ ${escapeHtml(codNbs)}</div></div>
-        <div class="cell"><div class="lbl">LOCAL DA PRESTAÇÃO</div><div class="val">Rondonópolis / MT</div></div>
-        <div class="cell"><div class="lbl">ITEM DA LISTA</div><div class="val">Assessoria ou consultoria de qualquer natureza, não contida em outros itens desta lista.</div></div>
-      </div>
-      <div class="cell" style="border-right:none;">
-        <div class="lbl">DESCRIÇÃO DO SERVIÇO</div>
-        <div class="desc-txt">${escapeHtml(descServico)}</div>
-      </div>
-    </div>
+    <table class="danfse-tbl">
+      <tr><th colspan="4" class="sec-bar">TRIBUTAÇÃO MUNICIPAL (ISSQN), FEDERAL E IBS/CBS</th></tr>
+      <tr>
+        <td style="width: 25%;"><span class="lbl">Tipo de Tributação do ISSQN</span><span class="val-normal">Operação Tributável</span></td>
+        <td style="width: 25%;"><span class="lbl">Município / UF de Incidência do ISSQN</span><span class="val-normal">Rondonópolis / MT</span></td>
+        <td style="width: 25%;"><span class="lbl">Retenção do ISSQN</span><span class="val-normal">Não Retido</span></td>
+        <td style="width: 25%;"><span class="lbl">Alíquota / Contrib. Sociais Retidas</span><span class="val-normal">${escapeHtml(aliqText)} • 0-PIS/COFINS/CSLL Não Retidos</span></td>
+      </tr>
+      <tr>
+        <td><span class="lbl">CST / cClass Trib (IBS/CBS)</span><span class="val-normal">- / -</span></td>
+        <td><span class="lbl">Base de Cálculo / Reduções</span><span class="val-normal">R$ 0,00</span></td>
+        <td><span class="lbl">Indicador / Incidência (IBS/CBS)</span><span class="val-normal">- / - / - / -</span></td>
+        <td><span class="lbl">Total do IBS / CBS</span><span class="val-normal">R$ 0,00</span></td>
+      </tr>
+    </table>
 
-    <div class="sec-title">TRIBUTAÇÃO MUNICIPAL (ISSQN), FEDERAL E IBS/CBS</div>
-    <div class="box">
-      <div class="grid-4">
-        <div class="cell"><div class="lbl">TIPO TRIBUTAÇÃO ISSQN</div><div class="val">Operação Tributável</div></div>
-        <div class="cell"><div class="lbl">INCIDÊNCIA ISSQN</div><div class="val">Rondonópolis / MT</div></div>
-        <div class="cell"><div class="lbl">RETENÇÃO DO ISSQN</div><div class="val">Não Retido</div></div>
-        <div class="cell"><div class="lbl">ALÍQUOTA/CONTRIB. SOCIAIS</div><div class="val">${escapeHtml(aliqFormatada)} • 0-PIS/COFINS/CSLL Não Retidos</div></div>
-      </div>
-      <div class="grid-4">
-        <div class="cell"><div class="lbl">CST/CCLASS TRIB (IBS/CBS)</div><div class="val mono">- / -</div></div>
-        <div class="cell"><div class="lbl">BASE DE CÁLCULO / REDUÇÕES</div><div class="val">R$ 0,00</div></div>
-        <div class="cell"><div class="lbl">INDICADOR/INCIDÊNCIA</div><div class="val">- / - / - / -</div></div>
-        <div class="cell"><div class="lbl">TOTAL DO IBS / CBS</div><div class="val">R$ 0,00</div></div>
-      </div>
-    </div>
+    <table class="danfse-tbl">
+      <tr><th colspan="5" class="sec-bar">VALOR TOTAL DA NFS-e</th></tr>
+      <tr class="tot-box">
+        <td style="width: 20%;"><span class="lbl">Valor da Operação / Serviço</span><span class="val">${escapeHtml(formatCurrency(valorServico))}</span></td>
+        <td style="width: 20%;"><span class="lbl">Desconto Incond. / Cond.</span><span class="val">R$ 0,00</span></td>
+        <td style="width: 20%;"><span class="lbl">Total das Retenções</span><span class="val">R$ 0,00</span></td>
+        <td style="width: 20%;"><span class="lbl">Valor Líquido da NFS-e</span><span class="val">${escapeHtml(formatCurrency(valorServico))}</span></td>
+        <td style="width: 20%;"><span class="lbl">Valor Líquido + IBS/CBS</span><span class="val">${escapeHtml(formatCurrency(valorServico))}</span></td>
+      </tr>
+    </table>
 
-    <div class="box" style="margin-bottom: 5px;">
-      <div class="grid-5">
-        <div class="cell"><div class="lbl">VALOR DO SERVIÇO</div><div class="val">${escapeHtml(formatCurrency(valorServico))}</div></div>
-        <div class="cell"><div class="lbl">DESCONTO INCOND./COND.</div><div class="val">R$ 0,00</div></div>
-        <div class="cell"><div class="lbl">TOTAL RETENÇÕES</div><div class="val">R$ 0,00</div></div>
-        <div class="cell"><div class="lbl">VALOR LÍQUIDO NFS-E</div><div class="val">${escapeHtml(formatCurrency(valorServico))}</div></div>
-        <div class="cell"><div class="lbl">LÍQUIDO + IBS/CBS</div><div class="val">${escapeHtml(formatCurrency(valorServico))}</div></div>
-      </div>
-    </div>
+    <table class="danfse-tbl">
+      <tr><th class="sec-bar">INFORMAÇÕES COMPLEMENTARES</th></tr>
+      <tr>
+        <td>
+          <span class="val-normal">Totais aproximados dos Tributos cfe. Lei nº 12.741/2012: Federais: -; Estaduais: -; Municipais: -. A autenticidade desta NFS-e pode ser verificada pela leitura do código QR ou pela consulta da chave de acesso no portal nacional da NFS-e.</span>
+        </td>
+      </tr>
+    </table>
 
-    <div class="sec-title">INFORMAÇÕES COMPLEMENTARES</div>
-    <div class="box">
-      <div class="desc-txt">Totais aproximados dos Tributos cfe. Lei nº 12.741/2012: Federais: -; Estaduais: -; Municipais: -. A autenticidade desta NFS-e pode ser verificada pela leitura do código QR ou pela consulta da chave de acesso no portal nacional da NFS-e.</div>
-    </div>
-
-    <div class="foot-line">
-      <span>N° NFS-e/ CHAVE NFS-e: <strong class="mono">${escapeHtml(numNfse)} / ${escapeHtml(chave)}</strong></span>
-      <span>${escapeHtml(params.cidadeSede || 'Rondonópolis - MT')}</span>
+    <div class="foot-note">
+      <span><strong>N° NFS-e / CHAVE NFS-e:</strong> ${escapeHtml(numNfse)} / ${escapeHtml(chave || '—')}</span>
+      <span>${escapeHtml(params.cidadeSede || 'Rondonópolis — MT')}</span>
     </div>
   </div>
   <script>
