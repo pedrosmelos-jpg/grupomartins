@@ -5062,7 +5062,7 @@ const handleSaveRoleEdit = async (e) => {
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="text-base font-extrabold text-[#1B3B2B]">Editar Perfil e Senha</h3>
+              <h3 className="text-base font-extrabold text-[#1B3B2B]">Editar Perfil</h3>
               <button onClick={() => setEditingRoleTarget(null)} className="text-slate-500 hover:text-slate-700 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
@@ -5105,17 +5105,6 @@ const handleSaveRoleEdit = async (e) => {
                   value={editingRoleTarget.email}
                   onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, email: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block font-bold mb-1">Nova Senha de Acesso</label>
-                <input
-                  type="text"
-                  value={editingRoleTarget.password || ''}
-                  onChange={(e) => setEditingRoleTarget({ ...editingRoleTarget, password: e.target.value })}
-                  placeholder="Digite a nova senha..."
-                  className="w-full px-3 py-2 rounded-xl border font-bold text-teal-900 bg-emerald-50"
                   required
                 />
               </div>
