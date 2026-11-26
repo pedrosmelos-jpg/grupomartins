@@ -946,7 +946,7 @@ export default function App() {
         supabase.from('clients').select('*'),
         supabase.from('user_roles').select('id, level, name, holder, email, description, permissions, convite_pendente'),
         supabase.from('condicionantes').select('*'),
-        supabase.from('erp_settings').select('*').eq('id', 'GLOBAL').maybeSingle()
+        supabase.from('erp_settings').select('*').eq('id', 'GLOBAL').maybeSingle(),
         supabase.from('pendencias').select('*')
       ]);
 
