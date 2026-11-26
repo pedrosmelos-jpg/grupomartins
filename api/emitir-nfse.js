@@ -142,8 +142,8 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
   const emailTomadorTag = tomador.email ? `\n      <email>${escapeXml(tomador.email)}</email>` : '';
 
   const totTribTag =
-    opSimpNac === '3'
-      ? ''
+    opSimpNac === '2' || opSimpNac === '3'
+      ? `\n        <totTrib>\n          <pTotTribSN>0.00</pTotTribSN>\n        </totTrib>`
       : `\n        <totTrib>\n          <indTotTrib>0</indTotTrib>\n        </totTrib>`;
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
