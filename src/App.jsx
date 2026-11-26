@@ -428,6 +428,8 @@ const getModulePerms = (role, moduleKey) =>
   (moduleKey === 'status_tecnico' ? role?.permissions?.contratos :
    moduleKey === 'pendencias' ? role?.permissions?.condicionantes : undefined);
 
+const INITIAL_TECHNICAL_STATUSES = ['FINALIZADO', 'ATENDIDO', 'EM ANDAMENTO', 'A VENCER'];
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
