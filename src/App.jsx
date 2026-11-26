@@ -30,9 +30,11 @@ import {
   ArrowUp,
   ArrowDown,
   EyeOff,
-ClipboardCheck,
-           AlertTriangle
-           } from 'lucide-react';
+  ClipboardCheck,
+  AlertTriangle,
+  PhoneCall,
+  FileText
+} from 'lucide-react';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -306,7 +308,9 @@ const INITIAL_AGENCIES = [
 ];
 
 const INITIAL_CTRL_STATUSES = ['FINALIZADO', 'ATENDIDO', 'EM ANDAMENTO', 'A VENCER'];
- 
+
+const INITIAL_PROSP_STATUSES = ['NÃO ATENDEU', 'RETORNAR', 'INTERESSADO', 'PROPOSTA ENVIADA', 'SEM INTERESSE'];
+
 const getCtrlStatusBadgeClass = (s) => {
   const n = String(s || '').toUpperCase();
   if (n === 'FINALIZADO') return 'bg-emerald-700 text-white';
@@ -315,6 +319,17 @@ const getCtrlStatusBadgeClass = (s) => {
   if (n === 'A VENCER') return 'bg-amber-600 text-white';
   return 'bg-slate-600 text-white';
 };
+
+const getProspStatusBadgeClass = (s) => {
+  const n = String(s || '').toUpperCase();
+  if (n.includes('INTERESSADO') || n.includes('FECHADO')) return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+  if (n.includes('PROPOSTA')) return 'bg-teal-100 text-teal-800 border-teal-200';
+  if (n.includes('RETORNAR')) return 'bg-sky-100 text-sky-800 border-sky-200';
+  if (n.includes('NÃO ATENDEU') || n.includes('NAO ATENDEU')) return 'bg-amber-100 text-amber-800 border-amber-200';
+  if (n.includes('SEM INTERESSE') || n.includes('PERDIDO')) return 'bg-slate-200 text-slate-700 border-slate-300';
+  return 'bg-slate-100 text-slate-800 border-slate-200';
+};
+
 const DEFAULT_PERMISSIONS = {
   dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
   prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
@@ -323,6 +338,7 @@ const DEFAULT_PERMISSIONS = {
   contratos: { view: true, create: true, edit: true, delete: false, approve: false },
   status_tecnico: { view: true, create: false, edit: true, delete: false, approve: false },
   clientes: { view: true, create: true, edit: true, delete: false, approve: false },
+  prospeccao: { view: true, create: true, edit: true, delete: true, approve: false },
   condicionantes: { view: true, create: true, edit: true, delete: true, approve: false },
   pendencias: { view: true, create: true, edit: true, delete: true, approve: false },
   acessos: { view: false, create: false, edit: false, delete: false, approve: false }
@@ -345,6 +361,7 @@ const INITIAL_ACCESS_ROLES = [
       contratos: { view: true, create: true, edit: true, delete: true, approve: true },
       status_tecnico: { view: true, create: true, edit: true, delete: true, approve: true },
       clientes: { view: true, create: true, edit: true, delete: true, approve: true },
+      prospeccao: { view: true, create: true, edit: true, delete: true, approve: true },
       condicionantes: { view: true, create: true, edit: true, delete: true, approve: true },
       pendencias: { view: true, create: true, edit: true, delete: true, approve: true },
       acessos: { view: true, create: true, edit: true, delete: true, approve: true }
@@ -355,6 +372,14 @@ const INITIAL_ACCESS_ROLES = [
 const formatCurrency = (val) => {
   if (val === undefined || val === null || isNaN(val)) return 'R$ 0,00';
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+};
+
+const formatDateBR = (isoDate) => {
+  if (!isoDate) return '—';
+  const clean = String(isoDate).slice(0, 10);
+  const parts = clean.split('-');
+  if (parts.length !== 3) return clean;
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
 };
 
 const MaskedValue = ({ show, value }) =>
@@ -369,6 +394,279 @@ const MaskedValue = ({ show, value }) =>
       <span className="blur-sm select-none" aria-hidden="true">R$ 000.000,00</span>
     </span>
   );
+
+// ============================================================================
+// UTILITÁRIOS GLOBAIS DE EXPORTAÇÃO (EXCEL CSV + PDF COM PAPEL TIMBRADO OFICIAL)
+// ============================================================================
+const escapeHtml = (str) =>
+  String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+const exportTableToExcel = (filename, headers, rows) => {
+  const cleanCell = (v) => `"${String(v ?? '').replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
+  let csv = '\uFEFF';
+  csv += headers.map(cleanCell).join(';') + '\n';
+  rows.forEach((row) => {
+    csv += row.map(cleanCell).join(';') + '\n';
+  });
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${filename}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+const exportTableToPDF = ({ title, subtitle = '', headers = [], rows = [], orientation = 'portrait', params = INITIAL_PARAMETERS }) => {
+  const win = window.open('', '_blank', 'width=1050,height=800');
+  if (!win) {
+    alert('Permita pop-ups no navegador para gerar o PDF.');
+    return;
+  }
+  const nowStr = new Date().toLocaleString('pt-BR');
+  const theadHtml = headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('');
+  const tbodyHtml =
+    rows.length === 0
+      ? `<tr><td colspan="${Math.max(1, headers.length)}" style="text-align:center;color:#64748b;padding:24px;">Nenhum registro encontrado para os filtros aplicados.</td></tr>`
+      : rows
+          .map(
+            (r) =>
+              `<tr>${r.map((cell) => `<td>${escapeHtml(cell)}</td>`).join('')}</tr>`
+          )
+          .join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>${escapeHtml(title)} — Grupo Martins</title>
+  <style>
+    @page {
+      size: A4 ${orientation};
+      margin: 26mm 14mm 18mm 14mm;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      color: #1e293b;
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    /* Faixa ondulada verde oficial do Papel Timbrado Martins */
+    .timbrado-top-wave {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 18mm;
+      z-index: 10;
+      pointer-events: none;
+    }
+    /* Marca d'água central oficial do Papel Timbrado Martins */
+    .timbrado-watermark {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 145mm;
+      opacity: 0.14;
+      z-index: 0;
+      pointer-events: none;
+    }
+    .timbrado-footer {
+      position: fixed;
+      bottom: 4mm;
+      left: 14mm;
+      right: 14mm;
+      border-top: 1px solid #cbd5e1;
+      padding-top: 3mm;
+      font-size: 8.5px;
+      color: #64748b;
+      display: flex;
+      justify-content: space-between;
+      z-index: 10;
+    }
+    .content {
+      position: relative;
+      z-index: 2;
+      padding: 2mm 0 8mm 0;
+    }
+    .doc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      border-bottom: 2px solid #275317;
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+    }
+    .doc-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: #1B3B2B;
+      margin: 0;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+    .doc-subtitle {
+      font-size: 10.5px;
+      color: #475569;
+      margin-top: 3px;
+    }
+    .doc-meta {
+      text-align: right;
+      font-size: 9.5px;
+      color: #475569;
+      line-height: 1.4;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: ${headers.length > 8 ? '8.5px' : '10px'};
+      background: transparent;
+    }
+    thead {
+      display: table-header-group;
+    }
+    tr {
+      page-break-inside: avoid;
+    }
+    th {
+      background-color: #1B3B2B !important;
+      color: #ffffff !important;
+      font-weight: 700;
+      text-transform: uppercase;
+      text-align: left;
+      padding: 6px 7px;
+      border: 1px solid #1B3B2B;
+    }
+    td {
+      padding: 5.5px 7px;
+      border: 1px solid #cbd5e1;
+      vertical-align: top;
+      word-break: break-word;
+    }
+    tbody tr:nth-child(even) td {
+      background-color: rgba(248, 250, 252, 0.72) !important;
+    }
+    .summary-bar {
+      margin-top: 10px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #1B3B2B;
+      text-align: right;
+    }
+    @media screen {
+      body { background: #e2e8f0; padding: 20px; }
+      .page-preview {
+        background: #ffffff;
+        max-width: ${orientation === 'landscape' ? '297mm' : '210mm'};
+        min-height: ${orientation === 'landscape' ? '210mm' : '297mm'};
+        margin: 0 auto;
+        padding: 24mm 14mm 18mm 14mm;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        position: relative;
+      }
+      .timbrado-top-wave { position: absolute; }
+      .timbrado-watermark { position: absolute; }
+      .timbrado-footer { position: absolute; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-preview">
+    <!-- Onda verde oficial do Papel Timbrado Martins -->
+    <svg class="timbrado-top-wave" viewBox="0 0 842 58" preserveAspectRatio="none">
+      <path d="M0,0 L842,0 L842,36 C702,48 562,22 421,36 C281,50 140,22 0,36 Z" fill="#275317" stroke="#042433" stroke-width="1.2" />
+    </svg>
+
+    <!-- Marca d'água oficial Martins Soluções Ambientais e Associados -->
+    <svg class="timbrado-watermark" viewBox="0 0 560 180">
+      <g fill="#1B3B2B" stroke="#1B3B2B">
+        <circle cx="90" cy="90" r="76" fill="none" stroke-width="9" />
+        <path d="M68 162 C80 156, 84 143, 84 119 L84 56 L96 56 L96 119 C96 143, 100 156, 112 162 Z" stroke="none" />
+        <path d="M90 118 L58 95 M90 118 L122 95 M90 83 L62 60 M90 83 L118 60" stroke-width="7.5" stroke-linecap="round" fill="none" />
+        <path d="M90 22 C74 39, 74 58, 90 68 C106 58, 106 39, 90 22 Z" stroke="none" />
+        <path d="M43 43 C42 61, 56 72, 74 68 C71 51, 58 41, 43 43 Z" stroke="none" />
+        <path d="M137 43 C138 61, 124 72, 106 68 C109 51, 122 41, 137 43 Z" stroke="none" />
+        <path d="M36 83 C39 102, 54 110, 73 103 C69 86, 54 80, 36 83 Z" stroke="none" />
+        <path d="M144 83 C141 102, 126 110, 107 103 C111 86, 126 80, 144 83 Z" stroke="none" />
+      </g>
+      <text x="195" y="88" font-family="Georgia, Cambria, 'Times New Roman', serif" font-size="68" font-weight="900" fill="#1B3B2B" letter-spacing="3">MARTINS</text>
+      <text x="198" y="126" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" fill="#1B3B2B" letter-spacing="2">SOLUÇÕES AMBIENTAIS</text>
+      <text x="198" y="154" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700" fill="#1B3B2B" letter-spacing="2">E ASSOCIADOS</text>
+    </svg>
+
+    <div class="content">
+      <div class="doc-header">
+        <div>
+          <h1 class="doc-title">${escapeHtml(title)}</h1>
+          ${subtitle ? `<div class="doc-subtitle">${escapeHtml(subtitle)}</div>` : ''}
+        </div>
+        <div class="doc-meta">
+          <div><strong>GRUPO MARTINS</strong> — Soluções Ambientais &amp; MS Segurança</div>
+          <div>CNPJ: ${escapeHtml(params.cnpj || '48.921.654/0001-82')} • ${escapeHtml(params.cidadeSede || 'Rondonópolis — MT')}</div>
+          <div>Emitido em: ${escapeHtml(nowStr)}</div>
+        </div>
+      </div>
+
+      <table>
+        <thead><tr>${theadHtml}</tr></thead>
+        <tbody>${tbodyHtml}</tbody>
+      </table>
+
+      <div class="summary-bar">Total de registros: ${rows.length}</div>
+    </div>
+
+    <div class="timbrado-footer">
+      <span>Grupo Martins • Soluções Ambientais e Associados • MS Segurança do Trabalho</span>
+      <span>Documento gerado pelo ERP Grupo Martins</span>
+    </div>
+  </div>
+  <script>
+    window.onload = function() {
+      setTimeout(function() { window.print(); }, 250);
+    };
+  </script>
+</body>
+</html>`;
+
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+};
+
+const ExportButtons = ({ onPDF, onExcel }) => (
+  <div className="inline-flex items-center gap-1.5">
+    {onPDF && (
+      <button
+        type="button"
+        onClick={onPDF}
+        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100 cursor-pointer transition"
+        title="Gerar PDF com Papel Timbrado"
+      >
+        <FileText className="w-3.5 h-3.5" /> PDF
+      </button>
+    )}
+    {onExcel && (
+      <button
+        type="button"
+        onClick={onExcel}
+        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 cursor-pointer transition"
+        title="Exportar Planilha Excel (CSV)"
+      >
+        <Download className="w-3.5 h-3.5" /> Excel
+      </button>
+    )}
+  </div>
+);
 
 const getInstallmentSituationBadge = (contract) => {
   const todayStr = new Date().toISOString().split('T')[0];
@@ -421,12 +719,11 @@ const getTechnicalStatusBadgeClass = (status) => {
 
 const CONTRACTS_PER_PAGE = 6;
 
-// Permissões de um módulo. Enquanto o perfil não tiver a chave "status_tecnico"
-// salva, ela herda a permissão de "contratos" (para ninguém perder acesso).
 const getModulePerms = (role, moduleKey) =>
   role?.permissions?.[moduleKey] ||
   (moduleKey === 'status_tecnico' ? role?.permissions?.contratos :
-   moduleKey === 'pendencias' ? role?.permissions?.condicionantes : undefined);
+   moduleKey === 'pendencias' ? role?.permissions?.condicionantes :
+   moduleKey === 'prospeccao' ? role?.permissions?.clientes : undefined);
 
 const INITIAL_TECHNICAL_STATUSES = ['FINALIZADO', 'ATENDIDO', 'EM ANDAMENTO', 'A VENCER'];
 
@@ -613,7 +910,7 @@ export default function App() {
   const [editingCond, setEditingCond] = useState(null);
   const [deleteCondTarget, setDeleteCondTarget] = useState(null);
   const [pendencias, setPendencias] = useState([]);
-  const [ctrlKind, setCtrlKind] = useState('cond'); // 'cond' | 'pend' (qual aba abriu o modal)
+  const [ctrlKind, setCtrlKind] = useState('cond');
   const [pendSearch, setPendSearch] = useState('');
   const [pendStatusFilter, setPendStatusFilter] = useState('Todos');
   const [pendDateFrom, setPendDateFrom] = useState('');
@@ -625,6 +922,29 @@ export default function App() {
   const [showCtrlStatusMgr, setShowCtrlStatusMgr] = useState(false);
   const [ctrlStatusInput, setCtrlStatusInput] = useState('');
   const [ctrlStatusEditing, setCtrlStatusEditing] = useState(null);
+
+  // Estados da aba Prospecção de Clientes
+  const [prospeccoes, setProspeccoes] = useState([]);
+  const [prospSearch, setProspSearch] = useState('');
+  const [prospStatusFilter, setProspStatusFilter] = useState('Todos');
+  const [prospDateFrom, setProspDateFrom] = useState('');
+  const [prospDateTo, setProspDateTo] = useState('');
+  const [availableProspStatuses, setAvailableProspStatuses] = useState(INITIAL_PROSP_STATUSES);
+  const [showProspStatusMgr, setShowProspStatusMgr] = useState(false);
+  const [prospStatusInput, setProspStatusInput] = useState('');
+  const [prospStatusEditing, setProspStatusEditing] = useState(null);
+  const [showProspModal, setShowProspModal] = useState(false);
+  const [editingProsp, setEditingProsp] = useState(null);
+  const [deleteProspTarget, setDeleteProspTarget] = useState(null);
+  const [prospForm, setProspForm] = useState({
+    callDate: new Date().toISOString().split('T')[0],
+    company: '',
+    contact: '',
+    phone: '',
+    responsible: '',
+    status: INITIAL_PROSP_STATUSES[0],
+    observation: ''
+  });
 
   const [condForm, setCondForm] = useState({
     client: '',
@@ -950,14 +1270,15 @@ export default function App() {
   const fetchAllData = useCallback(async () => {
     if (!supabase) return;
     try {
-      const [txRes, ctRes, cliRes, roleRes, condRes, settingsRes, pendRes] = await Promise.all([
+      const [txRes, ctRes, cliRes, roleRes, condRes, settingsRes, pendRes, prospRes] = await Promise.all([
         supabase.from('transactions').select('*'),
         supabase.from('contracts').select('*'),
         supabase.from('clients').select('*'),
         supabase.from('user_roles').select('id, level, name, holder, email, description, permissions, convite_pendente'),
         supabase.from('condicionantes').select('*'),
         supabase.from('erp_settings').select('*').eq('id', 'GLOBAL').maybeSingle(),
-        supabase.from('pendencias').select('*')
+        supabase.from('pendencias').select('*'),
+        supabase.from('prospeccoes').select('*')
       ]);
 
       if (!txRes.error && txRes.data) {
@@ -978,13 +1299,13 @@ export default function App() {
       } else if (supabase && (!roleRes.data || roleRes.data.length === 0)) {
         await supabase.from('user_roles').upsert(INITIAL_ACCESS_ROLES);
       }
-      if (!condRes.error && condRes.data) {
-        setCondicionantes(condRes.data);
-        if (!pendRes.error && pendRes.data) setPendencias(pendRes.data);
-      }
+      if (!condRes.error && condRes.data) setCondicionantes(condRes.data);
+      if (!pendRes.error && pendRes.data) setPendencias(pendRes.data);
+      if (!prospRes.error && prospRes.data) setProspeccoes(prospRes.data);
       if (!settingsRes.error && settingsRes.data) {
         if (settingsRes.data.cond_statuses?.length) setAvailableCondStatuses(settingsRes.data.cond_statuses);
         if (settingsRes.data.pend_statuses?.length) setAvailablePendStatuses(settingsRes.data.pend_statuses);
+        if (settingsRes.data.prosp_statuses?.length) setAvailableProspStatuses(settingsRes.data.prosp_statuses);
         if (settingsRes.data.segments?.length) setAvailableSegments(settingsRes.data.segments);
         if (settingsRes.data.statuses?.length) setAvailableStatuses(settingsRes.data.statuses);
         if (settingsRes.data.agencies?.length) setAvailableAgencies(settingsRes.data.agencies);
@@ -1044,6 +1365,7 @@ export default function App() {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'condicionantes' }, applyRealtimeChange(setCondicionantes))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pendencias' }, applyRealtimeChange(setPendencias))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'prospeccoes' }, applyRealtimeChange(setProspeccoes))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'erp_settings' }, (payload) => {
         const data = payload.new;
         if (data) {
@@ -1055,6 +1377,7 @@ export default function App() {
           if (data.params) setParams(data.params);
           if (data.cond_statuses?.length) setAvailableCondStatuses(data.cond_statuses);
           if (data.pend_statuses?.length) setAvailablePendStatuses(data.pend_statuses);
+          if (data.prosp_statuses?.length) setAvailableProspStatuses(data.prosp_statuses);
         }
       })
       .subscribe((status) => {
@@ -1099,11 +1422,12 @@ export default function App() {
     { id: 'contratos', label: 'Contratos Ambientais & SST', icon: Briefcase, badge: contracts.length, permKey: 'contratos' },
     { id: 'status_tecnico', label: 'Status Técnico', icon: ClipboardCheck, badge: contracts.length, permKey: 'status_tecnico' },
     { id: 'clientes', label: 'Cadastro de Clientes (CRM)', icon: Users, badge: clients.length, permKey: 'clientes' },
+    { id: 'prospeccao', label: 'Prospecção de Clientes', icon: PhoneCall, badge: prospeccoes.length, permKey: 'prospeccao' },
     { id: 'condicionantes', label: 'Controle de Condicionantes', icon: Leaf, badge: condicionantes.length, permKey: 'condicionantes' },
     { id: 'pendencias', label: 'Controle de Pendências', icon: AlertTriangle, badge: pendencias.length, permKey: 'pendencias' },
     { id: 'acessos', label: 'Árvore de Acessos & Perfis', icon: Network, badge: `${accessRoles.length} Nível`, permKey: 'acessos' },
     { id: 'config', label: 'Plano de Contas & Metas', icon: Settings, permKey: 'dashboard' }
-  ], [transactions.length, contracts.length, clients.length, condicionantes.length,pendencias.length, accessRoles.length]);
+  ], [transactions.length, contracts.length, clients.length, prospeccoes.length, condicionantes.length, pendencias.length, accessRoles.length]);
 
   useEffect(() => {
     const currentNav = navItems.find((item) => item.id === activeTab);
@@ -1648,16 +1972,17 @@ export default function App() {
     showToast(`Cliente ${deleteClientTarget.name} excluído do CRM.`);
     setDeleteClientTarget(null);
   };
+
   const ctrlCfg = (kind) => kind === 'pend'
     ? { list: availablePendStatuses, setList: setAvailablePendStatuses, table: 'pendencias', setItems: setPendencias, col: 'pend_statuses', filter: pendStatusFilter, setFilter: setPendStatusFilter }
     : { list: availableCondStatuses, setList: setAvailableCondStatuses, table: 'condicionantes', setItems: setCondicionantes, col: 'cond_statuses', filter: condStatusFilter, setFilter: setCondStatusFilter };
- 
+
   const persistCtrlStatuses = async (col, list) => {
     if (!supabase) return;
     const { error } = await supabase.from('erp_settings').upsert([{ id: 'GLOBAL', [col]: list }]);
     if (error) console.error('Erro ao salvar status:', error);
   };
- 
+
   const handleSaveCtrlStatus = async (kind) => {
     const cfg = ctrlCfg(kind);
     const clean = ctrlStatusInput.trim().toUpperCase();
@@ -1678,7 +2003,7 @@ export default function App() {
     await persistCtrlStatuses(cfg.col, updated);
     showToast(ctrlStatusEditing ? 'Status atualizado!' : 'Novo status cadastrado!');
   };
- 
+
   const handleDeleteCtrlStatus = async (kind, st) => {
     const cfg = ctrlCfg(kind);
     if (cfg.list.length <= 1) { alert('Mantenha pelo menos 1 status.'); return; }
@@ -1690,7 +2015,92 @@ export default function App() {
     showToast('Status removido!');
   };
 
-   const handleSaveCondicionante = async (e) => {
+  // Handlers de Prospecção de Clientes
+  const handleSaveProspStatus = async () => {
+    const clean = prospStatusInput.trim().toUpperCase();
+    if (!clean) return;
+    let updated;
+    if (prospStatusEditing) {
+      updated = availableProspStatuses.map(s => (s === prospStatusEditing ? clean : s));
+      setProspeccoes(prev => prev.map(i => (i.status === prospStatusEditing ? { ...i, status: clean } : i)));
+      if (prospStatusFilter === prospStatusEditing) setProspStatusFilter(clean);
+      if (supabase) await supabase.from('prospeccoes').update({ status: clean }).eq('status', prospStatusEditing);
+    } else {
+      if (availableProspStatuses.includes(clean)) { alert('Este status já está cadastrado.'); return; }
+      updated = [...availableProspStatuses, clean];
+    }
+    setAvailableProspStatuses(updated);
+    setProspStatusInput('');
+    setProspStatusEditing(null);
+    await persistCtrlStatuses('prosp_statuses', updated);
+    showToast(prospStatusEditing ? 'Status de prospecção atualizado!' : 'Novo status de prospecção cadastrado!');
+  };
+
+  const handleDeleteProspStatus = async (st) => {
+    if (availableProspStatuses.length <= 1) { alert('Mantenha pelo menos 1 status.'); return; }
+    if (!window.confirm(`Excluir o status "${st}"? Ligações já registradas continuarão com ele.`)) return;
+    const updated = availableProspStatuses.filter(s => s !== st);
+    setAvailableProspStatuses(updated);
+    if (prospStatusFilter === st) setProspStatusFilter('Todos');
+    await persistCtrlStatuses('prosp_statuses', updated);
+    showToast('Status removido!');
+  };
+
+  const handleSaveProspeccao = async (e) => {
+    e.preventDefault();
+    if (!prospForm.company.trim()) {
+      alert('Preencha o nome da empresa.');
+      return;
+    }
+    try {
+      const prospId = editingProsp ? editingProsp.id : generateUniqueId('PROSP');
+      const prospData = {
+        id: prospId,
+        calldate: prospForm.callDate || new Date().toISOString().split('T')[0],
+        company: prospForm.company.trim(),
+        contact: prospForm.contact.trim(),
+        phone: prospForm.phone.trim(),
+        responsible: prospForm.responsible.trim() || currentRole?.holder || '',
+        status: prospForm.status || availableProspStatuses[0],
+        observation: prospForm.observation.trim()
+      };
+      if (supabase) {
+        const { error } = await supabase.from('prospeccoes').upsert([prospData]);
+        if (error) {
+          console.error('Erro Supabase Prospecção:', error);
+          alert('Erro ao salvar na nuvem: ' + error.message);
+          return;
+        }
+      }
+      setProspeccoes(prev => {
+        const exists = prev.some(p => p.id === prospId);
+        return exists ? prev.map(p => (p.id === prospId ? prospData : p)) : [prospData, ...prev];
+      });
+      setShowProspModal(false);
+      setEditingProsp(null);
+      showToast(editingProsp ? 'Ligação atualizada com sucesso!' : 'Ligação registrada com sucesso!');
+    } catch (err) {
+      console.error(err);
+      alert('Erro inesperado ao salvar ligação.');
+    }
+  };
+
+  const confirmDeleteProspeccao = async () => {
+    if (!deleteProspTarget) return;
+    const id = deleteProspTarget.id;
+    setProspeccoes(prev => prev.filter(p => p.id !== id));
+    if (supabase) {
+      const { error } = await supabase.from('prospeccoes').delete().eq('id', id);
+      if (error) {
+        alert('Erro ao excluir na nuvem: ' + error.message);
+        return;
+      }
+    }
+    showToast('Registro de ligação excluído!');
+    setDeleteProspTarget(null);
+  };
+
+  const handleSaveCondicionante = async (e) => {
     e.preventDefault();
     if (!condForm.client || !condForm.service) {
       alert('Preencha o cliente e o serviço/descrição.');
@@ -1729,7 +2139,7 @@ export default function App() {
       alert('Erro inesperado ao salvar.');
     }
   };
- 
+
   const confirmDeleteCondicionante = async () => {
     if (!deleteCondTarget) return;
     const id = deleteCondTarget.id;
@@ -1745,7 +2155,7 @@ export default function App() {
     showToast('Registro excluído com sucesso!');
     setDeleteCondTarget(null);
   };
- 
+
   const handleSaveNewUserRole = async (e) => {
     e.preventDefault();
     if (!newRoleForm.name || !newRoleForm.holder || !newRoleForm.email) {
@@ -1839,7 +2249,7 @@ export default function App() {
     }
   };
 
-const handleSaveRoleEdit = async (e) => {
+  const handleSaveRoleEdit = async (e) => {
     e.preventDefault();
     if (!editingRoleTarget) return;
 
@@ -1874,6 +2284,7 @@ const handleSaveRoleEdit = async (e) => {
       setEditingRoleTarget(null);
     }
   };
+
   const exportDREToExcel = () => {
     const { selectedDreYear, monthsFull, receitasRows, receitaBrutaTotalAnual, impostosRows, impostoTotalAnual, receitaLiquidaTotalAnual, custosDiretosRows, custosDiretosTotalAnual, despesasOpRows, despesasOpTotalAnual, lucroLiquidoTotalAnual } = dreGerencialData;
 
@@ -1916,6 +2327,30 @@ const handleSaveRoleEdit = async (e) => {
     link.click();
     document.body.removeChild(link);
     showToast(`Planilha DRE (${selectedDreYear}) exportada com sucesso!`);
+  };
+
+  const exportDREToPDF = () => {
+    const { selectedDreYear, monthsFull, receitasRows, receitaBrutaTotalAnual, impostosRows, impostoTotalAnual, receitaLiquidaTotalAnual, custosDiretosRows, custosDiretosTotalAnual, lucroBrutoTotalAnual, despesasOpRows, despesasOpTotalAnual, lucroLiquidoTotalAnual, sumRowsMonth } = dreGerencialData;
+    const av = (val) => (receitaBrutaTotalAnual > 0 ? ((val / receitaBrutaTotalAnual) * 100).toFixed(1).replace('.', ',') + '%' : '0,0%');
+    const headers = ['Estrutura DRE', ...monthsFull.map(m => `${m}/${String(selectedDreYear).slice(2)}`), `Acum. ${selectedDreYear}`, 'AV%'];
+    const rows = [
+      ['1. RECEITA OPERACIONAL BRUTA', ...monthsFull.map(m => formatCurrency(sumRowsMonth(receitasRows, m))), formatCurrency(receitaBrutaTotalAnual), '100,0%'],
+      ...receitasRows.map(r => [`(+) ${r.nome}`, ...monthsFull.map(m => formatCurrency(r.mensalValues[m] || 0)), formatCurrency(r.totalAnual), av(r.totalAnual)]),
+      ['2. (-) IMPOSTOS / DEDUÇÕES', ...monthsFull.map(m => formatCurrency(sumRowsMonth(impostosRows, m))), formatCurrency(impostoTotalAnual), av(impostoTotalAnual)],
+      ['3. (=) RECEITA LÍQUIDA', ...monthsFull.map(m => formatCurrency(sumRowsMonth(receitasRows, m) - sumRowsMonth(impostosRows, m))), formatCurrency(receitaLiquidaTotalAnual), av(receitaLiquidaTotalAnual)],
+      ['4. (-) CUSTOS DIRETOS (CSP)', ...monthsFull.map(m => formatCurrency(sumRowsMonth(custosDiretosRows, m))), formatCurrency(custosDiretosTotalAnual), av(custosDiretosTotalAnual)],
+      ['(=) LUCRO BRUTO', ...monthsFull.map(m => formatCurrency(sumRowsMonth(receitasRows, m) - sumRowsMonth(impostosRows, m) - sumRowsMonth(custosDiretosRows, m))), formatCurrency(lucroBrutoTotalAnual), av(lucroBrutoTotalAnual)],
+      ['5. (-) DESPESAS OPERACIONAIS E PRÓ-LABORE', ...monthsFull.map(m => formatCurrency(sumRowsMonth(despesasOpRows, m))), formatCurrency(despesasOpTotalAnual), av(despesasOpTotalAnual)],
+      ['6. (=) LUCRO LÍQUIDO DO EXERCÍCIO', ...monthsFull.map(m => formatCurrency(sumRowsMonth(receitasRows, m) - sumRowsMonth(impostosRows, m) - sumRowsMonth(custosDiretosRows, m) - sumRowsMonth(despesasOpRows, m))), formatCurrency(lucroLiquidoTotalAnual), av(lucroLiquidoTotalAnual)]
+    ];
+    exportTableToPDF({
+      title: `DRE Gerencial Consolidada — ${selectedDreYear}`,
+      subtitle: `Exercício ${selectedDreYear} • Demonstrativo de Resultados Mensais`,
+      headers,
+      rows,
+      orientation: 'landscape',
+      params
+    });
   };
 
   const filteredTransactions = useMemo(() => {
@@ -2081,6 +2516,38 @@ const handleSaveRoleEdit = async (e) => {
     return list;
   }, [clients, cliSearch, sortField, sortDirection]);
 
+  const filteredProspeccoes = useMemo(() => {
+    const q = prospSearch.toLowerCase();
+    const list = prospeccoes.filter((p) => {
+      const matchSearch =
+        (p.company || '').toLowerCase().includes(q) ||
+        (p.contact || '').toLowerCase().includes(q) ||
+        (p.phone || '').toLowerCase().includes(q) ||
+        (p.responsible || '').toLowerCase().includes(q) ||
+        (p.observation || '').toLowerCase().includes(q);
+      const matchStatus = prospStatusFilter === 'Todos' || p.status === prospStatusFilter;
+      const d = String(p.callDate || p.calldate || '').slice(0, 10);
+      const matchDate =
+        (!prospDateFrom && !prospDateTo) ||
+        (Boolean(d) && (!prospDateFrom || d >= prospDateFrom) && (!prospDateTo || d <= prospDateTo));
+      return matchSearch && matchStatus && matchDate;
+    });
+    if (sortField) {
+      list.sort((a, b) => {
+        let vA = a[sortField] || a[sortField?.toLowerCase()] || '';
+        let vB = b[sortField] || b[sortField?.toLowerCase()] || '';
+        if (typeof vA === 'string') vA = vA.toLowerCase();
+        if (typeof vB === 'string') vB = vB.toLowerCase();
+        if (vA < vB) return sortDirection === 'asc' ? -1 : 1;
+        if (vA > vB) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    } else {
+      list.sort((a, b) => String(b.calldate || b.callDate || '').localeCompare(String(a.calldate || a.callDate || '')));
+    }
+    return list;
+  }, [prospeccoes, prospSearch, prospStatusFilter, prospDateFrom, prospDateTo, sortField, sortDirection]);
+
   const buildCtrlList = (items, search, statusF, from, to) => {
     const q = search.toLowerCase();
     const list = items.filter(r => {
@@ -2106,7 +2573,7 @@ const handleSaveRoleEdit = async (e) => {
     }
     return list;
   };
- 
+
   const filteredCondicionantes = useMemo(
     () => buildCtrlList(condicionantes, condSearch, condStatusFilter, condDateFrom, condDateTo),
     [condicionantes, condSearch, condStatusFilter, condDateFrom, condDateTo, sortField, sortDirection]
@@ -2115,8 +2582,8 @@ const handleSaveRoleEdit = async (e) => {
     () => buildCtrlList(pendencias, pendSearch, pendStatusFilter, pendDateFrom, pendDateTo),
     [pendencias, pendSearch, pendStatusFilter, pendDateFrom, pendDateTo, sortField, sortDirection]
   );
-  
-    const renderCtrlTab = (kind) => {
+
+  const renderCtrlTab = (kind) => {
     const isPend = kind === 'pend';
     const perm = isPend ? 'pendencias' : 'condicionantes';
     const noun = isPend ? 'Pendência' : 'Condicionante';
@@ -2138,7 +2605,11 @@ const handleSaveRoleEdit = async (e) => {
       ['observation', 'Observação']
     ];
     const SortIcon = ({ f }) => sortField === f ? (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />) : null;
- 
+
+    const exportHeaders = ['Cliente', isPend ? 'Pendência / Serviço' : 'Condicionante / Serviço', 'Vencimento Final', 'Licença', 'Responsável', 'Observação', 'Status'];
+    const exportRows = list.map((r) => [r.client, r.service, formatDateBR(r.dueDate || r.duedate), r.license, r.responsible, r.observation || '—', r.status]);
+    const periodSubtitle = (from || to) ? `Período de vencimento: ${from ? formatDateBR(from) : '...'} até ${to ? formatDateBR(to) : '...'}` : 'Todos os registros filtrados';
+
     return (
       <div className="space-y-6">
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
@@ -2149,7 +2620,7 @@ const handleSaveRoleEdit = async (e) => {
                 placeholder="Buscar por cliente, descrição, licença ou responsável..."
                 className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm" />
             </div>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2.5">
               <select value={statusF} onChange={(e) => setStatusF(e.target.value)}
                 className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white text-[#1B3B2B] cursor-pointer">
                 <option value="Todos">Filtrar por Status</option>
@@ -2160,6 +2631,10 @@ const handleSaveRoleEdit = async (e) => {
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border border-[#1B3B2B] text-[#1B3B2B] hover:bg-[#F8F3EF] cursor-pointer">
                 <Plus className="w-4 h-4" /> {showCtrlStatusMgr ? 'Fechar Status' : 'Cadastrar / Editar Status'}
               </button>
+              <ExportButtons
+                onPDF={() => exportTableToPDF({ title: isPend ? 'Controle de Pendências' : 'Controle de Condicionantes', subtitle: periodSubtitle, headers: exportHeaders, rows: exportRows, orientation: 'landscape', params })}
+                onExcel={() => { exportTableToExcel(isPend ? 'Controle_Pendencias_GrupoMartins' : 'Controle_Condicionantes_GrupoMartins', exportHeaders, exportRows); showToast('Planilha exportada com sucesso!'); }}
+              />
               {hasPermission(perm, 'create') && (
                 <button onClick={() => { setCtrlKind(kind); setEditingCond(null); setCondForm(blank()); setShowCondModal(true); }}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer">
@@ -2168,7 +2643,7 @@ const handleSaveRoleEdit = async (e) => {
               )}
             </div>
           </div>
- 
+
           <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs">
             <span className="font-bold text-slate-600">Vencimento:</span>
             <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)}
@@ -2181,7 +2656,7 @@ const handleSaveRoleEdit = async (e) => {
                 className="text-rose-600 font-bold hover:underline ml-2 cursor-pointer">Limpar Filtros</button>
             )}
           </div>
- 
+
           {showCtrlStatusMgr && (
             <div className="p-3 rounded-xl border border-[#B7DFC5] bg-[#F4F9F5] space-y-2.5">
               <div className="text-[10px] font-extrabold uppercase text-[#1B3B2B]">
@@ -2214,7 +2689,7 @@ const handleSaveRoleEdit = async (e) => {
             </div>
           )}
         </div>
- 
+
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
@@ -2271,7 +2746,7 @@ const handleSaveRoleEdit = async (e) => {
       </div>
     );
   };
- 
+
   const PIE_COLORS = ['#1B3B2B', '#2D5A43', '#3B7A57', '#557A46', '#7A9A8B'];
 
   return (
@@ -2489,6 +2964,41 @@ const handleSaveRoleEdit = async (e) => {
                     </div>
                   </div>
 
+                  <div className="flex justify-end">
+                    <ExportButtons
+                      onPDF={() => {
+                        const headers = ['Mês', 'Receita Bruta', 'Saídas', 'Lucro Líquido', 'Saldo Acumulado'];
+                        const rows = financialData.monthlySeries.map(m => [
+                          `${m.month}/${selectedDreYear}`,
+                          formatCurrency(m.entradas),
+                          formatCurrency(m.saidas),
+                          formatCurrency(m.resultadoLiquido),
+                          formatCurrency(m.saldoAcumulado)
+                        ]);
+                        exportTableToPDF({
+                          title: `Painel Executivo Financeiro — ${selectedDreYear}`,
+                          subtitle: `Receita Bruta: ${formatCurrency(financialData.receitaBrutaAnual)} | Saídas: ${formatCurrency(financialData.saidasTotaisAnual)} | Lucro Líquido: ${formatCurrency(financialData.lucroLiquidoAnual)} | Caixa Atual: ${formatCurrency(financialData.saldoAtualCaixa)}`,
+                          headers,
+                          rows,
+                          orientation: 'portrait',
+                          params
+                        });
+                      }}
+                      onExcel={() => {
+                        const headers = ['Mês', 'Receita Bruta', 'Saídas', 'Lucro Líquido', 'Saldo Acumulado'];
+                        const rows = financialData.monthlySeries.map(m => [
+                          `${m.month}/${selectedDreYear}`,
+                          m.entradas.toFixed(2),
+                          m.saidas.toFixed(2),
+                          m.resultadoLiquido.toFixed(2),
+                          m.saldoAcumulado.toFixed(2)
+                        ]);
+                        exportTableToExcel(`Painel_Executivo_${selectedDreYear}_GrupoMartins`, headers, rows);
+                        showToast('Planilha do Painel Executivo exportada!');
+                      }}
+                    />
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
                     <div className="bg-white rounded-2xl p-4 border border-slate-200 border-t-4 border-t-[#1B3B2B] shadow-sm">
                       <div className="text-xs font-bold text-slate-500 uppercase">Receita Bruta</div>
@@ -2585,6 +3095,21 @@ const handleSaveRoleEdit = async (e) => {
                         <p className="text-sm text-slate-600 mt-0.5">Controle individualizado de retiradas e emissão de recibos oficiais.</p>
                       </div>
                     </div>
+                    <ExportButtons
+                      onPDF={() => {
+                        const list = transactions.filter(t => (t.category || t.planocontas || t.planoContas || '').includes('Pró-Labore'));
+                        const headers = ['Código', 'Data', 'Competência', 'Descrição', 'Status', 'Valor'];
+                        const rows = list.map(tx => [tx.id, formatDateBR(tx.date), `${tx.month}/${selectedDreYear}`, tx.description || '—', tx.status, formatCurrency(tx.amount)]);
+                        exportTableToPDF({ title: `Histórico de Pró-Labore — ${params.socioDiretor}`, subtitle: `Exercício ${selectedDreYear}`, headers, rows, orientation: 'portrait', params });
+                      }}
+                      onExcel={() => {
+                        const list = transactions.filter(t => (t.category || t.planocontas || t.planoContas || '').includes('Pró-Labore'));
+                        const headers = ['Código', 'Data', 'Competência', 'Descrição', 'Status', 'Valor'];
+                        const rows = list.map(tx => [tx.id, formatDateBR(tx.date), `${tx.month}/${selectedDreYear}`, tx.description || '—', tx.status, Number(tx.amount || 0).toFixed(2)]);
+                        exportTableToExcel(`ProLabore_${selectedDreYear}_GrupoMartins`, headers, rows);
+                        showToast('Planilha de Pró-Labore exportada!');
+                      }}
+                    />
                   </div>
 
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -2648,12 +3173,7 @@ const handleSaveRoleEdit = async (e) => {
                         </select>
                       </div>
 
-                      <button
-                        onClick={exportDREToExcel}
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] shadow cursor-pointer"
-                      >
-                        <Download className="w-4 h-4" /> Exportar Planilha ({selectedDreYear})
-                      </button>
+                      <ExportButtons onPDF={exportDREToPDF} onExcel={exportDREToExcel} />
                     </div>
                   </div>
 
@@ -2821,31 +3341,47 @@ const handleSaveRoleEdit = async (e) => {
                           className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
                         />
                       </div>
-                      {hasPermission('lancamentos', 'create') && (
-                        <button
-                          onClick={() => {
-                            setEditingTx(null);
-                            setTxForm({
-                              date: `${selectedDreYear}-11-10`,
-                              month: 'Nov',
-                              type: 'Entrada',
-                              planoContas: planoContasData.receitas[0]?.codigo || '1.1.01',
-                              planocontas: planoContasData.receitas[0]?.codigo || '1.1.01',
-                              category: planoContasData.receitas[0]?.nome || '',
-                              entity: '',
-                              contractId: '—',
-                              description: '',
-                              paymentMethod: 'PIX',
-                              status: 'Pago / Recebido',
-                              amount: ''
-                            });
-                            setShowTxModal(true);
+                      <div className="flex flex-wrap items-center gap-2">
+                        <ExportButtons
+                          onPDF={() => {
+                            const headers = ['ID', 'Data', 'Tipo', 'Plano', 'Categoria', 'Favorecido / Cliente', 'Descrição', 'Status', 'Valor'];
+                            const rows = filteredTransactions.map(tx => [tx.id, formatDateBR(tx.date), tx.type, tx.planocontas || tx.planoContas || '—', tx.category || '—', tx.entity || '—', tx.description || '—', tx.status, formatCurrency(tx.amount)]);
+                            const sub = (txDateFrom || txDateTo) ? `Período: ${txDateFrom ? formatDateBR(txDateFrom) : '...'} até ${txDateTo ? formatDateBR(txDateTo) : '...'}` : 'Todos os lançamentos filtrados';
+                            exportTableToPDF({ title: 'Livro Caixa & Lançamentos', subtitle: sub, headers, rows, orientation: 'landscape', params });
                           }}
-                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
-                        >
-                          <Plus className="w-4 h-4" /> Incluir Lançamento
-                        </button>
-                      )}
+                          onExcel={() => {
+                            const headers = ['ID', 'Data', 'Tipo', 'Plano', 'Categoria', 'Favorecido / Cliente', 'Descrição', 'Status', 'Valor'];
+                            const rows = filteredTransactions.map(tx => [tx.id, formatDateBR(tx.date), tx.type, tx.planocontas || tx.planoContas || '—', tx.category || '—', tx.entity || '—', tx.description || '—', tx.status, Number(tx.amount || 0).toFixed(2)]);
+                            exportTableToExcel('Livro_Caixa_Lancamentos_GrupoMartins', headers, rows);
+                            showToast('Planilha de Lançamentos exportada!');
+                          }}
+                        />
+                        {hasPermission('lancamentos', 'create') && (
+                          <button
+                            onClick={() => {
+                              setEditingTx(null);
+                              setTxForm({
+                                date: `${selectedDreYear}-11-10`,
+                                month: 'Nov',
+                                type: 'Entrada',
+                                planoContas: planoContasData.receitas[0]?.codigo || '1.1.01',
+                                planocontas: planoContasData.receitas[0]?.codigo || '1.1.01',
+                                category: planoContasData.receitas[0]?.nome || '',
+                                entity: '',
+                                contractId: '—',
+                                description: '',
+                                paymentMethod: 'PIX',
+                                status: 'Pago / Recebido',
+                                amount: ''
+                              });
+                              setShowTxModal(true);
+                            }}
+                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
+                          >
+                            <Plus className="w-4 h-4" /> Incluir Lançamento
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100 text-xs">
@@ -3106,31 +3642,60 @@ const handleSaveRoleEdit = async (e) => {
                       </div>
                     </div>
 
-                    {hasPermission('contratos', 'create') && (
-                      <button
-                        onClick={() => {
-                          setEditingContract(null);
-                          setShowAgencyManager(false);
-                          setCtForm({
-                            client: '',
-                            service: planoContasData.receitas[0]?.nome || '',
-                            agency: availableAgencies[0] || 'SEMA-MT',
-                            status: 'Em Andamento',
-                            contractValue: '',
-                            directCosts: '',
-                            installmentsCount: '1',
-                            installmentDates: [`${selectedDreYear}-12-30`, '', '', '', '', '', '', '', '', '', '', ''],
-                            installmentAmounts: ['', '', '', '', '', '', '', '', '', '', '', ''],
-                            paymentMethod: 'PIX',
-                            observation: ''
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <ExportButtons
+                        onPDF={() => {
+                          const headers = canViewContractValues
+                            ? ['Código', 'Cliente', 'Plano de Contas', 'Órgão', 'Status Técnico', 'Situação Parcela', 'Valor Contrato']
+                            : ['Código', 'Cliente', 'Plano de Contas', 'Órgão', 'Status Técnico', 'Situação Parcela'];
+                          const rows = filteredContracts.map(ct => {
+                            const sit = getInstallmentSituationBadge(ct).label;
+                            const base = [ct.id, ct.client, ct.service, ct.agency || 'SEMA-MT', ct.status || 'Em Andamento', sit];
+                            if (canViewContractValues) base.push(formatCurrency(ct.contractvalue || ct.contractValue || 0));
+                            return base;
                           });
-                          setShowContractModal(true);
+                          exportTableToPDF({ title: 'Contratos Ambientais & SST', subtitle: (ctDateFrom || ctDateTo) ? `Período: ${ctDateFrom ? formatDateBR(ctDateFrom) : '...'} a ${ctDateTo ? formatDateBR(ctDateTo) : '...'}` : 'Relatório de contratos filtrados', headers, rows, orientation: 'landscape', params });
                         }}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#244B38] shadow-sm cursor-pointer shrink-0"
-                      >
-                        <Plus className="w-4 h-4" /> Novo Contrato Ambiental / SST
-                      </button>
-                    )}
+                        onExcel={() => {
+                          const headers = canViewContractValues
+                            ? ['Código', 'Cliente', 'Plano de Contas', 'Órgão', 'Status Técnico', 'Situação Parcela', 'Valor Contrato']
+                            : ['Código', 'Cliente', 'Plano de Contas', 'Órgão', 'Status Técnico', 'Situação Parcela'];
+                          const rows = filteredContracts.map(ct => {
+                            const sit = getInstallmentSituationBadge(ct).label;
+                            const base = [ct.id, ct.client, ct.service, ct.agency || 'SEMA-MT', ct.status || 'Em Andamento', sit];
+                            if (canViewContractValues) base.push(Number(ct.contractvalue || ct.contractValue || 0).toFixed(2));
+                            return base;
+                          });
+                          exportTableToExcel('Contratos_Ambientais_SST_GrupoMartins', headers, rows);
+                          showToast('Planilha de Contratos exportada!');
+                        }}
+                      />
+                      {hasPermission('contratos', 'create') && (
+                        <button
+                          onClick={() => {
+                            setEditingContract(null);
+                            setShowAgencyManager(false);
+                            setCtForm({
+                              client: '',
+                              service: planoContasData.receitas[0]?.nome || '',
+                              agency: availableAgencies[0] || 'SEMA-MT',
+                              status: 'Em Andamento',
+                              contractValue: '',
+                              directCosts: '',
+                              installmentsCount: '1',
+                              installmentDates: [`${selectedDreYear}-12-30`, '', '', '', '', '', '', '', '', '', '', ''],
+                              installmentAmounts: ['', '', '', '', '', '', '', '', '', '', '', ''],
+                              paymentMethod: 'PIX',
+                              observation: ''
+                            });
+                            setShowContractModal(true);
+                          }}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#244B38] shadow-sm cursor-pointer shrink-0"
+                        >
+                          <Plus className="w-4 h-4" /> Novo Contrato Ambiental / SST
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -3279,18 +3844,33 @@ const handleSaveRoleEdit = async (e) => {
                         Acompanhamento e atualização do andamento técnico dos contratos cadastrados
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowTechStatusManager(!showTechStatusManager);
-                        setTechStatusInput('');
-                        setEditingTechStatusOriginal(null);
-                      }}
-                      className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#244B38] shadow-sm cursor-pointer shrink-0 self-start sm:self-auto"
-                    >
-                      <Plus className="w-4 h-4" />
-                      {showTechStatusManager ? 'Fechar Gerenciador de Status' : 'Cadastrar / Editar Status'}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                      <ExportButtons
+                        onPDF={() => {
+                          const headers = ['Código', 'Cliente / Empreendimento', 'Plano de Contas', 'Órgão / Setor', 'Observação', 'Status Atual'];
+                          const rows = filteredTechnicalContracts.map(ct => [ct.id, ct.client, ct.service, ct.agency || 'SEMA-MT', ct.observation || '—', ct.status || 'Em Andamento']);
+                          exportTableToPDF({ title: 'Relatório de Status Técnico', subtitle: techStatusFilter === 'Todos' ? 'Todos os contratos' : `Filtro de status: ${techStatusFilter}`, headers, rows, orientation: 'landscape', params });
+                        }}
+                        onExcel={() => {
+                          const headers = ['Código', 'Cliente / Empreendimento', 'Plano de Contas', 'Órgão / Setor', 'Observação', 'Status Atual'];
+                          const rows = filteredTechnicalContracts.map(ct => [ct.id, ct.client, ct.service, ct.agency || 'SEMA-MT', ct.observation || '—', ct.status || 'Em Andamento']);
+                          exportTableToExcel('Status_Tecnico_GrupoMartins', headers, rows);
+                          showToast('Planilha de Status Técnico exportada!');
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowTechStatusManager(!showTechStatusManager);
+                          setTechStatusInput('');
+                          setEditingTechStatusOriginal(null);
+                        }}
+                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#244B38] shadow-sm cursor-pointer shrink-0"
+                      >
+                        <Plus className="w-4 h-4" />
+                        {showTechStatusManager ? 'Fechar Gerenciador de Status' : 'Cadastrar / Editar Status'}
+                      </button>
+                    </div>
                   </div>
 
                   {showTechStatusManager && (
@@ -3492,8 +4072,8 @@ const handleSaveRoleEdit = async (e) => {
 
               {activeTab === 'clientes' && (
                 <div className="space-y-6">
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-                    <div className="relative flex-1 max-w-md">
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
+                    <div className="relative flex-1 min-w-[220px] max-w-md">
                       <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                       <input
                         type="text"
@@ -3503,30 +4083,45 @@ const handleSaveRoleEdit = async (e) => {
                         className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
                       />
                     </div>
-                    {hasPermission('clientes', 'create') && (
-                      <button
-                        onClick={() => {
-                          setEditingClient(null);
-                          setCliForm({
-                            name: '',
-                            document: '',
-                            registration: '',
-                            segment: availableSegments[0],
-                            city: 'Rondonópolis — MT',
-                            contactName: '',
-                            phone: '',
-                            email: '',
-                            mainProgram: 'Licenciamento Ambiental (LP / LI / LO)',
-                            status: availableStatuses[0],
-                            observation: ''
-                          });
-                          setShowClientModal(true);
+                    <div className="flex flex-wrap items-center gap-2">
+                      <ExportButtons
+                        onPDF={() => {
+                          const headers = ['ID', 'Razão Social / Empreendimento', 'CNPJ', 'Segmento', 'Contato', 'Telefone', 'Cidade', 'Status'];
+                          const rows = filteredClients.map(cli => [cli.id, cli.name, cli.document || '—', cli.segment || '—', cli.contactName || cli.contactname || '—', cli.phone || '—', cli.city || '—', cli.status || '—']);
+                          exportTableToPDF({ title: 'Cadastro de Clientes (CRM)', subtitle: 'Relação de clientes cadastrados', headers, rows, orientation: 'landscape', params });
                         }}
-                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#1B3B2B] text-white cursor-pointer"
-                      >
-                        <UserPlus className="w-4 h-4" /> Cadastrar Cliente
-                      </button>
-                    )}
+                        onExcel={() => {
+                          const headers = ['ID', 'Razão Social / Empreendimento', 'CNPJ', 'Segmento', 'Contato', 'Telefone', 'E-mail', 'Cidade', 'Status', 'Observação'];
+                          const rows = filteredClients.map(cli => [cli.id, cli.name, cli.document || '—', cli.segment || '—', cli.contactName || cli.contactname || '—', cli.phone || '—', cli.email || '—', cli.city || '—', cli.status || '—', cli.observation || '—']);
+                          exportTableToExcel('Clientes_CRM_GrupoMartins', headers, rows);
+                          showToast('Planilha de Clientes exportada!');
+                        }}
+                      />
+                      {hasPermission('clientes', 'create') && (
+                        <button
+                          onClick={() => {
+                            setEditingClient(null);
+                            setCliForm({
+                              name: '',
+                              document: '',
+                              registration: '',
+                              segment: availableSegments[0],
+                              city: 'Rondonópolis — MT',
+                              contactName: '',
+                              phone: '',
+                              email: '',
+                              mainProgram: 'Licenciamento Ambiental (LP / LI / LO)',
+                              status: availableStatuses[0],
+                              observation: ''
+                            });
+                            setShowClientModal(true);
+                          }}
+                          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#1B3B2B] text-white cursor-pointer"
+                        >
+                          <UserPlus className="w-4 h-4" /> Cadastrar Cliente
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -3619,23 +4214,324 @@ const handleSaveRoleEdit = async (e) => {
                 </div>
               )}
 
-      {activeTab === 'condicionantes' && renderCtrlTab('cond')}
-      {activeTab === 'pendencias' && renderCtrlTab('pend')}
+              {/* NOVA ABA: PROSPECÇÃO DE CLIENTES */}
+              {activeTab === 'prospeccao' && (() => {
+                const todayISO = new Date().toISOString().split('T')[0];
+                const exportHeaders = ['Data', 'Empresa', 'Contato', 'Telefone', 'Responsável', 'Status', 'Observação'];
+                const exportRows = filteredProspeccoes.map((p) => [
+                  formatDateBR(p.callDate || p.calldate),
+                  p.company || '—',
+                  p.contact || '—',
+                  p.phone || '—',
+                  p.responsible || '—',
+                  p.status || '—',
+                  p.observation || '—'
+                ]);
+                const periodSubtitle = (prospDateFrom || prospDateTo)
+                  ? `Período: ${prospDateFrom ? formatDateBR(prospDateFrom) : '...'} até ${prospDateTo ? formatDateBR(prospDateTo) : '...'}${prospStatusFilter !== 'Todos' ? ` • Status: ${prospStatusFilter}` : ''}`
+                  : `Todas as ligações${prospStatusFilter !== 'Todos' ? ` • Status: ${prospStatusFilter}` : ''}`;
+
+                return (
+                  <div className="space-y-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <h2 className="text-2xl sm:text-3xl font-extrabold text-[#1B3B2B] tracking-tight">
+                          Prospecção de Clientes
+                        </h2>
+                        <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+                          Registro diário de ligações comerciais e acompanhamento de retorno
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="relative flex-1 min-w-[240px]">
+                          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                          <input
+                            type="text"
+                            value={prospSearch}
+                            onChange={(e) => setProspSearch(e.target.value)}
+                            placeholder="Buscar empresa, contato, telefone ou observação..."
+                            className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
+                          />
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <select
+                            value={prospStatusFilter}
+                            onChange={(e) => setProspStatusFilter(e.target.value)}
+                            className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white text-[#1B3B2B] cursor-pointer"
+                          >
+                            <option value="Todos">Status: Todos</option>
+                            {availableProspStatuses.map(st => <option key={st} value={st}>{st}</option>)}
+                          </select>
+
+                          <button
+                            type="button"
+                            onClick={() => { setShowProspStatusMgr(!showProspStatusMgr); setProspStatusInput(''); setProspStatusEditing(null); }}
+                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border border-[#1B3B2B] text-[#1B3B2B] hover:bg-[#F8F3EF] cursor-pointer"
+                          >
+                            <Plus className="w-4 h-4" /> {showProspStatusMgr ? 'Fechar Status' : 'Cadastrar / Editar Status'}
+                          </button>
+
+                          <ExportButtons
+                            onPDF={() => exportTableToPDF({
+                              title: 'Relatório de Prospecção de Clientes',
+                              subtitle: periodSubtitle,
+                              headers: exportHeaders,
+                              rows: exportRows,
+                              orientation: 'landscape',
+                              params
+                            })}
+                            onExcel={() => {
+                              exportTableToExcel('Prospeccao_Clientes_GrupoMartins', exportHeaders, exportRows);
+                              showToast('Planilha de Prospecção exportada!');
+                            }}
+                          />
+
+                          {hasPermission('prospeccao', 'create') && (
+                            <button
+                              onClick={() => {
+                                setEditingProsp(null);
+                                setProspForm({
+                                  callDate: todayISO,
+                                  company: '',
+                                  contact: '',
+                                  phone: '',
+                                  responsible: currentRole?.holder || '',
+                                  status: availableProspStatuses[0] || 'NÃO ATENDEU',
+                                  observation: ''
+                                });
+                                setShowProspModal(true);
+                              }}
+                              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] shadow-sm cursor-pointer"
+                            >
+                              <Plus className="w-4 h-4" /> Registrar Ligação
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs">
+                        <span className="font-bold text-slate-600 flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5 text-[#1B3B2B]" /> Data da Ligação:
+                        </span>
+                        <input
+                          type="date"
+                          value={prospDateFrom}
+                          max={prospDateTo || undefined}
+                          onChange={(e) => setProspDateFrom(e.target.value)}
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold cursor-pointer"
+                          title="Data inicial"
+                        />
+                        <span className="text-slate-500 font-semibold">até</span>
+                        <input
+                          type="date"
+                          value={prospDateTo}
+                          min={prospDateFrom || undefined}
+                          onChange={(e) => setProspDateTo(e.target.value)}
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold cursor-pointer"
+                          title="Data final"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => { setProspDateFrom(todayISO); setProspDateTo(todayISO); }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold border cursor-pointer transition ${
+                            prospDateFrom === todayISO && prospDateTo === todayISO
+                              ? 'bg-[#1B3B2B] text-white border-[#1B3B2B]'
+                              : 'bg-[#F8F3EF] text-[#1B3B2B] border-[#D5CFC7] hover:bg-[#EAE3DA]'
+                          }`}
+                        >
+                          Hoje
+                        </button>
+                        {(prospDateFrom || prospDateTo || prospSearch || prospStatusFilter !== 'Todos') && (
+                          <button
+                            type="button"
+                            onClick={() => { setProspDateFrom(''); setProspDateTo(''); setProspSearch(''); setProspStatusFilter('Todos'); }}
+                            className="text-rose-600 font-bold hover:underline ml-2 cursor-pointer"
+                          >
+                            Limpar Filtros
+                          </button>
+                        )}
+                        <span className="ml-auto text-slate-500 font-semibold">
+                          {filteredProspeccoes.length} {filteredProspeccoes.length === 1 ? 'ligação' : 'ligações'}
+                        </span>
+                      </div>
+
+                      {showProspStatusMgr && (
+                        <div className="p-3 rounded-xl border border-[#B7DFC5] bg-[#F4F9F5] space-y-2.5">
+                          <div className="text-[10px] font-extrabold uppercase text-[#1B3B2B]">
+                            {prospStatusEditing ? `Editando: ${prospStatusEditing}` : 'Novo Status de Prospecção'}
+                          </div>
+                          <div className="flex gap-1.5">
+                            <input
+                              type="text"
+                              value={prospStatusInput}
+                              onChange={(e) => setProspStatusInput(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSaveProspStatus(); } }}
+                              placeholder="Ex: REUNIÃO AGENDADA"
+                              className="flex-1 px-2.5 py-1.5 rounded-lg border bg-white text-xs font-semibold"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleSaveProspStatus}
+                              className="px-3 py-1.5 rounded-lg bg-[#1B3B2B] text-white font-bold text-xs hover:bg-[#2D5A43] cursor-pointer"
+                            >
+                              {prospStatusEditing ? 'Salvar' : 'Adicionar'}
+                            </button>
+                            {prospStatusEditing && (
+                              <button
+                                type="button"
+                                onClick={() => { setProspStatusEditing(null); setProspStatusInput(''); }}
+                                className="px-3 py-1.5 rounded-lg border font-bold text-xs cursor-pointer"
+                              >
+                                Cancelar
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-2 pt-1 border-t border-emerald-200/60">
+                            {availableProspStatuses.map(st => (
+                              <div key={st} className="inline-flex items-center gap-2 px-3 py-1 rounded-xl border border-slate-200 bg-white text-[11px] font-bold text-[#1B3B2B]">
+                                <span>{st}</span>
+                                <button type="button" onClick={() => { setProspStatusEditing(st); setProspStatusInput(st); }}
+                                  className="p-0.5 text-teal-700 hover:bg-teal-50 rounded cursor-pointer" title="Editar Status"><Edit3 className="w-3 h-3" /></button>
+                                <button type="button" onClick={() => handleDeleteProspStatus(st)}
+                                  className="p-0.5 text-rose-600 hover:bg-rose-50 rounded cursor-pointer" title="Excluir Status"><Trash2 className="w-3 h-3" /></button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px]">
+                              <th onClick={() => handleSort('calldate')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                                <div className="flex items-center gap-1">Data {sortField === 'calldate' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                              </th>
+                              <th onClick={() => handleSort('company')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                                <div className="flex items-center gap-1">Empresa {sortField === 'company' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                              </th>
+                              <th onClick={() => handleSort('contact')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                                <div className="flex items-center gap-1">Contato / Telefone {sortField === 'contact' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                              </th>
+                              <th onClick={() => handleSort('responsible')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                                <div className="flex items-center gap-1">Comercial {sortField === 'responsible' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                              </th>
+                              <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                                <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                              </th>
+                              <th onClick={() => handleSort('observation')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                                <div className="flex items-center gap-1">Observação {sortField === 'observation' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
+                              </th>
+                              <th className="py-3.5 px-3 text-center">Ações</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {filteredProspeccoes.length === 0 ? (
+                              <tr>
+                                <td colSpan="7" className="py-10 text-center text-slate-400">
+                                  Nenhuma ligação registrada para os filtros selecionados.
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredProspeccoes.map((row) => (
+                                <tr key={row.id} className="hover:bg-slate-50">
+                                  <td className="py-3 px-3 font-mono font-bold text-[#1B3B2B] whitespace-nowrap">
+                                    {formatDateBR(row.callDate || row.calldate)}
+                                  </td>
+                                  <td className="py-3 px-3 font-bold text-slate-900">{row.company}</td>
+                                  <td className="py-3 px-3 text-slate-700">
+                                    <div className="font-semibold">{row.contact || '—'}</div>
+                                    {row.phone && <div className="text-[11px] text-slate-500 font-mono">{row.phone}</div>}
+                                  </td>
+                                  <td className="py-3 px-3 font-semibold text-slate-700">{row.responsible || '—'}</td>
+                                  <td className="py-3 px-3 text-center whitespace-nowrap">
+                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase border ${getProspStatusBadgeClass(row.status)}`}>
+                                      {row.status}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-3 text-slate-600 max-w-md">{row.observation || '—'}</td>
+                                  <td className="py-3 px-3 text-center space-x-1 whitespace-nowrap">
+                                    {hasPermission('prospeccao', 'edit') && (
+                                      <button
+                                        onClick={() => {
+                                          setEditingProsp(row);
+                                          setProspForm({
+                                            callDate: String(row.callDate || row.calldate || todayISO).slice(0, 10),
+                                            company: row.company || '',
+                                            contact: row.contact || '',
+                                            phone: row.phone || '',
+                                            responsible: row.responsible || '',
+                                            status: row.status || availableProspStatuses[0],
+                                            observation: row.observation || ''
+                                          });
+                                          setShowProspModal(true);
+                                        }}
+                                        className="p-1.5 rounded-lg text-teal-700 hover:bg-teal-50 cursor-pointer"
+                                        title="Editar Ligação"
+                                      >
+                                        <Edit3 className="w-4 h-4 inline" />
+                                      </button>
+                                    )}
+                                    {hasPermission('prospeccao', 'delete') && (
+                                      <button
+                                        onClick={() => setDeleteProspTarget(row)}
+                                        className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                        title="Excluir Ligação"
+                                      >
+                                        <Trash2 className="w-4 h-4 inline" />
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {activeTab === 'condicionantes' && renderCtrlTab('cond')}
+              {activeTab === 'pendencias' && renderCtrlTab('pend')}
+
               {activeTab === 'acessos' && (
                 <div className="space-y-6">
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h3 className="text-base font-extrabold text-[#1B3B2B]">Árvore de Acessos &amp; Perfis</h3>
                       <p className="text-xs text-slate-500">Gerencie colaboradores, edite senhas e configure permissões granulares por módulo.</p>
                     </div>
-                    {hasPermission('acessos', 'create') && (
-                      <button
-                        onClick={() => setShowUserRoleModal(true)}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
-                      >
-                        <UserPlus className="w-4 h-4" /> Cadastrar Novo Utilizador
-                      </button>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <ExportButtons
+                        onPDF={() => {
+                          const headers = ['Nível', 'Perfil', 'Titular', 'E-mail', 'Status Convite', 'Descrição'];
+                          const rows = accessRoles.map(r => [r.level, r.name, r.holder, r.email, r.convite_pendente ? 'Pendente' : 'Senha Ativa', r.description || '—']);
+                          exportTableToPDF({ title: 'Árvore de Acessos & Perfis', subtitle: 'Lista de usuários e alçadas cadastradas', headers, rows, orientation: 'landscape', params });
+                        }}
+                        onExcel={() => {
+                          const headers = ['Nível', 'Perfil', 'Titular', 'E-mail', 'Status Convite', 'Descrição'];
+                          const rows = accessRoles.map(r => [r.level, r.name, r.holder, r.email, r.convite_pendente ? 'Pendente' : 'Senha Ativa', r.description || '—']);
+                          exportTableToExcel('Acessos_Perfis_GrupoMartins', headers, rows);
+                          showToast('Planilha de Acessos exportada!');
+                        }}
+                      />
+                      {hasPermission('acessos', 'create') && (
+                        <button
+                          onClick={() => setShowUserRoleModal(true)}
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
+                        >
+                          <UserPlus className="w-4 h-4" /> Cadastrar Novo Utilizador
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -3669,7 +4565,7 @@ const handleSaveRoleEdit = async (e) => {
                           </div>
                           <h4 className="font-extrabold text-[#1B3B2B] text-sm">{role.name}</h4>
                           <div className="text-xs font-bold text-slate-700">👤 {role.holder}</div>
-<div className="text-xs text-slate-500">✉️ {role.email}</div>
+                          <div className="text-xs text-slate-500">✉️ {role.email}</div>
                           <div className="flex items-center gap-2 flex-wrap pt-0.5">
                             {role.convite_pendente ? (
                               <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
@@ -3791,23 +4687,44 @@ const handleSaveRoleEdit = async (e) => {
                   </div>
 
                   <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-                    <div className="flex items-center justify-between border-b pb-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
                       <div>
                         <h3 className="text-sm font-extrabold text-[#1B3B2B] uppercase">
                           Gerenciamento do Plano de Contas (DRE)
                         </h3>
                         <p className="text-xs text-slate-500">Adicione, edite ou remova contas do plano contábil do ERP.</p>
                       </div>
-                      <button
-                        onClick={() => {
-                          setReopenContractAfterPlano(false);
-                          setPlanoForm({ tipo: 'receitas', codigo: '', nome: '', originalCodigo: null });
-                          setShowPlanoModal(true);
-                        }}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
-                      >
-                        <Plus className="w-4 h-4" /> Novo Plano de Contas
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <ExportButtons
+                          onPDF={() => {
+                            const headers = ['Tipo', 'Código', 'Nome da Conta'];
+                            const rows = [
+                              ...planoContasData.receitas.map(r => ['Receita (1.X)', r.codigo, r.nome]),
+                              ...planoContasData.despesas.map(d => ['Despesa / Custo (2.X)', d.codigo, d.nome])
+                            ];
+                            exportTableToPDF({ title: 'Plano de Contas (DRE)', subtitle: `Parâmetros e contas contábeis — Exercício ${selectedDreYear}`, headers, rows, orientation: 'portrait', params });
+                          }}
+                          onExcel={() => {
+                            const headers = ['Tipo', 'Código', 'Nome da Conta'];
+                            const rows = [
+                              ...planoContasData.receitas.map(r => ['Receita (1.X)', r.codigo, r.nome]),
+                              ...planoContasData.despesas.map(d => ['Despesa / Custo (2.X)', d.codigo, d.nome])
+                            ];
+                            exportTableToExcel('Plano_de_Contas_GrupoMartins', headers, rows);
+                            showToast('Plano de Contas exportado!');
+                          }}
+                        />
+                        <button
+                          onClick={() => {
+                            setReopenContractAfterPlano(false);
+                            setPlanoForm({ tipo: 'receitas', codigo: '', nome: '', originalCodigo: null });
+                            setShowPlanoModal(true);
+                          }}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4" /> Novo Plano de Contas
+                        </button>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
@@ -3902,7 +4819,7 @@ const handleSaveRoleEdit = async (e) => {
       </div>
 
       {/* ========================================================================== */}
-      {/* TODOS OS 13 MODAIS DO SISTEMA UNIFICADOS E ATIVOS                          */}
+      {/* TODOS OS MODAIS DO SISTEMA UNIFICADOS E ATIVOS                             */}
       {/* ========================================================================== */}
 
       {/* 1. MODAL NOVO / EDITAR PLANO DE CONTAS */}
@@ -4824,14 +5741,14 @@ const handleSaveRoleEdit = async (e) => {
         </div>
       )}
 
-      {/* 11. MODAL CADASTRAR / EDITAR CONDICIONANTE */}
+      {/* 11. MODAL CADASTRAR / EDITAR CONDICIONANTE OU PENDÊNCIA */}
       {showCondModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
             <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
               <h3 className="text-base font-extrabold">{ctrlKind === 'pend'
                 ? (editingCond ? 'Editar Pendência' : 'Nova Pendência')
-        : (editingCond ? 'Editar Condicionante Ambiental' : 'Novo Cadastro de Condicionante Ambiental')}</h3>
+                : (editingCond ? 'Editar Condicionante Ambiental' : 'Novo Cadastro de Condicionante Ambiental')}</h3>
               <button onClick={() => { setShowCondModal(false); setEditingCond(null); }} className="text-white hover:text-emerald-300 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
@@ -4880,15 +5797,15 @@ const handleSaveRoleEdit = async (e) => {
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 uppercase mb-1">STATUS</label>
-<select
-  value={condForm.status}
-  onChange={e => setCondForm({ ...condForm, status: e.target.value })}
-  className="w-full p-2 border border-slate-300 rounded-lg text-xs"
->
-  {Array.from(new Set([...(ctrlKind === 'pend' ? availablePendStatuses : availableCondStatuses), condForm.status].filter(Boolean))).map(st => (
-    <option key={st} value={st}>{st}</option>
-  ))}
-</select>
+                  <select
+                    value={condForm.status}
+                    onChange={e => setCondForm({ ...condForm, status: e.target.value })}
+                    className="w-full p-2 border border-slate-300 rounded-lg text-xs"
+                  >
+                    {Array.from(new Set([...(ctrlKind === 'pend' ? availablePendStatuses : availableCondStatuses), condForm.status].filter(Boolean))).map(st => (
+                      <option key={st} value={st}>{st}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -4905,9 +5822,9 @@ const handleSaveRoleEdit = async (e) => {
               </div>
 
               <div>
-               <label className="block font-bold text-slate-700 uppercase mb-1">
-  {ctrlKind === 'pend' ? 'TIPO DE SERVIÇO / DESCRIÇÃO DA PENDÊNCIA' : 'TIPO DE SERVIÇO / DESCRIÇÃO DA CONDICIONANTE'}
-</label>
+                <label className="block font-bold text-slate-700 uppercase mb-1">
+                  {ctrlKind === 'pend' ? 'TIPO DE SERVIÇO / DESCRIÇÃO DA PENDÊNCIA' : 'TIPO DE SERVIÇO / DESCRIÇÃO DA CONDICIONANTE'}
+                </label>
                 <textarea
                   value={condForm.service}
                   onChange={(e) => setCondForm({ ...condForm, service: e.target.value })}
@@ -4947,14 +5864,14 @@ const handleSaveRoleEdit = async (e) => {
         </div>
       )}
 
-      {/* 12. MODAL EXCLUIR CONDICIONANTE */}
+      {/* 12. MODAL EXCLUIR CONDICIONANTE OU PENDÊNCIA */}
       {deleteCondTarget && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
             <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
               <Trash2 className="w-6 h-6" />
             </div>
-             <h3 className="text-base font-extrabold text-rose-700">Excluir {ctrlKind === 'pend' ? 'Pendência' : 'Condicionante'}?</h3>
+            <h3 className="text-base font-extrabold text-rose-700">Excluir {ctrlKind === 'pend' ? 'Pendência' : 'Condicionante'}?</h3>
             <p className="text-xs text-slate-600">
               Deseja realmente remover {ctrlKind === 'pend' ? 'a pendência de' : 'a condicionante de'} <strong>{deleteCondTarget.client}</strong>?
             </p>
@@ -5122,7 +6039,7 @@ const handleSaveRoleEdit = async (e) => {
         </div>
       )}
 
-      {/* 13C. MODAL EDITAR PERFIL / SENHA / EXCLUIR */}
+      {/* 13C. MODAL EDITAR PERFIL / EXCLUIR */}
       {editingRoleTarget && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
@@ -5196,6 +6113,138 @@ const handleSaveRoleEdit = async (e) => {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 14. MODAL REGISTRAR / EDITAR LIGAÇÃO (PROSPECÇÃO) */}
+      {showProspModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
+            <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
+              <h3 className="text-base font-extrabold">{editingProsp ? 'Editar Ligação de Prospecção' : 'Registrar Ligação de Prospecção'}</h3>
+              <button onClick={() => { setShowProspModal(false); setEditingProsp(null); }} className="text-white hover:text-emerald-300 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProspeccao} className="p-6 space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">DATA DA LIGAÇÃO</label>
+                  <input
+                    type="date"
+                    value={prospForm.callDate}
+                    onChange={(e) => setProspForm({ ...prospForm, callDate: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">STATUS</label>
+                  <select
+                    value={prospForm.status}
+                    onChange={(e) => setProspForm({ ...prospForm, status: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
+                  >
+                    {Array.from(new Set([...availableProspStatuses, prospForm.status].filter(Boolean))).map(st => (
+                      <option key={st} value={st}>{st}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">NOME DA EMPRESA / EMPREENDIMENTO</label>
+                <input
+                  type="text"
+                  value={prospForm.company}
+                  onChange={(e) => setProspForm({ ...prospForm, company: e.target.value })}
+                  placeholder="Ex: Agropecuária Santa Fé"
+                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-slate-800"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">CONTATO (QUEM ATENDEU)</label>
+                  <input
+                    type="text"
+                    value={prospForm.contact}
+                    onChange={(e) => setProspForm({ ...prospForm, contact: e.target.value })}
+                    placeholder="Ex: Carlos / Recepção"
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">TELEFONE / WHATSAPP</label>
+                  <input
+                    type="text"
+                    value={prospForm.phone}
+                    onChange={(e) => setProspForm({ ...prospForm, phone: e.target.value })}
+                    placeholder="(66) 99999-9999"
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">RESPONSÁVEL PELA LIGAÇÃO (COMERCIAL)</label>
+                <input
+                  type="text"
+                  value={prospForm.responsible}
+                  onChange={(e) => setProspForm({ ...prospForm, responsible: e.target.value })}
+                  placeholder="Nome do comercial..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">OBSERVAÇÃO</label>
+                <textarea
+                  value={prospForm.observation}
+                  onChange={(e) => setProspForm({ ...prospForm, observation: e.target.value })}
+                  placeholder="Ex: Liguei e o cliente não atendeu, tentar novamente à tarde..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border h-24 resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => { setShowProspModal(false); setEditingProsp(null); }}
+                  className="px-5 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
+                >
+                  Salvar Ligação
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 15. MODAL EXCLUIR LIGAÇÃO (PROSPECÇÃO) */}
+      {deleteProspTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-extrabold text-rose-700">Excluir Ligação?</h3>
+            <p className="text-xs text-slate-600">
+              Deseja realmente remover o registro de ligação para <strong>{deleteProspTarget.company}</strong>?
+            </p>
+            <div className="flex justify-center gap-2 pt-2">
+              <button onClick={() => setDeleteProspTarget(null)} className="px-4 py-2 rounded-xl border font-bold text-xs text-slate-600 cursor-pointer">Cancelar</button>
+              <button onClick={confirmDeleteProspeccao} className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer">Sim, Excluir</button>
+            </div>
           </div>
         </div>
       )}
