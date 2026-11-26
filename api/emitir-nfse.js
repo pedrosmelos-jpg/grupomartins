@@ -35,7 +35,6 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
   const cepTomador = onlyDigits(tomador.cep || '');
   const hasEndNac = cMunTomador.length === 7 || cepTomador.length === 8;
 
-  // Ordem XSD em endNac: CEP antes de cMun
   const endNacInner = [
     cepTomador.length === 8 ? `<CEP>${cepTomador}</CEP>` : '',
     cMunTomador.length === 7 ? `<cMun>${cMunTomador}</cMun>` : ''
@@ -76,10 +75,7 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
 
   const emailTomadorTag = tomador.email ? `\n      <email>${escapeXml(tomador.email)}</email>` : '';
 
-  const totTribTag =
-    opSimpNac === '2' || opSimpNac === '3'
-      ? `\n      <totTrib>\n        <pTotTribSN>0.00</pTotTribSN>\n      </totTrib>`
-      : `\n      <totTrib>\n        <indTotTrib>0</indTotTrib>\n      </totTrib>`;
+  const totTribTag = `\n      <totTrib>\n        <indTotTrib>0</indTotTrib>\n      </totTrib>`;
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <DPS xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.00">
