@@ -763,7 +763,7 @@ const getNfseStatusBadgeClass = (s) => {
 const INITIAL_TECHNICAL_STATUSES = ['FINALIZADO', 'ATENDIDO', 'EM ANDAMENTO', 'A VENCER'];
 const extractTagXml = (xmlStr, tagName) => {
   if (!xmlStr) return '';
-  const match = String(xmlStr).match(new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)</${tagName}>`, 'i'));
+  const match = String(xmlStr).match(new RegExp(`<${tagName}(?=[\\s>])[^>]*>([\\s\\S]*?)</${tagName}>`, 'i'));
   return match ? match[1].trim() : '';
 };
 
