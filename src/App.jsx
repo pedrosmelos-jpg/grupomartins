@@ -305,13 +305,16 @@ const INITIAL_AGENCIES = [
   'CREA-MT'
 ];
 
-const INITIAL_TECHNICAL_STATUSES = [
-  'Em Andamento',
-  'Em Elaboração Técnica',
-  'Protocolado / SEMA',
-  'Concluído / Licença Emitida'
-];
-
+const INITIAL_CTRL_STATUSES = ['FINALIZADO', 'ATENDIDO', 'EM ANDAMENTO', 'A VENCER'];
+ 
+const getCtrlStatusBadgeClass = (s) => {
+  const n = String(s || '').toUpperCase();
+  if (n === 'FINALIZADO') return 'bg-emerald-700 text-white';
+  if (n === 'ATENDIDO') return 'bg-emerald-600 text-white';
+  if (n === 'EM ANDAMENTO') return 'bg-amber-500 text-white';
+  if (n === 'A VENCER') return 'bg-amber-600 text-white';
+  return 'bg-slate-600 text-white';
+};
 const DEFAULT_PERMISSIONS = {
   dashboard: { view: true, create: false, edit: false, delete: false, approve: false },
   prolabore: { view: false, create: false, edit: false, delete: false, approve: false },
