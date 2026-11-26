@@ -7902,8 +7902,9 @@ export default function App() {
 
             <div className="p-3.5 rounded-xl bg-[#F4F9F5] border border-[#B7DFC5] space-y-3">
                 <div className="text-[10px] font-extrabold uppercase text-[#1B3B2B]">
-                  Parâmetros Fiscais (Editáveis por Nota)
+                Parâmetros Fiscais (Editáveis por Nota)
                 </div>
+                <div>
                   <label className="block font-bold text-slate-700 uppercase mb-1">
                     ESCOLHER SERVIÇO / CNAE (PREENCHE CÓD. SERVIÇO E NBS)
                   </label>
