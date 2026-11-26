@@ -30,8 +30,9 @@ import {
   ArrowUp,
   ArrowDown,
   EyeOff,
-  ClipboardCheck
-} from 'lucide-react';
+ClipboardCheck,
+           AlertTriangle
+           } from 'lucide-react';
 import {
   ResponsiveContainer,
   ComposedChart,
