@@ -74,12 +74,21 @@ function extractPemFromPfx(pfxBuffer, password) {
 
 function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDps }) {
   const tpAmb = ambiente === 'producao' ? '1' : '2';
-  const cLocEmi = onlyDigits(prestador.codigoIbge || '5107602');
-  const cnpjPrest = padLeft(onlyDigits(prestador.cnpj || '64904070000157'), 14);
-  const serie = padLeft(onlyDigits(serieDps || '1'), 5);
-  const nDps = padLeft(onlyDigits(numeroDps || '1'), 15);
 
-  // Id padrão Nacional: "DPS" + cLocEmi(7) + tpInsc(1: 2=CNPJ) + nInsc(14) + serie(5) + nDPS(15) = 45 chars
+  const cLocEmiRaw = onlyDigits(prestador.codigoIbge || '5107602');
+  if (cLocEmiRaw.length !== 7) {
+    throw new Error('Código IBGE do município emissor (cLocEmi) deve ter exatamente 7 dígitos.');
+  }
+  const cLocEmi = cLocEmiRaw;
+
+  const cnpjPrest = padLeft(onlyDigits(prestador.cnpj || '64904070000157'), 14).slice(-14);
+  const serieNum = Math.max(1, Number(onlyDigits(serieDps || '1')) || 1);
+  const nDpsNum = Math.max(1, Number(onlyDigits(numeroDps || '1')) || 1);
+
+  const serie = padLeft(serieNum, 5).slice(-5);
+  const nDps = padLeft(nDpsNum, 15).slice(-15);
+
+  // Id padrão Nacional: "DPS" (3) + cLocEmi (7) + tpInsc (1: 2=CNPJ) + nInsc (14) + serie (5) + nDPS (15) = 45 chars
   const infDpsId = `DPS${cLocEmi}2${cnpjPrest}${serie}${nDps}`;
 
   const now = new Date();
@@ -89,20 +98,58 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
   const dCompet = servico.dataCompetencia || local.toISOString().slice(0, 10);
 
   const docTomador = onlyDigits(tomador.documento);
-  const tomadorDocTag =
-    docTomador.length === 14
-      ? `<CNPJ>${docTomador}</CNPJ>`
-      : docTomador.length === 11
-        ? `<CPF>${docTomador}</CPF>`
-        : '';
+  let tomadorDocTag = '';
+  if (docTomador.length === 14) {
+    tomadorDocTag = `<CNPJ>${docTomador}</CNPJ>`;
+  } else if (docTomador.length === 11) {
+    tomadorDocTag = `<CPF>${docTomador}</CPF>`;
+  } else {
+    throw new Error('Documento do tomador inválido: informe um CPF (11 dígitos) ou CNPJ (14 dígitos).');
+  }
 
-  const cTribNac = padLeft(onlyDigits(servico.codigoServico || '170101'), 6);
-  const cNBS = onlyDigits(servico.codigoNbs || '118064000');
-  const vServ = Number(servico.valor || 0).toFixed(2);
-  const pAliq = Number(servico.aliquotaIss || 0);
+  const cMunTomador = onlyDigits(tomador.codigoMunicipio || tomador.codigoIbge || '');
+  const cepTomador = onlyDigits(tomador.cep || '');
+  const endTomadorXml =
+    cMunTomador.length === 7 || cepTomador.length === 8
+      ? `
+      <end>
+        <endNac>
+          ${cMunTomador.length === 7 ? `<cMun>${cMunTomador}</cMun>` : ''}
+          ${cepTomador.length === 8 ? `<CEP>${cepTomador}</CEP>` : ''}
+        </endNac>
+        ${tomador.logradouro ? `<xLgr>${escapeXml(tomador.logradouro)}</xLgr>` : ''}
+        ${tomador.numero ? `<nro>${escapeXml(String(tomador.numero))}</nro>` : ''}
+        ${tomador.bairro ? `<xBairro>${escapeXml(tomador.bairro)}</xBairro>` : ''}
+      </end>`
+      : '';
+
+  const cTribNac = padLeft(onlyDigits(servico.codigoServico || '170101'), 6).slice(-6);
+  const cNBS = onlyDigits(servico.codigoNbs || '');
+  const vServNum = Number(servico.valor || 0);
+  if (!(vServNum > 0)) {
+    throw new Error('Valor do serviço deve ser maior que zero.');
+  }
+  const vServ = vServNum.toFixed(2);
+
   const opSimpNac = String(prestador.opSimpNac || '3'); // 1=Não optante, 2=MEI, 3=ME/EPP
   const regApTribSN = String(prestador.regApTribSN || '1'); // 1=Simples Nacional
   const tpRetISSQN = String(servico.issRetido ? '2' : '1'); // 1=Não retido, 2=Retido pelo tomador
+
+  const pAliqNum = Number(servico.aliquotaIss);
+  const pAliqTag =
+    opSimpNac === '1' && Number.isFinite(pAliqNum) && pAliqNum > 0
+      ? `\n          <pAliq>${pAliqNum.toFixed(2)}</pAliq>`
+      : '';
+
+  const imTag = prestador.inscricaoMunicipal
+    ? `\n      <IM>${escapeXml(onlyDigits(prestador.inscricaoMunicipal))}</IM>`
+    : '';
+
+  const regApTribTag =
+    opSimpNac === '3' ? `\n        <regApTribSN>${regApTribSN}</regApTribSN>` : '';
+
+  const cNbsTag = cNBS.length >= 9 ? `\n        <cNBS>${cNBS.slice(0, 9)}</cNBS>` : '';
+  const emailTomadorTag = tomador.email ? `\n      <email>${escapeXml(tomador.email)}</email>` : '';
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <DPS xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.00">
@@ -110,24 +157,21 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
     <tpAmb>${tpAmb}</tpAmb>
     <dhEmi>${dhEmi}</dhEmi>
     <verAplic>GrupoMartinsERP_4.0</verAplic>
-    <serie>${Number(serie)}</serie>
-    <nDPS>${Number(nDps)}</nDPS>
+    <serie>${serieNum}</serie>
+    <nDPS>${nDpsNum}</nDPS>
     <dCompet>${dCompet}</dCompet>
     <tpEmit>1</tpEmit>
     <cLocEmi>${cLocEmi}</cLocEmi>
     <prest>
-      <CNPJ>${cnpjPrest}</CNPJ>
-      ${prestador.inscricaoMunicipal ? `<IM>${escapeXml(onlyDigits(prestador.inscricaoMunicipal))}</IM>` : ''}
+      <CNPJ>${cnpjPrest}</CNPJ>${imTag}
       <regTrib>
-        <opSimpNac>${opSimpNac}</opSimpNac>
-        ${opSimpNac === '3' ? `<regApTribSN>${regApTribSN}</regApTribSN>` : ''}
+        <opSimpNac>${opSimpNac}</opSimpNac>${regApTribTag}
         <regEspTrib>0</regEspTrib>
       </regTrib>
     </prest>
     <toma>
       ${tomadorDocTag}
-      <xNome>${escapeXml(tomador.nome)}</xNome>
-      ${tomador.email ? `<email>${escapeXml(tomador.email)}</email>` : ''}
+      <xNome>${escapeXml(tomador.nome)}</xNome>${endTomadorXml}${emailTomadorTag}
     </toma>
     <serv>
       <locPrest>
@@ -135,8 +179,7 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
       </locPrest>
       <cServ>
         <cTribNac>${cTribNac}</cTribNac>
-        <xDescServ>${escapeXml(servico.descricao)}</xDescServ>
-        ${cNBS ? `<cNBS>${cNBS}</cNBS>` : ''}
+        <xDescServ>${escapeXml(servico.descricao)}</xDescServ>${cNbsTag}
       </cServ>
     </serv>
     <valores>
@@ -146,8 +189,7 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
       <trib>
         <tribMun>
           <tribISSQN>1</tribISSQN>
-          <tpRetISSQN>${tpRetISSQN}</tpRetISSQN>
-          ${pAliq > 0 ? `<pAliq>${pAliq.toFixed(2)}</pAliq>` : ''}
+          <tpRetISSQN>${tpRetISSQN}</tpRetISSQN>${pAliqTag}
         </tribMun>
         <totTrib>
           <indTotTrib>0</indTotTrib>
@@ -165,7 +207,8 @@ function signDpsXml(xml, infDpsId, privateKeyPem, certBase64Clean) {
     privateKey: privateKeyPem,
     publicCert: `-----BEGIN CERTIFICATE-----\n${certBase64Clean}\n-----END CERTIFICATE-----`,
     signatureAlgorithm: 'http://www.w3.org/2000/09/xmldsig#rsa-sha1',
-    canonicalizationAlgorithm: 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315'
+    canonicalizationAlgorithm: 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
+    idAttribute: 'Id'
   });
 
   sig.addReference({
