@@ -1,5 +1,6 @@
 import https from 'https';
 import zlib from 'zlib';
+import crypto from 'crypto';
 import forge from 'node-forge';
 import { SignedXml } from 'xml-crypto';
 
@@ -23,24 +24,52 @@ const escapeXml = (s) =>
     .replace(/'/g, '&apos;');
 
 function extractPemFromPfx(pfxBuffer, password) {
-  const p12Asn1 = forge.asn1.fromDer(pfxBuffer.toString('binary'));
-  const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, false, password);
-
-  const keyBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag })[forge.pki.oids.pkcs8ShroudedKeyBag] || [];
-  const certBags = p12.getBags({ bagType: forge.pki.oids.certBag })[forge.pki.oids.certBag] || [];
-
-  if (!keyBags.length || !certBags.length) {
-    throw new Error('Não foi possível extrair a chave privada ou o certificado do arquivo .pfx.');
+  if (!pfxBuffer || !pfxBuffer.length) {
+    throw new Error('Conteúdo de NFSE_CERT_BASE64 vazio ou inválido.');
   }
 
-  const privateKeyPem = forge.pki.privateKeyToPem(keyBags[0].key);
-  const certPem = forge.pki.certificateToPem(certBags[0].cert);
-  const certBase64Clean = certPem
-    .replace(/-----BEGIN CERTIFICATE-----/g, '')
-    .replace(/-----END CERTIFICATE-----/g, '')
-    .replace(/\r?\n/g, '');
+  try {
+    const p12Asn1 = forge.asn1.fromDer(pfxBuffer.toString('binary'));
+    const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, false, password);
 
-  return { privateKeyPem, certPem, certBase64Clean };
+    const keyBags =
+      p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag })[forge.pki.oids.pkcs8ShroudedKeyBag] ||
+      p12.getBags({ bagType: forge.pki.oids.keyBag })[forge.pki.oids.keyBag] ||
+      [];
+    const certBags =
+      p12.getBags({ bagType: forge.pki.oids.certBag })[forge.pki.oids.certBag] || [];
+
+    if (!keyBags.length || !certBags.length) {
+      throw new Error('Não foi possível extrair a chave privada ou o certificado do arquivo .pfx.');
+    }
+
+    const privateKeyPem = forge.pki.privateKeyToPem(keyBags[0].key);
+    const certPem = forge.pki.certificateToPem(certBags[0].cert);
+    const certBase64Clean = certPem
+      .replace(/-----BEGIN CERTIFICATE-----/g, '')
+      .replace(/-----END CERTIFICATE-----/g, '')
+      .replace(/\r?\n/g, '');
+
+    return { privateKeyPem, certPem, certBase64Clean };
+  } catch (forgeErr) {
+    const msg = String(forgeErr?.message || '');
+    if (msg.toLowerCase().includes('pkcs12') || msg.toLowerCase().includes('mac')) {
+      try {
+        new crypto.X509Certificate(pfxBuffer);
+        throw new Error(
+          'O certificado .pfx usa cifra PKCS#12 não suportada pelo node-forge (ex.: PBES2/AES). Exporte novamente o .pfx no Windows marcando "Marcar esta chave como exportável" e formato PKCS#12 compatível, atualize NFSE_CERT_BASE64 e faça Redeploy.'
+        );
+      } catch (x509Err) {
+        if (x509Err?.message && x509Err.message.includes('node-forge')) {
+          throw x509Err;
+        }
+      }
+      throw new Error(
+        'Falha ao abrir o .pfx: confira se NFSE_CERT_PASSWORD está correta (sem espaços) ou se o .pfx usa cifra não suportada pelo node-forge.'
+      );
+    }
+    throw new Error(msg || 'Não foi possível extrair a chave privada ou o certificado do arquivo .pfx.');
+  }
 }
 
 function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDps }) {
@@ -60,11 +89,12 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
   const dCompet = servico.dataCompetencia || local.toISOString().slice(0, 10);
 
   const docTomador = onlyDigits(tomador.documento);
-  const tomadorDocTag = docTomador.length === 14
-    ? `<CNPJ>${docTomador}</CNPJ>`
-    : docTomador.length === 11
-      ? `<CPF>${docTomador}</CPF>`
-      : '';
+  const tomadorDocTag =
+    docTomador.length === 14
+      ? `<CNPJ>${docTomador}</CNPJ>`
+      : docTomador.length === 11
+        ? `<CPF>${docTomador}</CPF>`
+        : '';
 
   const cTribNac = padLeft(onlyDigits(servico.codigoServico || '170101'), 6);
   const cNBS = onlyDigits(servico.codigoNbs || '118064000');
@@ -176,7 +206,9 @@ function postToSefin({ hostname, path, payloadJson, pfxBuffer, passphrase }) {
         res.on('end', () => {
           const raw = Buffer.concat(chunks).toString('utf8');
           let parsed = null;
-          try { parsed = JSON.parse(raw); } catch {}
+          try {
+            parsed = JSON.parse(raw);
+          } catch {}
           resolve({ statusCode: res.statusCode, raw, parsed });
         });
       }
@@ -197,12 +229,20 @@ export default async function handler(req, res) {
 
   if (!certBase64 || !certPassword) {
     return res.status(400).json({
-      error: 'Certificado digital A1 ainda não configurado na Vercel. Adicione as variáveis NFSE_CERT_BASE64 e NFSE_CERT_PASSWORD em Settings > Environment Variables.'
+      error:
+        'Certificado digital A1 ainda não configurado na Vercel. Adicione as variáveis NFSE_CERT_BASE64 e NFSE_CERT_PASSWORD em Settings > Environment Variables.'
     });
   }
 
   try {
-    const { ambiente = 'homologacao', prestador = {}, tomador = {}, servico = {}, numeroDps = '1', serieDps = '1' } = req.body || {};
+    const {
+      ambiente = 'homologacao',
+      prestador = {},
+      tomador = {},
+      servico = {},
+      numeroDps = '1',
+      serieDps = '1'
+    } = req.body || {};
 
     if (!tomador.nome || !tomador.documento || !servico.descricao || !servico.valor) {
       return res.status(400).json({ error: 'Preencha cliente, CNPJ/CPF, descrição e valor do serviço.' });
