@@ -4,15 +4,6 @@ import crypto from 'crypto';
 import forge from 'node-forge';
 import { SignedXml } from 'xml-crypto';
 
-/**
- * Vercel Serverless Function — Emissão Direta NFS-e Padrão Nacional (Custo Zero)
- * Rota: POST /api/emitir-nfse
- *
- * Variáveis de ambiente necessárias na Vercel (Settings > Environment Variables):
- *   NFSE_CERT_BASE64   -> Certificado A1 (.pfx) convertido em Base64
- *   NFSE_CERT_PASSWORD -> Senha do certificado A1
- */
-
 const onlyDigits = (v) => String(v || '').replace(/\D/g, '');
 const padLeft = (v, len) => String(v || '').padStart(len, '0');
 const escapeXml = (s) =>
@@ -87,11 +78,10 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
   const serie = padLeft(serieNum, 5).slice(-5);
   const nDps = padLeft(nDpsNum, 15).slice(-15);
 
-  // Id padrão Nacional (45 chars): "DPS" + cLocEmi(7) + tpInsc(1) + CNPJ(14) + serie(5) + nDPS(15)
   const infDpsId = `DPS${cLocEmi}2${cnpjPrest}${serie}${nDps}`;
 
   const now = new Date();
-  const offsetMs = -4 * 60 * 60 * 1000; // Mato Grosso (-04:00)
+  const offsetMs = -4 * 60 * 60 * 1000;
   const local = new Date(now.getTime() + offsetMs);
   const dhEmi = local.toISOString().slice(0, 19) + '-04:00';
   const dCompet = servico.dataCompetencia || local.toISOString().slice(0, 10);
@@ -133,9 +123,9 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
     .trim()
     .slice(0, 2000);
 
-  const opSimpNac = String(prestador.opSimpNac || '3'); // 1=Não optante, 2=MEI, 3=ME/EPP
+  const opSimpNac = String(prestador.opSimpNac || '3');
   const regApTribSN = String(prestador.regApTribSN || '1');
-  const tpRetISSQN = String(servico.issRetido ? '2' : '1'); // 1=Não retido, 2=Retido pelo tomador
+  const tpRetISSQN = String(servico.issRetido ? '2' : '1');
 
   const pAliqNum = Number(servico.aliquotaIss);
   const pAliqTag =
@@ -277,6 +267,8 @@ export default async function handler(req, res) {
     });
   }
 
+  let signedXmlDebug = '';
+
   try {
     const {
       ambiente = 'homologacao',
@@ -295,9 +287,9 @@ export default async function handler(req, res) {
     const { privateKeyPem, certBase64Clean } = extractPemFromPfx(pfxBuffer, certPassword);
 
     const { xml, infDpsId } = buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDps });
-    const signedXml = signDpsXml(xml, infDpsId, privateKeyPem, certBase64Clean);
+    signedXmlDebug = signDpsXml(xml, infDpsId, privateKeyPem, certBase64Clean);
 
-    const gzipped = zlib.gzipSync(Buffer.from(signedXml, 'utf8'));
+    const gzipped = zlib.gzipSync(Buffer.from(signedXmlDebug, 'utf8'));
     const dpsXmlGZipB64 = gzipped.toString('base64');
 
     const isProd = ambiente === 'producao';
@@ -339,10 +331,14 @@ export default async function handler(req, res) {
       `HTTP ${response.statusCode}`;
 
     return res.status(422).json({
-      error: `Retorno da SEFIN Nacional (${response.statusCode}): ${errDetail}`
+      error: `Retorno da SEFIN Nacional (${response.statusCode}): ${errDetail}`,
+      ...(ambiente !== 'producao' ? { xmlGerado: signedXmlDebug, sefinRaw: response.raw } : {})
     });
   } catch (err) {
     console.error('Erro emitir-nfse:', err);
-    return res.status(500).json({ error: err.message || 'Erro interno ao processar emissão de NFS-e.' });
+    return res.status(500).json({
+      error: err.message || 'Erro interno ao processar emissão de NFS-e.',
+      ...(signedXmlDebug ? { xmlGerado: signedXmlDebug } : {})
+    });
   }
 }
