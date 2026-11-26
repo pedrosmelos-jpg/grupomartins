@@ -207,8 +207,8 @@ const GrupoMartinsLogo = ({ size = 'md', theme = 'cream', className = '' }) => {
         MARTINS
       </div>
 
-      ="flex items-center justify-center gap-2.5 mt-2.5 pt-2 border-t border-[#DFD8CE] w-full">
-        ="flex items-center gap-1.5 text-left">
+     <div className="flex items-center justify-center gap-2.5 mt-2.5 pt-2 border-t border-[#DFD8CE] w-full">
+        <div className="flex items-center gap-1.5 text-left">
           <svg viewBox="0 0 32 32" className="w-5 h-5 shrink-0">
             <path
               d="M16 28 L16 16 M16 22 C10 22, 5 17, 6 10 C12 10, 16 15, 16 22 Z"
