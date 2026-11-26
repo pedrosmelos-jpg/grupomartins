@@ -2105,23 +2105,8 @@ const handleSaveRoleEdit = async (e) => {
     () => buildCtrlList(pendencias, pendSearch, pendStatusFilter, pendDateFrom, pendDateTo),
     [pendencias, pendSearch, pendStatusFilter, pendDateFrom, pendDateTo, sortField, sortDirection]
   );
- 
-    if (sortField) {
-      list.sort((a, b) => {
-        let valA = a[sortField] || a[sortField?.toLowerCase()] || '';
-        let valB = b[sortField] || b[sortField?.toLowerCase()] || '';
-        if (typeof valA === 'string') valA = valA.toLowerCase();
-        if (typeof valB === 'string') valB = valB.toLowerCase();
-
-        if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
-        if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-
-    return list;
-  }, [condicionantes, condSearch, condStatusFilter, sortField, sortDirection]);
-  const renderCtrlTab = (kind) => {
+  
+    const renderCtrlTab = (kind) => {
     const isPend = kind === 'pend';
     const perm = isPend ? 'pendencias' : 'condicionantes';
     const noun = isPend ? 'Pendência' : 'Condicionante';
