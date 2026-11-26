@@ -190,7 +190,7 @@ const GrupoMartinsLogo = ({ size = 'md', theme = 'cream', className = '' }) => {
         <path d="M91 59 L77 66" stroke="#F8F3EF" strokeWidth="2.4" strokeLinecap="round" />
       </svg>
 
-      ="flex items-center gap-2.5 mt-1.5 w-full justify-center">
+     <div className="flex items-center gap-2.5 mt-1.5 w-full justify-center">
         <span className="h-[1px] w-8 bg-[#2D5A43]" />
         <span className="text-[10px] tracking-[0.35em] font-semibold text-[#1B3B2B]">
           GRUPO
