@@ -324,6 +324,7 @@ const DEFAULT_PERMISSIONS = {
   status_tecnico: { view: true, create: false, edit: true, delete: false, approve: false },
   clientes: { view: true, create: true, edit: true, delete: false, approve: false },
   condicionantes: { view: true, create: true, edit: true, delete: true, approve: false },
+  pendencias: { view: true, create: true, edit: true, delete: true, approve: false },
   acessos: { view: false, create: false, edit: false, delete: false, approve: false }
 };
 
@@ -345,6 +346,7 @@ const INITIAL_ACCESS_ROLES = [
       status_tecnico: { view: true, create: true, edit: true, delete: true, approve: true },
       clientes: { view: true, create: true, edit: true, delete: true, approve: true },
       condicionantes: { view: true, create: true, edit: true, delete: true, approve: true },
+      pendencias: { view: true, create: true, edit: true, delete: true, approve: true },
       acessos: { view: true, create: true, edit: true, delete: true, approve: true }
     }
   }
@@ -423,7 +425,8 @@ const CONTRACTS_PER_PAGE = 6;
 // salva, ela herda a permissão de "contratos" (para ninguém perder acesso).
 const getModulePerms = (role, moduleKey) =>
   role?.permissions?.[moduleKey] ||
-  (moduleKey === 'status_tecnico' ? role?.permissions?.contratos : undefined);
+  (moduleKey === 'status_tecnico' ? role?.permissions?.contratos :
+   moduleKey === 'pendencias' ? role?.permissions?.condicionantes : undefined);
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -599,6 +602,19 @@ export default function App() {
   const [showCondModal, setShowCondModal] = useState(false);
   const [editingCond, setEditingCond] = useState(null);
   const [deleteCondTarget, setDeleteCondTarget] = useState(null);
+  const [pendencias, setPendencias] = useState([]);
+  const [ctrlKind, setCtrlKind] = useState('cond'); // 'cond' | 'pend' (qual aba abriu o modal)
+  const [pendSearch, setPendSearch] = useState('');
+  const [pendStatusFilter, setPendStatusFilter] = useState('Todos');
+  const [pendDateFrom, setPendDateFrom] = useState('');
+  const [pendDateTo, setPendDateTo] = useState('');
+  const [condDateFrom, setCondDateFrom] = useState('');
+  const [condDateTo, setCondDateTo] = useState('');
+  const [availableCondStatuses, setAvailableCondStatuses] = useState(INITIAL_CTRL_STATUSES);
+  const [availablePendStatuses, setAvailablePendStatuses] = useState(INITIAL_CTRL_STATUSES);
+  const [showCtrlStatusMgr, setShowCtrlStatusMgr] = useState(false);
+  const [ctrlStatusInput, setCtrlStatusInput] = useState('');
+  const [ctrlStatusEditing, setCtrlStatusEditing] = useState(null);
 
   const [condForm, setCondForm] = useState({
     client: '',
@@ -924,13 +940,14 @@ export default function App() {
   const fetchAllData = useCallback(async () => {
     if (!supabase) return;
     try {
-      const [txRes, ctRes, cliRes, roleRes, condRes, settingsRes] = await Promise.all([
+      const [txRes, ctRes, cliRes, roleRes, condRes, settingsRes, pendRes] = await Promise.all([
         supabase.from('transactions').select('*'),
         supabase.from('contracts').select('*'),
         supabase.from('clients').select('*'),
         supabase.from('user_roles').select('id, level, name, holder, email, description, permissions, convite_pendente'),
         supabase.from('condicionantes').select('*'),
         supabase.from('erp_settings').select('*').eq('id', 'GLOBAL').maybeSingle()
+        supabase.from('pendencias').select('*')
       ]);
 
       if (!txRes.error && txRes.data) {
@@ -953,8 +970,11 @@ export default function App() {
       }
       if (!condRes.error && condRes.data) {
         setCondicionantes(condRes.data);
+        if (!pendRes.error && pendRes.data) setPendencias(pendRes.data);
       }
       if (!settingsRes.error && settingsRes.data) {
+        if (settingsRes.data.cond_statuses?.length) setAvailableCondStatuses(settingsRes.data.cond_statuses);
+        if (settingsRes.data.pend_statuses?.length) setAvailablePendStatuses(settingsRes.data.pend_statuses);
         if (settingsRes.data.segments?.length) setAvailableSegments(settingsRes.data.segments);
         if (settingsRes.data.statuses?.length) setAvailableStatuses(settingsRes.data.statuses);
         if (settingsRes.data.agencies?.length) setAvailableAgencies(settingsRes.data.agencies);
@@ -1013,6 +1033,7 @@ export default function App() {
         });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'condicionantes' }, applyRealtimeChange(setCondicionantes))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pendencias' }, applyRealtimeChange(setPendencias))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'erp_settings' }, (payload) => {
         const data = payload.new;
         if (data) {
@@ -1022,6 +1043,8 @@ export default function App() {
           if (data.technical_statuses?.length) setAvailableTechnicalStatuses(data.technical_statuses);
           if (data.plano_contas) setPlanoContasData(data.plano_contas);
           if (data.params) setParams(data.params);
+          if (data.cond_statuses?.length) setAvailableCondStatuses(data.cond_statuses);
+          if (data.pend_statuses?.length) setAvailablePendStatuses(data.pend_statuses);
         }
       })
       .subscribe((status) => {
@@ -1067,9 +1090,10 @@ export default function App() {
     { id: 'status_tecnico', label: 'Status Técnico', icon: ClipboardCheck, badge: contracts.length, permKey: 'status_tecnico' },
     { id: 'clientes', label: 'Cadastro de Clientes (CRM)', icon: Users, badge: clients.length, permKey: 'clientes' },
     { id: 'condicionantes', label: 'Controle de Condicionantes', icon: Leaf, badge: condicionantes.length, permKey: 'condicionantes' },
+    { id: 'pendencias', label: 'Controle de Pendências', icon: AlertTriangle, badge: pendencias.length, permKey: 'pendencias' },
     { id: 'acessos', label: 'Árvore de Acessos & Perfis', icon: Network, badge: `${accessRoles.length} Nível`, permKey: 'acessos' },
     { id: 'config', label: 'Plano de Contas & Metas', icon: Settings, permKey: 'dashboard' }
-  ], [transactions.length, contracts.length, clients.length, condicionantes.length, accessRoles.length]);
+  ], [transactions.length, contracts.length, clients.length, condicionantes.length,pendencias.length, accessRoles.length]);
 
   useEffect(() => {
     const currentNav = navItems.find((item) => item.id === activeTab);
@@ -1614,16 +1638,57 @@ export default function App() {
     showToast(`Cliente ${deleteClientTarget.name} excluído do CRM.`);
     setDeleteClientTarget(null);
   };
+  const ctrlCfg = (kind) => kind === 'pend'
+    ? { list: availablePendStatuses, setList: setAvailablePendStatuses, table: 'pendencias', setItems: setPendencias, col: 'pend_statuses', filter: pendStatusFilter, setFilter: setPendStatusFilter }
+    : { list: availableCondStatuses, setList: setAvailableCondStatuses, table: 'condicionantes', setItems: setCondicionantes, col: 'cond_statuses', filter: condStatusFilter, setFilter: setCondStatusFilter };
+ 
+  const persistCtrlStatuses = async (col, list) => {
+    if (!supabase) return;
+    const { error } = await supabase.from('erp_settings').upsert([{ id: 'GLOBAL', [col]: list }]);
+    if (error) console.error('Erro ao salvar status:', error);
+  };
+ 
+  const handleSaveCtrlStatus = async (kind) => {
+    const cfg = ctrlCfg(kind);
+    const clean = ctrlStatusInput.trim().toUpperCase();
+    if (!clean) return;
+    let updated;
+    if (ctrlStatusEditing) {
+      updated = cfg.list.map(s => (s === ctrlStatusEditing ? clean : s));
+      cfg.setItems(prev => prev.map(i => (i.status === ctrlStatusEditing ? { ...i, status: clean } : i)));
+      if (cfg.filter === ctrlStatusEditing) cfg.setFilter(clean);
+      if (supabase) await supabase.from(cfg.table).update({ status: clean }).eq('status', ctrlStatusEditing);
+    } else {
+      if (cfg.list.includes(clean)) { alert('Este status já está cadastrado.'); return; }
+      updated = [...cfg.list, clean];
+    }
+    cfg.setList(updated);
+    setCtrlStatusInput('');
+    setCtrlStatusEditing(null);
+    await persistCtrlStatuses(cfg.col, updated);
+    showToast(ctrlStatusEditing ? 'Status atualizado!' : 'Novo status cadastrado!');
+  };
+ 
+  const handleDeleteCtrlStatus = async (kind, st) => {
+    const cfg = ctrlCfg(kind);
+    if (cfg.list.length <= 1) { alert('Mantenha pelo menos 1 status.'); return; }
+    if (!window.confirm(`Excluir o status "${st}"? Registros que já usam esse status continuarão com ele.`)) return;
+    const updated = cfg.list.filter(s => s !== st);
+    cfg.setList(updated);
+    if (cfg.filter === st) cfg.setFilter('Todos');
+    await persistCtrlStatuses(cfg.col, updated);
+    showToast('Status removido!');
+  };
 
-  const handleSaveCondicionante = async (e) => {
+   const handleSaveCondicionante = async (e) => {
     e.preventDefault();
     if (!condForm.client || !condForm.service) {
-      alert('Preencha o cliente e o serviço/condicionante.');
+      alert('Preencha o cliente e o serviço/descrição.');
       return;
     }
-
+    const cfg = ctrlCfg(ctrlKind);
     try {
-      const condId = editingCond ? editingCond.id : generateUniqueId('COND');
+      const condId = editingCond ? editingCond.id : generateUniqueId(ctrlKind === 'pend' ? 'PEND' : 'COND');
       const condData = {
         id: condId,
         client: condForm.client,
@@ -1634,67 +1699,43 @@ export default function App() {
         observation: condForm.observation,
         status: condForm.status
       };
-
-      setCondicionantes(prev => {
+      cfg.setItems(prev => {
         const exists = prev.some(c => c.id === condId);
-        return exists ? prev.map(c => c.id === condId ? condData : c) : [...prev, condData];
+        return exists ? prev.map(c => (c.id === condId ? condData : c)) : [...prev, condData];
       });
-
       if (supabase) {
-        const { error } = await supabase.from('condicionantes').upsert([condData]);
+        const { error } = await supabase.from(cfg.table).upsert([condData]);
         if (error) {
-          console.error('Erro Supabase Condicionantes:', error);
-          alert('Erro ao salvar condicionante na nuvem: ' + error.message);
+          console.error('Erro Supabase:', error);
+          alert('Erro ao salvar na nuvem: ' + error.message);
           return;
         }
       }
-
       setShowCondModal(false);
       setEditingCond(null);
-      showToast('Condicionante salva com sucesso na nuvem!');
-      setCondForm({
-        client: '',
-        service: '',
-        dueDate: new Date().toISOString().split('T')[0],
-        license: '',
-        responsible: '',
-        observation: '',
-        status: 'EM ANDAMENTO'
-      });
+      showToast(ctrlKind === 'pend' ? 'Pendência salva com sucesso!' : 'Condicionante salva com sucesso na nuvem!');
     } catch (err) {
       console.error(err);
-      alert('Erro inesperado ao salvar condicionante.');
+      alert('Erro inesperado ao salvar.');
     }
   };
-
+ 
   const confirmDeleteCondicionante = async () => {
     if (!deleteCondTarget) return;
     const id = deleteCondTarget.id;
-
-    setCondicionantes(prev => prev.filter(c => c.id !== id));
-
+    const cfg = ctrlCfg(ctrlKind);
+    cfg.setItems(prev => prev.filter(c => c.id !== id));
     if (supabase) {
-      const { error } = await supabase.from('condicionantes').delete().eq('id', id);
+      const { error } = await supabase.from(cfg.table).delete().eq('id', id);
       if (error) {
-        console.error('Erro ao excluir no Supabase:', error);
-        alert('Erro ao excluir condicionante na nuvem: ' + error.message);
+        alert('Erro ao excluir na nuvem: ' + error.message);
         return;
       }
     }
-
-    showToast('Condicionante excluída com sucesso!');
+    showToast('Registro excluído com sucesso!');
     setDeleteCondTarget(null);
   };
-
-  const handleSort = (field) => {
-    if (sortField === field) {
-      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-  };
-
+ 
   const handleSaveNewUserRole = async (e) => {
     e.preventDefault();
     if (!newRoleForm.name || !newRoleForm.holder || !newRoleForm.email) {
@@ -2030,17 +2071,41 @@ const handleSaveRoleEdit = async (e) => {
     return list;
   }, [clients, cliSearch, sortField, sortDirection]);
 
-  const filteredCondicionantes = useMemo(() => {
-    let list = condicionantes.filter(cond => {
-      const matchSearch = (cond.client || '').toLowerCase().includes(condSearch.toLowerCase()) ||
-                          (cond.service || '').toLowerCase().includes(condSearch.toLowerCase()) ||
-                          (cond.license || '').toLowerCase().includes(condSearch.toLowerCase()) ||
-                          (cond.responsible || '').toLowerCase().includes(condSearch.toLowerCase());
-      const matchStatus = condStatusFilter === 'Todos' || cond.status === condStatusFilter;
-
-      return matchSearch && matchStatus;
+  const buildCtrlList = (items, search, statusF, from, to) => {
+    const q = search.toLowerCase();
+    const list = items.filter(r => {
+      const matchSearch = (r.client || '').toLowerCase().includes(q) ||
+        (r.service || '').toLowerCase().includes(q) ||
+        (r.license || '').toLowerCase().includes(q) ||
+        (r.responsible || '').toLowerCase().includes(q);
+      const matchStatus = statusF === 'Todos' || r.status === statusF;
+      const d = String(r.dueDate || r.duedate || '').slice(0, 10);
+      const matchDate = (!from && !to) || (Boolean(d) && (!from || d >= from) && (!to || d <= to));
+      return matchSearch && matchStatus && matchDate;
     });
-
+    if (sortField) {
+      list.sort((a, b) => {
+        let vA = a[sortField] || a[sortField?.toLowerCase()] || '';
+        let vB = b[sortField] || b[sortField?.toLowerCase()] || '';
+        if (typeof vA === 'string') vA = vA.toLowerCase();
+        if (typeof vB === 'string') vB = vB.toLowerCase();
+        if (vA < vB) return sortDirection === 'asc' ? -1 : 1;
+        if (vA > vB) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return list;
+  };
+ 
+  const filteredCondicionantes = useMemo(
+    () => buildCtrlList(condicionantes, condSearch, condStatusFilter, condDateFrom, condDateTo),
+    [condicionantes, condSearch, condStatusFilter, condDateFrom, condDateTo, sortField, sortDirection]
+  );
+  const filteredPendencias = useMemo(
+    () => buildCtrlList(pendencias, pendSearch, pendStatusFilter, pendDateFrom, pendDateTo),
+    [pendencias, pendSearch, pendStatusFilter, pendDateFrom, pendDateTo, sortField, sortDirection]
+  );
+ 
     if (sortField) {
       list.sort((a, b) => {
         let valA = a[sortField] || a[sortField?.toLowerCase()] || '';
@@ -2056,7 +2121,162 @@ const handleSaveRoleEdit = async (e) => {
 
     return list;
   }, [condicionantes, condSearch, condStatusFilter, sortField, sortDirection]);
-
+  const renderCtrlTab = (kind) => {
+    const isPend = kind === 'pend';
+    const perm = isPend ? 'pendencias' : 'condicionantes';
+    const noun = isPend ? 'Pendência' : 'Condicionante';
+    const list = isPend ? filteredPendencias : filteredCondicionantes;
+    const statuses = isPend ? availablePendStatuses : availableCondStatuses;
+    const [search, setSearch, statusF, setStatusF, from, setFrom, to, setTo] = isPend
+      ? [pendSearch, setPendSearch, pendStatusFilter, setPendStatusFilter, pendDateFrom, setPendDateFrom, pendDateTo, setPendDateTo]
+      : [condSearch, setCondSearch, condStatusFilter, setCondStatusFilter, condDateFrom, setCondDateFrom, condDateTo, setCondDateTo];
+    const blank = () => ({
+      client: '', service: '', dueDate: new Date().toISOString().split('T')[0],
+      license: '', responsible: '', observation: '', status: statuses[0] || 'EM ANDAMENTO'
+    });
+    const cols = [
+      ['client', 'Nome do Cliente'],
+      ['service', isPend ? 'Pendência / Serviço' : 'Condicionantes / Serviço'],
+      ['duedate', 'Vencimento Final'],
+      ['license', 'Licença'],
+      ['responsible', 'Responsável - Empresa'],
+      ['observation', 'Observação']
+    ];
+    const SortIcon = ({ f }) => sortField === f ? (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />) : null;
+ 
+    return (
+      <div className="space-y-6">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="relative flex-1 min-w-[240px]">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+              <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por cliente, descrição, licença ou responsável..."
+                className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm" />
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <select value={statusF} onChange={(e) => setStatusF(e.target.value)}
+                className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white text-[#1B3B2B] cursor-pointer">
+                <option value="Todos">Filtrar por Status</option>
+                {statuses.map(st => <option key={st} value={st}>{st}</option>)}
+              </select>
+              <button type="button"
+                onClick={() => { setShowCtrlStatusMgr(!showCtrlStatusMgr); setCtrlStatusInput(''); setCtrlStatusEditing(null); }}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border border-[#1B3B2B] text-[#1B3B2B] hover:bg-[#F8F3EF] cursor-pointer">
+                <Plus className="w-4 h-4" /> {showCtrlStatusMgr ? 'Fechar Status' : 'Cadastrar / Editar Status'}
+              </button>
+              {hasPermission(perm, 'create') && (
+                <button onClick={() => { setCtrlKind(kind); setEditingCond(null); setCondForm(blank()); setShowCondModal(true); }}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer">
+                  <Plus className="w-4 h-4" /> Nova {noun}
+                </button>
+              )}
+            </div>
+          </div>
+ 
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs">
+            <span className="font-bold text-slate-600">Vencimento:</span>
+            <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold cursor-pointer" title="Data inicial" />
+            <span className="text-slate-500 font-semibold">até</span>
+            <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold cursor-pointer" title="Data final" />
+            {(from || to || search || statusF !== 'Todos') && (
+              <button onClick={() => { setFrom(''); setTo(''); setSearch(''); setStatusF('Todos'); }}
+                className="text-rose-600 font-bold hover:underline ml-2 cursor-pointer">Limpar Filtros</button>
+            )}
+          </div>
+ 
+          {showCtrlStatusMgr && (
+            <div className="p-3 rounded-xl border border-[#B7DFC5] bg-[#F4F9F5] space-y-2.5">
+              <div className="text-[10px] font-extrabold uppercase text-[#1B3B2B]">
+                {ctrlStatusEditing ? `Editando: ${ctrlStatusEditing}` : `Novo Status de ${noun}`}
+              </div>
+              <div className="flex gap-1.5">
+                <input type="text" value={ctrlStatusInput} onChange={(e) => setCtrlStatusInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSaveCtrlStatus(kind); } }}
+                  placeholder="Ex: AGUARDANDO CLIENTE" className="flex-1 px-2.5 py-1.5 rounded-lg border bg-white text-xs font-semibold" />
+                <button type="button" onClick={() => handleSaveCtrlStatus(kind)}
+                  className="px-3 py-1.5 rounded-lg bg-[#1B3B2B] text-white font-bold text-xs hover:bg-[#2D5A43] cursor-pointer">
+                  {ctrlStatusEditing ? 'Salvar' : 'Adicionar'}
+                </button>
+                {ctrlStatusEditing && (
+                  <button type="button" onClick={() => { setCtrlStatusEditing(null); setCtrlStatusInput(''); }}
+                    className="px-3 py-1.5 rounded-lg border font-bold text-xs cursor-pointer">Cancelar</button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2 pt-1 border-t border-emerald-200/60">
+                {statuses.map(st => (
+                  <div key={st} className="inline-flex items-center gap-2 px-3 py-1 rounded-xl border border-slate-200 bg-white text-[11px] font-bold text-[#1B3B2B]">
+                    <span>{st}</span>
+                    <button type="button" onClick={() => { setCtrlStatusEditing(st); setCtrlStatusInput(st); }}
+                      className="p-0.5 text-teal-700 hover:bg-teal-50 rounded cursor-pointer" title="Editar Status"><Edit3 className="w-3 h-3" /></button>
+                    <button type="button" onClick={() => handleDeleteCtrlStatus(kind, st)}
+                      className="p-0.5 text-rose-600 hover:bg-rose-50 rounded cursor-pointer" title="Excluir Status"><Trash2 className="w-3 h-3" /></button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+ 
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px]">
+                  {cols.map(([f, lbl]) => (
+                    <th key={f} onClick={() => handleSort(f)} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                      <div className="flex items-center gap-1.5">{lbl} <SortIcon f={f} /></div>
+                    </th>
+                  ))}
+                  <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
+                    <div className="flex items-center justify-center gap-1">Status <SortIcon f="status" /></div>
+                  </th>
+                  <th className="py-3.5 px-3 text-center">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {list.length === 0 ? (
+                  <tr><td colSpan="8" className="py-8 text-center text-slate-400">Nenhum registro encontrado.</td></tr>
+                ) : list.map((row) => (
+                  <tr key={row.id} className="hover:bg-slate-50">
+                    <td className="py-3 px-3 font-bold text-slate-900">{row.client}</td>
+                    <td className="py-3 px-3 text-slate-700 max-w-xs">{row.service}</td>
+                    <td className="py-3 px-3 font-mono">{row.dueDate || row.duedate}</td>
+                    <td className="py-3 px-3 font-semibold">{row.license}</td>
+                    <td className="py-3 px-3 font-bold text-slate-700">{row.responsible}</td>
+                    <td className="py-3 px-3 text-slate-500 max-w-xs truncate">{row.observation || '—'}</td>
+                    <td className="py-3 px-3 text-center">
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${getCtrlStatusBadgeClass(row.status)}`}>{row.status}</span>
+                    </td>
+                    <td className="py-3 px-3 text-center space-x-1">
+                      {hasPermission(perm, 'edit') && (
+                        <button onClick={() => {
+                          setCtrlKind(kind); setEditingCond(row);
+                          setCondForm({ client: row.client, service: row.service, dueDate: row.dueDate || row.duedate, license: row.license, responsible: row.responsible, observation: row.observation, status: row.status });
+                          setShowCondModal(true);
+                        }} className="p-1.5 rounded-lg text-teal-700 hover:bg-teal-50 cursor-pointer" title={`Editar ${noun}`}>
+                          <Edit3 className="w-4 h-4 inline" />
+                        </button>
+                      )}
+                      {hasPermission(perm, 'delete') && (
+                        <button onClick={() => { setCtrlKind(kind); setDeleteCondTarget(row); }}
+                          className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer" title={`Excluir ${noun}`}>
+                          <Trash2 className="w-4 h-4 inline" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+ 
   const PIE_COLORS = ['#1B3B2B', '#2D5A43', '#3B7A57', '#557A46', '#7A9A8B'];
 
   return (
@@ -3404,165 +3624,8 @@ const handleSaveRoleEdit = async (e) => {
                 </div>
               )}
 
-              {activeTab === 'condicionantes' && (
-                <div className="space-y-6">
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
-                    <div className="relative flex-1 min-w-[240px]">
-                      <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                      <input
-                        type="text"
-                        value={condSearch}
-                        onChange={(e) => setCondSearch(e.target.value)}
-                        placeholder="Buscar por cliente, condicionante, licença ou responsável..."
-                        className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
-                      />
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3">
-                      <select
-                        value={condStatusFilter}
-                        onChange={(e) => setCondStatusFilter(e.target.value)}
-                        className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white text-[#1B3B2B] cursor-pointer"
-                      >
-                        <option value="Todos">Filtrar por Status</option>
-                        <option value="FINALIZADO">FINALIZADO</option>
-                        <option value="ATENDIDO">ATENDIDO</option>
-                        <option value="EM ANDAMENTO">EM ANDAMENTO</option>
-                        <option value="A VENCER">A VENCER</option>
-                      </select>
-
-                      {hasPermission('condicionantes', 'create') && (
-                        <button
-                          onClick={() => {
-                            setEditingCond(null);
-                            setCondForm({
-                              client: '',
-                              service: '',
-                              dueDate: new Date().toISOString().split('T')[0],
-                              license: '',
-                              responsible: '',
-                              observation: '',
-                              status: 'EM ANDAMENTO'
-                            });
-                            setShowCondModal(true);
-                          }}
-                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] cursor-pointer"
-                        >
-                          <Plus className="w-4 h-4" /> Nova Condicionante
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px]">
-                            <th
-                              onClick={() => handleSort('client')}
-                              className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none"
-                            >
-                              <div className="flex items-center gap-1.5">
-                                Nome do Cliente {sortField === 'client' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}
-                              </div>
-                            </th>
-                            <th
-                              onClick={() => handleSort('service')}
-                              className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none"
-                            >
-                              <div className="flex items-center gap-1.5">
-                                Condicionantes / Serviço {sortField === 'service' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}
-                              </div>
-                            </th>
-                            <th
-                              onClick={() => handleSort('duedate')}
-                              className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none"
-                            >
-                              <div className="flex items-center gap-1.5">
-                                Vencimento Final {sortField === 'duedate' && (sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDown className="w-3.5 h-3.5 text-emerald-300" />)}
-                              </div>
-                            </th>
-                            <th onClick={() => handleSort('license')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Licença {sortField === 'license' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th onClick={() => handleSort('responsible')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Responsável - Empresa {sortField === 'responsible' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th onClick={() => handleSort('observation')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Observação {sortField === 'observation' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th className="py-3.5 px-3 text-center">Ações</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {filteredCondicionantes.length === 0 ? (
-                            <tr>
-                              <td colSpan="8" className="py-8 text-center text-slate-400">Nenhuma condicionante encontrada.</td>
-                            </tr>
-                          ) : (
-                            filteredCondicionantes.map((cond) => (
-                              <tr key={cond.id} className="hover:bg-slate-50">
-                                <td className="py-3 px-3 font-bold text-slate-900">{cond.client}</td>
-                                <td className="py-3 px-3 text-slate-700 max-w-xs">{cond.service}</td>
-                                <td className="py-3 px-3 font-mono">{cond.dueDate || cond.duedate}</td>
-                                <td className="py-3 px-3 font-semibold">{cond.license}</td>
-                                <td className="py-3 px-3 font-bold text-slate-700">{cond.responsible}</td>
-                                <td className="py-3 px-3 text-slate-500 max-w-xs truncate">{cond.observation || '—'}</td>
-                                <td className="py-3 px-3 text-center">
-                                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
-                                    cond.status === 'FINALIZADO' ? 'bg-emerald-700 text-white' :
-                                    cond.status === 'ATENDIDO' ? 'bg-emerald-600 text-white' :
-                                    cond.status === 'EM ANDAMENTO' ? 'bg-amber-500 text-white' : 'bg-amber-600 text-white'
-                                  }`}>
-                                    {cond.status}
-                                  </span>
-                                </td>
-                                <td className="py-3 px-3 text-center space-x-1">
-                                  {hasPermission('condicionantes', 'edit') && (
-                                    <button
-                                      onClick={() => {
-                                        setEditingCond(cond);
-                                        setCondForm({
-                                          client: cond.client,
-                                          service: cond.service,
-                                          dueDate: cond.dueDate || cond.duedate,
-                                          license: cond.license,
-                                          responsible: cond.responsible,
-                                          observation: cond.observation,
-                                          status: cond.status
-                                        });
-                                        setShowCondModal(true);
-                                      }}
-                                      className="p-1.5 rounded-lg text-teal-700 hover:bg-teal-50 cursor-pointer"
-                                      title="Editar Condicionante"
-                                    >
-                                      <Edit3 className="w-4 h-4 inline" />
-                                    </button>
-                                  )}
-                                  {hasPermission('condicionantes', 'delete') && (
-                                    <button
-                                      onClick={() => setDeleteCondTarget(cond)}
-                                      className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
-                                      title="Excluir Condicionante"
-                                    >
-                                      <Trash2 className="w-4 h-4 inline" />
-                                    </button>
-                                  )}
-                                </td>
-                              </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              )}
-
+      {activeTab === 'condicionantes' && renderCtrlTab('cond')}
+      {activeTab === 'pendencias' && renderCtrlTab('pend')}
               {activeTab === 'acessos' && (
                 <div className="space-y-6">
                   <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
@@ -4771,7 +4834,9 @@ const handleSaveRoleEdit = async (e) => {
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[90vh] overflow-y-auto">
             <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
-              <h3 className="text-base font-extrabold">{editingCond ? 'Editar Condicionante Ambiental' : 'Novo Cadastro de Condicionante Ambiental'}</h3>
+              <h3 className="text-base font-extrabold">{ctrlKind === 'pend'
+                ? (editingCond ? 'Editar Pendência' : 'Nova Pendência')
+        : (editingCond ? 'Editar Condicionante Ambiental' : 'Novo Cadastro de Condicionante Ambiental')}</h3>
               <button onClick={() => { setShowCondModal(false); setEditingCond(null); }} className="text-white hover:text-emerald-300 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
@@ -4820,16 +4885,15 @@ const handleSaveRoleEdit = async (e) => {
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 uppercase mb-1">STATUS</label>
-                  <select
-                    value={condForm.status}
-                    onChange={(e) => setCondForm({ ...condForm, status: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
-                  >
-                    <option value="FINALIZADO">FINALIZADO</option>
-                    <option value="ATENDIDO">ATENDIDO</option>
-                    <option value="EM ANDAMENTO">EM ANDAMENTO</option>
-                    <option value="A VENCER">A VENCER</option>
-                  </select>
+<select
+  value={condForm.status}
+  onChange={e => setCondForm({ ...condForm, status: e.target.value })}
+  className="w-full p-2 border border-slate-300 rounded-lg text-xs"
+>
+  {Array.from(new Set([...(ctrlKind === 'pend' ? availablePendStatuses : availableCondStatuses), condForm.status].filter(Boolean))).map(st => (
+    <option key={st} value={st}>{st}</option>
+  ))}
+</select>
                 </div>
               </div>
 
@@ -4893,9 +4957,9 @@ const handleSaveRoleEdit = async (e) => {
             <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
               <Trash2 className="w-6 h-6" />
             </div>
-            <h3 className="text-base font-extrabold text-rose-700">Excluir Condicionante?</h3>
+             <h3 className="text-base font-extrabold text-rose-700">Excluir {ctrlKind === 'pend' ? 'Pendência' : 'Condicionante'}?</h3>
             <p className="text-xs text-slate-600">
-              Deseja realmente remover a condicionante de <strong>{deleteCondTarget.client}</strong>?
+              Deseja realmente remover {ctrlKind === 'pend' ? 'a pendência de' : 'a condicionante de'} <strong>{deleteCondTarget.client}</strong>?
             </p>
             <div className="flex justify-center gap-2 pt-2">
               <button
