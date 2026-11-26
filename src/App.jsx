@@ -3089,19 +3089,24 @@ export default function App() {
   }
   setEmittingNfseId(record.id);
   try {
-    let savedSeq = 26;
+    const ambiente = record.ambiente || 'homologacao';
+    const isProducao = ambiente === 'producao';
+    const storageKey = isProducao ? 'gm_nfse_last_dps_num_prod' : 'gm_nfse_last_dps_num_hom';
+    const baseNum = isProducao ? 26 : 1;
+    const serieDps = isProducao ? '70000' : '1';
+
+    let savedSeq = baseNum;
     try {
-      savedSeq = parseInt(localStorage.getItem('gm_nfse_last_dps_num') || '26', 10) || 26;
+      savedSeq = parseInt(localStorage.getItem(storageKey) || String(baseNum), 10) || baseNum;
     } catch {}
 
+    const notasDoAmbiente = nfseList.filter((n) => (n.ambiente || 'homologacao') === ambiente);
     let candidateNum =
       Math.max(
-        26,
+        baseNum,
         savedSeq,
-        ...nfseList.map((n) => parseInt(n.numero || '0', 10) || 0)
+        ...notasDoAmbiente.map((n) => parseInt(n.numero || '0', 10) || 0)
       ) + 1;
-
-    const ambiente = record.ambiente || 'homologacao';
     const prestadorPayload = {
       cnpj: '64904070000157',
       codigoIbge: '5107602',
@@ -3129,7 +3134,7 @@ export default function App() {
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
-        localStorage.setItem('gm_nfse_last_dps_num', String(candidateNum));
+        localStorage.setItem(storageKey, String(candidateNum));
       } catch {}
 
       res = await fetch('/api/emitir-nfse', {
