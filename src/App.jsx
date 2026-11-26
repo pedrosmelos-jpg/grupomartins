@@ -775,12 +775,16 @@ const openLocalDanfsePrint = (nfseRecord, params = INITIAL_PARAMETERS) => {
   }
 
   const xml = nfseRecord.xml_retorno || '';
-  const nNfse = extractTagXml(xml, 'nNFSe') || nfseRecord.numero || '—';
+  const nNfseXml = extractTagXml(xml, 'nNFSe');
+  const nNfse = nfseRecord.numero || nNfseXml || '—';
   const chave = nfseRecord.chave_acesso || extractTagXml(xml, 'chNFSe') || '—';
-  const dhProc = extractTagXml(xml, 'dhProc') || nfseRecord.data_emissao || '';
-  const xDesc = extractTagXml(xml, 'xDescServ') || nfseRecord.descricao_servico || '—';
-  const vServXml = extractTagXml(xml, 'vServ');
-  const valorFinal = vServXml ? Number(vServXml) : Number(nfseRecord.valor || 0);
+  const dhProc = extractTagXml(xml, 'dhProc') || formatDateBR(nfseRecord.data_emissao) || '';
+  const xDesc = nfseRecord.descricao_servico || extractTagXml(xml, 'xDescServ') || '—';
+
+  const vServXml = Number(extractTagXml(xml, 'vServ'));
+  const vRec = Number(nfseRecord.valor);
+  const valorFinal = Number.isFinite(vRec) && vRec > 0 ? vRec : (Number.isFinite(vServXml) ? vServXml : 0);
+
   const ambLabel = nfseRecord.ambiente === 'producao' ? 'PRODUÇÃO' : 'HOMOLOGAÇÃO (AMBIENTE DE TESTES)';
 
   const html = `<!DOCTYPE html>
@@ -823,7 +827,7 @@ const openLocalDanfsePrint = (nfseRecord, params = INITIAL_PARAMETERS) => {
       </div>
       <div class="card">
         <div class="label">Data / Processamento</div>
-        <div class="val">${escapeHtml(dhProc || formatDateBR(nfseRecord.data_emissao))}</div>
+        <div class="val">${escapeHtml(dhProc)}</div>
       </div>
       <div class="card" style="grid-column: span 2;">
         <div class="label">Chave de Acesso</div>
@@ -850,7 +854,7 @@ const openLocalDanfsePrint = (nfseRecord, params = INITIAL_PARAMETERS) => {
     </div>
 
     <div class="foot">
-      Gerado a partir do retorno XML da SEFIN Nacional • Use Ctrl+P / Imprimir para salvar como PDF.
+      Gerado a partir da NFS-e registrada • Use Ctrl+P / Imprimir para salvar como PDF.
     </div>
   </div>
   <script>
@@ -863,6 +867,7 @@ const openLocalDanfsePrint = (nfseRecord, params = INITIAL_PARAMETERS) => {
   win.document.write(html);
   win.document.close();
 };
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
