@@ -761,7 +761,108 @@ const getNfseStatusBadgeClass = (s) => {
 };
 
 const INITIAL_TECHNICAL_STATUSES = ['FINALIZADO', 'ATENDIDO', 'EM ANDAMENTO', 'A VENCER'];
+const extractTagXml = (xmlStr, tagName) => {
+  if (!xmlStr) return '';
+  const match = String(xmlStr).match(new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)</${tagName}>`, 'i'));
+  return match ? match[1].trim() : '';
+};
 
+const openLocalDanfsePrint = (nfseRecord, params = INITIAL_PARAMETERS) => {
+  const win = window.open('', '_blank', 'width=900,height=750');
+  if (!win) {
+    alert('Permita pop-ups no navegador para visualizar/imprimir o DANFSe.');
+    return;
+  }
+
+  const xml = nfseRecord.xml_retorno || '';
+  const nNfse = extractTagXml(xml, 'nNFSe') || nfseRecord.numero || '—';
+  const chave = nfseRecord.chave_acesso || extractTagXml(xml, 'chNFSe') || '—';
+  const dhProc = extractTagXml(xml, 'dhProc') || nfseRecord.data_emissao || '';
+  const xDesc = extractTagXml(xml, 'xDescServ') || nfseRecord.descricao_servico || '—';
+  const vServXml = extractTagXml(xml, 'vServ');
+  const valorFinal = vServXml ? Number(vServXml) : Number(nfseRecord.valor || 0);
+  const ambLabel = nfseRecord.ambiente === 'producao' ? 'PRODUÇÃO' : 'HOMOLOGAÇÃO (AMBIENTE DE TESTES)';
+
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>DANFSe — NFS-e ${escapeHtml(nNfse)}</title>
+  <style>
+    @page { size: A4 portrait; margin: 14mm; }
+    body { font-family: Arial, Helvetica, sans-serif; color: #1e293b; margin: 0; padding: 16px; }
+    .box { border: 2px solid #1B3B2B; border-radius: 10px; padding: 16px; max-width: 780px; margin: 0 auto; }
+    .top { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1B3B2B; padding-bottom: 10px; margin-bottom: 14px; }
+    .title { font-size: 16px; font-weight: 900; color: #1B3B2B; margin: 0; }
+    .sub { font-size: 11px; color: #475569; margin-top: 3px; }
+    .badge { background: #fef3c7; color: #92400e; border: 1px solid #f59e0b; padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; font-size: 12px; }
+    .card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; background: #f8fafc; }
+    .label { font-size: 10px; text-transform: uppercase; font-weight: 700; color: #64748b; margin-bottom: 3px; }
+    .val { font-weight: 700; color: #0f172a; word-break: break-all; }
+    .desc { border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; font-size: 12px; line-height: 1.5; margin-bottom: 12px; }
+    .total { display: flex; justify-content: space-between; align-items: center; background: #1B3B2B; color: #fff; padding: 12px 14px; border-radius: 8px; font-size: 14px; font-weight: 800; }
+    .foot { margin-top: 12px; font-size: 10px; color: #64748b; text-align: center; }
+    @media print { .no-print { display: none; } body { padding: 0; } }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="top">
+      <div>
+        <h1 class="title">DANFSe — Documento Auxiliar da NFS-e Nacional</h1>
+        <div class="sub">Rondonópolis — MT • IBGE 5107602</div>
+      </div>
+      <div class="badge">${escapeHtml(ambLabel)}</div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="label">Número da NFS-e</div>
+        <div class="val">${escapeHtml(nNfse)}</div>
+      </div>
+      <div class="card">
+        <div class="label">Data / Processamento</div>
+        <div class="val">${escapeHtml(dhProc || formatDateBR(nfseRecord.data_emissao))}</div>
+      </div>
+      <div class="card" style="grid-column: span 2;">
+        <div class="label">Chave de Acesso</div>
+        <div class="val">${escapeHtml(chave)}</div>
+      </div>
+      <div class="card">
+        <div class="label">Prestador</div>
+        <div class="val">CNPJ 64.904.070/0001-57</div>
+      </div>
+      <div class="card">
+        <div class="label">Tomador do Serviço</div>
+        <div class="val">${escapeHtml(nfseRecord.cliente_nome || '—')} (${escapeHtml(nfseRecord.cliente_documento || '—')})</div>
+      </div>
+    </div>
+
+    <div class="desc">
+      <div class="label">Discriminação do Serviço (${escapeHtml(nfseRecord.codigo_servico || '17.01.01')})</div>
+      <div>${escapeHtml(xDesc)}</div>
+    </div>
+
+    <div class="total">
+      <span>VALOR DO SERVIÇO</span>
+      <span>${escapeHtml(formatCurrency(valorFinal))}</span>
+    </div>
+
+    <div class="foot">
+      Gerado a partir do retorno XML da SEFIN Nacional • Use Ctrl+P / Imprimir para salvar como PDF.
+    </div>
+  </div>
+  <script>
+    window.onload = function() { setTimeout(function() { window.print(); }, 250); };
+  </script>
+</body>
+</html>`;
+
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+};
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
