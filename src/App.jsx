@@ -493,6 +493,22 @@ export default function App() {
   const [inviteMsg, setInviteMsg] = useState('');
 
   useEffect(() => {
+    if (!supabase || inviteToken) return;
+    const checarSessaoConvite = (session) => {
+      const tokenMeta = session?.user?.user_metadata?.convite_token;
+      if (tokenMeta) {
+        setInviteToken(tokenMeta);
+        setInviteStatus('checking');
+      }
+    };
+    supabase.auth.getSession().then(({ data }) => checarSessaoConvite(data?.session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      checarSessaoConvite(session);
+    });
+    return () => subscription.unsubscribe();
+  }, [inviteToken]);
+
+  useEffect(() => {
     if (!inviteToken || !supabase) return;
     (async () => {
       const { data, error } = await supabase.rpc('validar_convite', { p_token: inviteToken });
@@ -517,6 +533,7 @@ export default function App() {
       return;
     }
     setInviteStatus('done');
+    await supabase.auth.signOut();
     setInvitePass('');
     setInvitePass2('');
     try { window.history.replaceState({}, '', window.location.pathname); } catch (err) { /* ignore */ }
@@ -1802,7 +1819,6 @@ export default function App() {
       setEditingRoleTarget(null);
     }
   };
-
   const exportDREToExcel = () => {
     const { selectedDreYear, monthsFull, receitasRows, receitaBrutaTotalAnual, impostosRows, impostoTotalAnual, receitaLiquidaTotalAnual, custosDiretosRows, custosDiretosTotalAnual, despesasOpRows, despesasOpTotalAnual, lucroLiquidoTotalAnual } = dreGerencialData;
 
