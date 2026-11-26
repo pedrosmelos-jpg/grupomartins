@@ -112,8 +112,8 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
   const hasEndNac = cMunTomador.length === 7 || cepTomador.length === 8;
 
   const endNacInner = [
-    cepTomador.length === 8 ? `<CEP>${cepTomador}</CEP>` : '',
-    cMunTomador.length === 7 ? `<cMun>${cMunTomador}</cMun>` : ''
+    cMunTomador.length === 7 ? `<cMun>${cMunTomador}</cMun>` : '',
+    cepTomador.length === 8 ? `<CEP>${cepTomador}</CEP>` : ''
   ]
     .filter(Boolean)
     .join('\n          ');
@@ -151,7 +151,7 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
 
   const emailTomadorTag = tomador.email ? `\n      <email>${escapeXml(tomador.email)}</email>` : '';
 
-  const totTribTag = `\n      <totTrib>\n        <indTotTrib>0</indTotTrib>\n      </totTrib>`;
+  const totTribTag = `\n      <totTrib>\n        <pTotTrib>\n          <pTotTribFed>0.00</pTotTribFed>\n          <pTotTribEst>0.00</pTotTribEst>\n          <pTotTribMun>0.00</pTotTribMun>\n        </pTotTrib>\n      </totTrib>`;
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <DPS xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.00">
