@@ -2507,12 +2507,13 @@ export default function App() {
           ambiente: record.ambiente || 'homologacao',
           numeroDps: String(nextNum),
           serieDps: '1',
-          prestador: {
-            cnpj: '64904070000157',
-            codigoIbge: '5107602',
-            opSimpNac: extra.opSimpNac || '3',
-            regApTribSN: '1'
-          },
+prestador: {
+  cnpj: '64904070000157',
+  codigoIbge: '5107602',
+  inscricaoMunicipal: '', // preencher com a IM se houver
+  opSimpNac: extra.opSimpNac || '3',
+  regApTribSN: '1'
+},
           tomador: {
             nome: record.cliente_nome,
             documento: record.cliente_documento,
