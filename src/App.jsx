@@ -1345,6 +1345,48 @@ const openOfficialDanfsePrint = async (nfseRecord, params = INITIAL_PARAMETERS) 
     alert('Erro ao renderizar o DANFSe: ' + (err?.message || err));
   }
 };
+const NFSE_SERVICOS_PRESETS = [
+  {
+    label: '17.01.01 — Consultoria Ambiental / Agronomia (CNAE 74.90-1-03)',
+    servico: '17.01.01',
+    nbs: '1.1806.40.00'
+  },
+  {
+    label: '07.01.01 — Serviços de Engenharia / Agronomia (CNAE 71.12-0-00)',
+    servico: '07.01.01',
+    nbs: '1.1402.11.00'
+  },
+  {
+    label: '07.20.01 — Cartografia, Topografia e Geodésia / CAR (CNAE 71.19-7-01)',
+    servico: '07.20.01',
+    nbs: '1.1404.21.00'
+  },
+  {
+    label: '17.09.01 — Perícia Técnica em Segurança do Trabalho / SST (CNAE 71.19-7-04)',
+    servico: '17.09.01',
+    nbs: '1.1405.10.00'
+  },
+  {
+    label: '08.02.01 — Treinamento Profissional / Gerencial / NRs (CNAE 85.99-6-04)',
+    servico: '08.02.01',
+    nbs: '1.2205.19.00'
+  },
+  {
+    label: '08.02.01 — Cursos Preparatórios para Concursos (CNAE 85.99-6-05)',
+    servico: '08.02.01',
+    nbs: '1.2205.19.00'
+  },
+  {
+    label: '17.02.01 — Apoio Administrativo e Escritório (CNAE 82.11-3-00)',
+    servico: '17.02.01',
+    nbs: '1.1805.21.00'
+  },
+  {
+    label: '17.09.01 — Peritos e Avaliadores de Seguros (CNAE 66.21-5-01)',
+    servico: '17.09.01',
+    nbs: '1.0906.90.00'
+  }
+];
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -7860,8 +7902,42 @@ export default function App() {
 
               <div className="p-3.5 rounded-xl bg-[#F4F9F5] border border-[#B7DFC5] space-y-3">
                 <div className="text-[10px] font-extrabold uppercase text-[#1B3B2B]">
+<div className="p-3.5 rounded-xl bg-[#F4F9F5] border border-[#B7DFC5] space-y-3">
+                <div className="text-[10px] font-extrabold uppercase text-[#1B3B2B]">
                   Parâmetros Fiscais (Editáveis por Nota)
                 </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">
+                    ESCOLHER SERVIÇO / CNAE (PREENCHE CÓD. SERVIÇO E NBS)
+                  </label>
+                  <select
+                    value={
+                      NFSE_SERVICOS_PRESETS.find(
+                        (p) => p.servico === nfseForm.codigo_servico && p.nbs === nfseForm.codigo_nbs
+                      )?.label || ''
+                    }
+                    onChange={(e) => {
+                      const chosen = NFSE_SERVICOS_PRESETS.find((p) => p.label === e.target.value);
+                      if (chosen) {
+                        setNfseForm((prev) => ({
+                          ...prev,
+                          codigo_servico: chosen.servico,
+                          codigo_nbs: chosen.nbs
+                        }));
+                      }
+                    }}
+                    className="w-full px-3 py-2 rounded-lg border bg-white font-bold text-[#1B3B2B] cursor-pointer"
+                  >
+                    <option value="">Personalizado (digitar abaixo)</option>
+                    {NFSE_SERVICOS_PRESETS.map((item) => (
+                      <option key={item.label} value={item.label}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <div>
                     <label className="block font-bold text-slate-700 uppercase mb-1">CÓD. SERVIÇO</label>
