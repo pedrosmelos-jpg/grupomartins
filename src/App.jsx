@@ -1278,7 +1278,56 @@ const openLocalDanfsePrint = (nfseRecord, params = INITIAL_PARAMETERS) => {
   win.document.write(html);
   win.document.close();
 };
+import { DanfseXmlParser, DanfseHtmlBuilder } from '@notaas/danfse-viewer';
 
+const openOfficialDanfsePrint = async (nfseRecord, params = INITIAL_PARAMETERS) => {
+  const xml = nfseRecord?.xml_retorno || '';
+
+  if (!xml || !xml.includes('<NFSe')) {
+    if (typeof openLocalDanfsePrint === 'function') {
+      openLocalDanfsePrint(nfseRecord, params);
+    } else {
+      alert('Este registo ainda não tem XML completo da NFS-e guardado.');
+    }
+    return;
+  }
+
+  const win = window.open('', '_blank', 'width=980,height=880');
+  if (!win) {
+    alert('Permita pop-ups no navegador para visualizar/imprimir o DANFSe.');
+    return;
+  }
+
+  try {
+    const parser = new DanfseXmlParser();
+    const data = await parser.parse(xml);
+
+    const builder = new DanfseHtmlBuilder();
+    const html = builder.build(data);
+
+    const printScript = `
+      <script>
+        window.onload = function () {
+          setTimeout(function () {
+            window.print();
+          }, 250);
+        };
+      </script>
+    `;
+
+    const finalHtml = html.includes('</body>')
+      ? html.replace('</body>', `${printScript}</body>`)
+      : `${html}${printScript}`;
+
+    win.document.open();
+    win.document.write(finalHtml);
+    win.document.close();
+  } catch (err) {
+    win.close();
+    console.error('Erro ao gerar DANFSe com @notaas/danfse-viewer:', err);
+    alert('Erro ao renderizar o DANFSe: ' + (err?.message || err));
+  }
+};
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
