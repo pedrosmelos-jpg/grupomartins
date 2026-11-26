@@ -1784,12 +1784,12 @@ export default function App() {
     }
   };
 
-  const handleSaveRoleEdit = async (e) => {
+const handleSaveRoleEdit = async (e) => {
     e.preventDefault();
     if (!editingRoleTarget) return;
 
-    const { id, level, name, holder, email, password, description, permissions } = editingRoleTarget;
-    const cleanRole = { id, level, name, holder, email: email.trim().toLowerCase(), password, description, permissions };
+    const { id, level, name, holder, email, description, permissions } = editingRoleTarget;
+    const cleanRole = { id, level, name, holder, email: email.trim().toLowerCase(), description, permissions };
 
     if (supabase) {
       const { error } = await supabase.from('user_roles').upsert([cleanRole]);
@@ -1801,7 +1801,7 @@ export default function App() {
     }
 
     setAccessRoles((prev) => prev.map((r) => (r.id === cleanRole.id ? { ...r, ...cleanRole } : r)));
-    showToast('Perfil e senha atualizados na nuvem!');
+    showToast('Perfil atualizado na nuvem!');
     setEditingRoleTarget(null);
   };
 
