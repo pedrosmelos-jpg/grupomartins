@@ -7,10 +7,7 @@ import { SignedXml } from 'xml-crypto';
 /**
  * Vercel Serverless Function — Emissão Direta NFS-e Padrão Nacional (Custo Zero)
  * Rota: POST /api/emitir-nfse
- *
- * Variáveis de ambiente necessárias na Vercel (Settings > Environment Variables):
- *   NFSE_CERT_BASE64   -> Certificado A1 (.pfx) convertido em Base64
- *   NFSE_CERT_PASSWORD -> Senha do certificado A1
+ * Versão 2 — Ajuste de estrutura e ordem de tags da DPS para validação XSD
  */
 
 const onlyDigits = (v) => String(v || '').replace(/\D/g, '');
@@ -57,7 +54,7 @@ function extractPemFromPfx(pfxBuffer, password) {
       try {
         new crypto.X509Certificate(pfxBuffer);
         throw new Error(
-          'O certificado .pfx usa cifra PKCS#12 não suportada pelo node-forge (ex.: PBES2/AES). Exporte novamente o .pfx no Windows marcando "Marcar esta chave como exportável" e formato PKCS#12 compatível, atualize NFSE_CERT_BASE64 e faça Redeploy.'
+          'O certificado .pfx usa cifra PKCS#12 não suportada pelo node-forge. Exporte novamente o .pfx no Windows com chave exportável e formato PKCS#12 compatível.'
         );
       } catch (x509Err) {
         if (x509Err?.message && x509Err.message.includes('node-forge')) {
@@ -65,7 +62,7 @@ function extractPemFromPfx(pfxBuffer, password) {
         }
       }
       throw new Error(
-        'Falha ao abrir o .pfx: confira se NFSE_CERT_PASSWORD está correta (sem espaços) ou se o .pfx usa cifra não suportada pelo node-forge.'
+        'Falha ao abrir o .pfx: confira se NFSE_CERT_PASSWORD está correta ou se o .pfx exige reexportação compatível.'
       );
     }
     throw new Error(msg || 'Não foi possível extrair a chave privada ou o certificado do arquivo .pfx.');
@@ -75,11 +72,10 @@ function extractPemFromPfx(pfxBuffer, password) {
 function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDps }) {
   const tpAmb = ambiente === 'producao' ? '1' : '2';
 
-  const cLocEmiRaw = onlyDigits(prestador.codigoIbge || '5107602');
-  if (cLocEmiRaw.length !== 7) {
-    throw new Error('Código IBGE do município emissor (cLocEmi) deve ter exatamente 7 dígitos.');
+  const cLocEmi = onlyDigits(prestador.codigoIbge || '5107602');
+  if (cLocEmi.length !== 7) {
+    throw new Error('Código IBGE do município emissor (cLocEmi) deve ter 7 dígitos.');
   }
-  const cLocEmi = cLocEmiRaw;
 
   const cnpjPrest = padLeft(onlyDigits(prestador.cnpj || '64904070000157'), 14).slice(-14);
   const serieNum = Math.max(1, Number(onlyDigits(serieDps || '1')) || 1);
@@ -88,11 +84,11 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
   const serie = padLeft(serieNum, 5).slice(-5);
   const nDps = padLeft(nDpsNum, 15).slice(-15);
 
-  // Id padrão Nacional: "DPS" (3) + cLocEmi (7) + tpInsc (1: 2=CNPJ) + nInsc (14) + serie (5) + nDPS (15) = 45 chars
+  // Id padrão Nacional (45 chars): "DPS" + cLocEmi(7) + tpInsc(1) + CNPJ(14) + serie(5) + nDPS(15)
   const infDpsId = `DPS${cLocEmi}2${cnpjPrest}${serie}${nDps}`;
 
   const now = new Date();
-  const offsetMs = -4 * 60 * 60 * 1000; // Fuso Mato Grosso (-04:00)
+  const offsetMs = -4 * 60 * 60 * 1000; // Mato Grosso (-04:00)
   const local = new Date(now.getTime() + offsetMs);
   const dhEmi = local.toISOString().slice(0, 19) + '-04:00';
   const dCompet = servico.dataCompetencia || local.toISOString().slice(0, 10);
@@ -104,27 +100,24 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
   } else if (docTomador.length === 11) {
     tomadorDocTag = `<CPF>${docTomador}</CPF>`;
   } else {
-    throw new Error('Documento do tomador inválido: informe um CPF (11 dígitos) ou CNPJ (14 dígitos).');
+    throw new Error('Documento do tomador inválido: informe CPF (11 dígitos) ou CNPJ (14 dígitos).');
   }
 
   const cMunTomador = onlyDigits(tomador.codigoMunicipio || tomador.codigoIbge || '');
   const cepTomador = onlyDigits(tomador.cep || '');
-  const endTomadorXml =
-    cMunTomador.length === 7 || cepTomador.length === 8
-      ? `
+  const hasEndNac = cMunTomador.length === 7 || cepTomador.length === 8;
+
+  const endTomadorXml = hasEndNac
+    ? `
       <end>
         <endNac>
           ${cMunTomador.length === 7 ? `<cMun>${cMunTomador}</cMun>` : ''}
           ${cepTomador.length === 8 ? `<CEP>${cepTomador}</CEP>` : ''}
-        </endNac>
-        ${tomador.logradouro ? `<xLgr>${escapeXml(tomador.logradouro)}</xLgr>` : ''}
-        ${tomador.numero ? `<nro>${escapeXml(String(tomador.numero))}</nro>` : ''}
-        ${tomador.bairro ? `<xBairro>${escapeXml(tomador.bairro)}</xBairro>` : ''}
+        </endNac>${tomador.logradouro ? `\n        <xLgr>${escapeXml(tomador.logradouro)}</xLgr>` : ''}${tomador.numero ? `\n        <nro>${escapeXml(String(tomador.numero))}</nro>` : ''}${tomador.bairro ? `\n        <xBairro>${escapeXml(tomador.bairro)}</xBairro>` : ''}
       </end>`
-      : '';
+    : '';
 
   const cTribNac = padLeft(onlyDigits(servico.codigoServico || '170101'), 6).slice(-6);
-  const cNBS = onlyDigits(servico.codigoNbs || '');
   const vServNum = Number(servico.valor || 0);
   if (!(vServNum > 0)) {
     throw new Error('Valor do serviço deve ser maior que zero.');
@@ -132,7 +125,7 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
   const vServ = vServNum.toFixed(2);
 
   const opSimpNac = String(prestador.opSimpNac || '3'); // 1=Não optante, 2=MEI, 3=ME/EPP
-  const regApTribSN = String(prestador.regApTribSN || '1'); // 1=Simples Nacional
+  const regApTribSN = String(prestador.regApTribSN || '1');
   const tpRetISSQN = String(servico.issRetido ? '2' : '1'); // 1=Não retido, 2=Retido pelo tomador
 
   const pAliqNum = Number(servico.aliquotaIss);
@@ -148,7 +141,6 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
   const regApTribTag =
     opSimpNac === '3' ? `\n        <regApTribSN>${regApTribSN}</regApTribSN>` : '';
 
-  const cNbsTag = cNBS.length >= 9 ? `\n        <cNBS>${cNBS.slice(0, 9)}</cNBS>` : '';
   const emailTomadorTag = tomador.email ? `\n      <email>${escapeXml(tomador.email)}</email>` : '';
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -179,7 +171,7 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
       </locPrest>
       <cServ>
         <cTribNac>${cTribNac}</cTribNac>
-        <xDescServ>${escapeXml(servico.descricao)}</xDescServ>${cNbsTag}
+        <xDescServ>${escapeXml(servico.descricao)}</xDescServ>
       </cServ>
     </serv>
     <valores>
