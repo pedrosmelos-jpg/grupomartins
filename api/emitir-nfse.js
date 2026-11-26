@@ -152,10 +152,7 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
     <nDPS>${nDpsNum}</nDPS>
     <dCompet>${dCompet}</dCompet>
     <tpEmit>1</tpEmit>
-    <dCompet>${dCompet}</dCompet>
-    <tpEmit>1</tpEmit>
     <finNFSe>0</finNFSe>
-    <cLocEmi>${cLocEmi}</cLocEmi>
     <cLocEmi>${cLocEmi}</cLocEmi>
     <prest>
       <CNPJ>${cnpjPrest}</CNPJ>${imTag}
