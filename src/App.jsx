@@ -33,7 +33,10 @@ import {
   ClipboardCheck,
   AlertTriangle,
   PhoneCall,
-  FileText
+  FileText,
+  ArrowLeft,
+  ArrowRight,
+  GripVertical
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -341,8 +344,24 @@ const DEFAULT_PERMISSIONS = {
   prospeccao: { view: true, create: true, edit: true, delete: true, approve: false },
   condicionantes: { view: true, create: true, edit: true, delete: true, approve: false },
   pendencias: { view: true, create: true, edit: true, delete: true, approve: false },
-  acessos: { view: false, create: false, edit: false, delete: false, approve: false }
+  acessos: { view: false, create: false, edit: false, delete: false, approve: false },
+  layout: { reorderTabs: false, reorderColumns: false }
 };
+
+const DEFAULT_TAB_ORDER = [
+  'dashboard',
+  'prolabore',
+  'lancamentos',
+  'dre',
+  'contratos',
+  'status_tecnico',
+  'clientes',
+  'prospeccao',
+  'condicionantes',
+  'pendencias',
+  'acessos',
+  'config'
+];
 
 const INITIAL_ACCESS_ROLES = [
   {
@@ -364,7 +383,8 @@ const INITIAL_ACCESS_ROLES = [
       prospeccao: { view: true, create: true, edit: true, delete: true, approve: true },
       condicionantes: { view: true, create: true, edit: true, delete: true, approve: true },
       pendencias: { view: true, create: true, edit: true, delete: true, approve: true },
-      acessos: { view: true, create: true, edit: true, delete: true, approve: true }
+      acessos: { view: true, create: true, edit: true, delete: true, approve: true },
+      layout: { reorderTabs: true, reorderColumns: true }
     }
   }
 ];
@@ -731,6 +751,29 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isCloudSynced, setIsCloudSynced] = useState(false);
+
+  // Estados de personalização de posições (abas e colunas)
+  const [tabOrder, setTabOrder] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('gm_tab_order') || 'null');
+      return Array.isArray(saved) && saved.length > 0 ? saved : DEFAULT_TAB_ORDER;
+    } catch {
+      return DEFAULT_TAB_ORDER;
+    }
+  });
+  const [editingTabOrder, setEditingTabOrder] = useState(false);
+  const [draggedTabId, setDraggedTabId] = useState(null);
+
+  const [columnOrders, setColumnOrders] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('gm_column_orders') || 'null');
+      return saved && typeof saved === 'object' ? saved : {};
+    } catch {
+      return {};
+    }
+  });
+  const [editingColumnsTab, setEditingColumnsTab] = useState(null);
+  const [draggedColKey, setDraggedColKey] = useState(null);
 
   const [transactions, setTransactions] = useState([]);
   const [contracts, setContracts] = useState([]);
@@ -1306,6 +1349,14 @@ export default function App() {
         if (settingsRes.data.cond_statuses?.length) setAvailableCondStatuses(settingsRes.data.cond_statuses);
         if (settingsRes.data.pend_statuses?.length) setAvailablePendStatuses(settingsRes.data.pend_statuses);
         if (settingsRes.data.prosp_statuses?.length) setAvailableProspStatuses(settingsRes.data.prosp_statuses);
+        if (Array.isArray(settingsRes.data.tab_order) && settingsRes.data.tab_order.length > 0) {
+          setTabOrder(settingsRes.data.tab_order);
+          try { localStorage.setItem('gm_tab_order', JSON.stringify(settingsRes.data.tab_order)); } catch {}
+        }
+        if (settingsRes.data.column_orders && typeof settingsRes.data.column_orders === 'object') {
+          setColumnOrders(settingsRes.data.column_orders);
+          try { localStorage.setItem('gm_column_orders', JSON.stringify(settingsRes.data.column_orders)); } catch {}
+        }
         if (settingsRes.data.segments?.length) setAvailableSegments(settingsRes.data.segments);
         if (settingsRes.data.statuses?.length) setAvailableStatuses(settingsRes.data.statuses);
         if (settingsRes.data.agencies?.length) setAvailableAgencies(settingsRes.data.agencies);
@@ -1378,6 +1429,14 @@ export default function App() {
           if (data.cond_statuses?.length) setAvailableCondStatuses(data.cond_statuses);
           if (data.pend_statuses?.length) setAvailablePendStatuses(data.pend_statuses);
           if (data.prosp_statuses?.length) setAvailableProspStatuses(data.prosp_statuses);
+          if (Array.isArray(data.tab_order) && data.tab_order.length > 0) {
+            setTabOrder(data.tab_order);
+            try { localStorage.setItem('gm_tab_order', JSON.stringify(data.tab_order)); } catch {}
+          }
+          if (data.column_orders && typeof data.column_orders === 'object') {
+            setColumnOrders(data.column_orders);
+            try { localStorage.setItem('gm_column_orders', JSON.stringify(data.column_orders)); } catch {}
+          }
         }
       })
       .subscribe((status) => {
@@ -1413,6 +1472,232 @@ export default function App() {
     if (!currentRole) return false;
     return currentRole.permissions?.contratos?.viewValues !== false;
   }, [currentRole]);
+
+  const canReorderTabs = useMemo(() => {
+    if (!currentRole) return false;
+    if (isRootMaster) return currentRole.permissions?.layout?.reorderTabs !== false;
+    return Boolean(currentRole.permissions?.layout?.reorderTabs);
+  }, [currentRole, isRootMaster]);
+
+  const canReorderColumns = useMemo(() => {
+    if (!currentRole) return false;
+    if (isRootMaster) return currentRole.permissions?.layout?.reorderColumns !== false;
+    return Boolean(currentRole.permissions?.layout?.reorderColumns);
+  }, [currentRole, isRootMaster]);
+
+  useEffect(() => {
+    if (!canReorderTabs && editingTabOrder) setEditingTabOrder(false);
+    if (!canReorderColumns && editingColumnsTab) setEditingColumnsTab(null);
+  }, [canReorderTabs, canReorderColumns, editingTabOrder, editingColumnsTab]);
+
+  const persistLayoutSettings = async (nextTabOrder, nextColumnOrders) => {
+    const finalTabs = nextTabOrder ?? tabOrder;
+    const finalCols = nextColumnOrders ?? columnOrders;
+    try {
+      localStorage.setItem('gm_tab_order', JSON.stringify(finalTabs));
+      localStorage.setItem('gm_column_orders', JSON.stringify(finalCols));
+    } catch {}
+    if (!supabase) return;
+    try {
+      const { error } = await supabase.from('erp_settings').upsert([{
+        id: 'GLOBAL',
+        tab_order: finalTabs,
+        column_orders: finalCols
+      }]);
+      if (error) console.error('Erro ao salvar layout na nuvem:', error);
+    } catch (err) {
+      console.error('Erro ao salvar layout:', err);
+    }
+  };
+
+  const reorderArray = (arr, fromIdx, toIdx) => {
+    if (fromIdx < 0 || toIdx < 0 || fromIdx >= arr.length || toIdx >= arr.length || fromIdx === toIdx) return arr;
+    const copy = [...arr];
+    const [moved] = copy.splice(fromIdx, 1);
+    copy.splice(toIdx, 0, moved);
+    return copy;
+  };
+
+  const getOrderedNavItems = (items) => {
+    const map = Object.fromEntries(items.map(i => [i.id, i]));
+    const ordered = [];
+    tabOrder.forEach(id => {
+      if (map[id]) {
+        ordered.push(map[id]);
+        delete map[id];
+      }
+    });
+    items.forEach(i => {
+      if (map[i.id]) ordered.push(i);
+    });
+    return ordered;
+  };
+
+  const handleMoveTab = (tabId, dir) => {
+    const fullIds = getOrderedNavItems(navItems).map(i => i.id);
+    const idx = fullIds.indexOf(tabId);
+    const nextIdx = dir === 'up' ? idx - 1 : idx + 1;
+    const updated = reorderArray(fullIds, idx, nextIdx);
+    if (updated === fullIds) return;
+    setTabOrder(updated);
+    persistLayoutSettings(updated, columnOrders);
+  };
+
+  const handleDropTab = (sourceId, targetId) => {
+    if (!sourceId || !targetId || sourceId === targetId) return;
+    const fullIds = getOrderedNavItems(navItems).map(i => i.id);
+    const fromIdx = fullIds.indexOf(sourceId);
+    const toIdx = fullIds.indexOf(targetId);
+    const updated = reorderArray(fullIds, fromIdx, toIdx);
+    setTabOrder(updated);
+    persistLayoutSettings(updated, columnOrders);
+  };
+
+  const handleResetTabOrder = () => {
+    setTabOrder(DEFAULT_TAB_ORDER);
+    persistLayoutSettings(DEFAULT_TAB_ORDER, columnOrders);
+    showToast('Ordem das abas restaurada para o padrão!');
+  };
+
+  const getOrderedColumns = (tableKey, colDefs) => {
+    const saved = columnOrders?.[tableKey];
+    if (!Array.isArray(saved) || saved.length === 0) return colDefs;
+    const map = Object.fromEntries(colDefs.map(c => [c.key, c]));
+    const ordered = [];
+    saved.forEach(k => {
+      if (map[k]) {
+        ordered.push(map[k]);
+        delete map[k];
+      }
+    });
+    colDefs.forEach(c => {
+      if (map[c.key]) ordered.push(c);
+    });
+    return ordered;
+  };
+
+  const handleMoveColumn = (tableKey, colDefs, colKey, dir) => {
+    const currentKeys = getOrderedColumns(tableKey, colDefs).map(c => c.key);
+    const idx = currentKeys.indexOf(colKey);
+    const nextIdx = dir === 'left' ? idx - 1 : idx + 1;
+    const updatedKeys = reorderArray(currentKeys, idx, nextIdx);
+    if (updatedKeys === currentKeys) return;
+    const nextOrders = { ...columnOrders, [tableKey]: updatedKeys };
+    setColumnOrders(nextOrders);
+    persistLayoutSettings(tabOrder, nextOrders);
+  };
+
+  const handleDropColumn = (tableKey, colDefs, sourceKey, targetKey) => {
+    if (!sourceKey || !targetKey || sourceKey === targetKey) return;
+    const currentKeys = getOrderedColumns(tableKey, colDefs).map(c => c.key);
+    const fromIdx = currentKeys.indexOf(sourceKey);
+    const toIdx = currentKeys.indexOf(targetKey);
+    const updatedKeys = reorderArray(currentKeys, fromIdx, toIdx);
+    const nextOrders = { ...columnOrders, [tableKey]: updatedKeys };
+    setColumnOrders(nextOrders);
+    persistLayoutSettings(tabOrder, nextOrders);
+  };
+
+  const handleResetColumnOrder = (tableKey) => {
+    const nextOrders = { ...columnOrders };
+    delete nextOrders[tableKey];
+    setColumnOrders(nextOrders);
+    persistLayoutSettings(tabOrder, nextOrders);
+    showToast('Ordem das colunas restaurada para o padrão!');
+  };
+
+  const renderColumnOrganizerButton = (tableKey) => {
+    if (!canReorderColumns) return null;
+    const isOpen = editingColumnsTab === tableKey;
+    return (
+      <button
+        type="button"
+        onClick={() => setEditingColumnsTab(isOpen ? null : tableKey)}
+        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border cursor-pointer transition ${
+          isOpen
+            ? 'bg-[#1B3B2B] text-white border-[#1B3B2B]'
+            : 'border-slate-300 bg-white text-[#1B3B2B] hover:bg-[#F8F3EF]'
+        }`}
+        title="Reordenar posição das colunas desta tabela"
+      >
+        <Sliders className="w-3.5 h-3.5" />
+        {isOpen ? 'Concluir Colunas' : 'Organizar Colunas'}
+      </button>
+    );
+  };
+
+  const renderColumnOrganizerPanel = (tableKey, colDefs) => {
+    if (!canReorderColumns || editingColumnsTab !== tableKey) return null;
+    const ordered = getOrderedColumns(tableKey, colDefs);
+    return (
+      <div className="p-3.5 rounded-2xl border border-[#B7DFC5] bg-[#F4F9F5] shadow-sm space-y-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-[11px] font-extrabold uppercase text-[#1B3B2B] flex items-center gap-1.5">
+            <Sliders className="w-3.5 h-3.5" />
+            Arraste ou use as setas para mudar a posição das colunas
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleResetColumnOrder(tableKey)}
+              className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-[11px] font-bold text-slate-600 hover:bg-slate-50 cursor-pointer flex items-center gap-1"
+            >
+              <RotateCcw className="w-3 h-3" /> Restaurar padrão
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditingColumnsTab(null)}
+              className="px-3 py-1 rounded-lg bg-[#1B3B2B] text-white text-[11px] font-bold hover:bg-[#2D5A43] cursor-pointer"
+            >
+              Concluir
+            </button>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {ordered.map((col, idx) => (
+            <div
+              key={col.key}
+              draggable
+              onDragStart={() => setDraggedColKey(col.key)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => {
+                handleDropColumn(tableKey, colDefs, draggedColKey, col.key);
+                setDraggedColKey(null);
+              }}
+              onDragEnd={() => setDraggedColKey(null)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border bg-white text-xs font-bold text-[#1B3B2B] shadow-sm cursor-grab active:cursor-grabbing select-none ${
+                draggedColKey === col.key ? 'opacity-50 border-[#1B3B2B]' : 'border-slate-200'
+              }`}
+            >
+              <GripVertical className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="text-[10px] font-mono text-slate-400">{idx + 1}.</span>
+              <span>{col.label}</span>
+              <div className="inline-flex items-center gap-0.5 ml-1 pl-1 border-l border-slate-200">
+                <button
+                  type="button"
+                  disabled={idx === 0}
+                  onClick={() => handleMoveColumn(tableKey, colDefs, col.key, 'left')}
+                  className="p-0.5 rounded hover:bg-emerald-50 text-[#1B3B2B] disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
+                  title="Mover para a esquerda"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  disabled={idx === ordered.length - 1}
+                  onClick={() => handleMoveColumn(tableKey, colDefs, col.key, 'right')}
+                  className="p-0.5 rounded hover:bg-emerald-50 text-[#1B3B2B] disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
+                  title="Mover para a direita"
+                >
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   const navItems = useMemo(() => [
     { id: 'dashboard', label: 'Painel Executivo', icon: LayoutDashboard, badge: 'KPIs', permKey: 'dashboard' },
@@ -2214,8 +2499,11 @@ export default function App() {
     let targetUpdated = null;
     const updatedRoles = accessRoles.map((role) => {
       if (role.id === roleId) {
+        const isRoleRootMaster = role.id === 'ROLE-01-PEDRO' || (role.email && role.email.toLowerCase() === 'pedrosmelos@gmail.com');
         const currentVal = actionKey === 'viewValues'
           ? role.permissions?.[moduleKey]?.viewValues !== false
+          : (moduleKey === 'layout' && isRoleRootMaster && role.permissions?.layout?.[actionKey] === undefined)
+          ? true
           : (getModulePerms(role, moduleKey)?.[actionKey] || false);
         const updatedRole = {
           ...role,
@@ -2783,44 +3071,112 @@ export default function App() {
             </div>
           </div>
 
-          <nav className="mt-4 px-3 space-y-1">
-            {navItems.map((item) => {
+          {canReorderTabs && (
+            <div className="mx-4 mt-3 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingTabOrder(!editingTabOrder)}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition cursor-pointer ${
+                  editingTabOrder
+                    ? 'bg-[#F8F3EF] text-[#1B3B2B] border-[#F8F3EF]'
+                    : 'bg-[#244B38] text-emerald-100 border-[#3B7A57]/60 hover:bg-[#2D5A43]'
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                {editingTabOrder ? 'Concluir Abas' : 'Organizar Abas'}
+              </button>
+              {editingTabOrder && (
+                <button
+                  type="button"
+                  onClick={handleResetTabOrder}
+                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-[#132A1F] text-emerald-200 border border-[#3B7A57]/60 hover:text-white cursor-pointer"
+                  title="Restaurar ordem padrão das abas"
+                >
+                  Padrão
+                </button>
+              )}
+            </div>
+          )}
+
+          <nav className="mt-3 px-3 space-y-1">
+            {getOrderedNavItems(navItems).map((item, idx, arr) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
               const allowed = hasPermission(item.permKey, 'view');
               return (
-                <button
+                <div
                   key={item.id}
-                  onClick={() => {
-                    if (!allowed) {
-                      showToast(`Módulo "${item.label}" bloqueado para o perfil "${currentRole.name}".`);
-                      return;
+                  draggable={editingTabOrder}
+                  onDragStart={() => setDraggedTabId(item.id)}
+                  onDragOver={(e) => { if (editingTabOrder) e.preventDefault(); }}
+                  onDrop={() => {
+                    if (editingTabOrder) {
+                      handleDropTab(draggedTabId, item.id);
+                      setDraggedTabId(null);
                     }
-                    setActiveTab(item.id);
-                    setMobileMenuOpen(false);
                   }}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all ${
-                    isActive && allowed
-                      ? 'bg-[#F8F3EF] text-[#1B3B2B] font-bold shadow-md'
-                      : allowed
-                      ? 'text-emerald-100/85 hover:bg-[#244B38] hover:text-white cursor-pointer'
-                      : 'text-emerald-200/40 cursor-not-allowed'
-                  }`}
+                  onDragEnd={() => setDraggedTabId(null)}
+                  className={`flex items-center gap-1 rounded-xl ${editingTabOrder ? 'border border-dashed border-emerald-400/40 bg-[#244B38]/50 pr-1' : ''} ${draggedTabId === item.id ? 'opacity-50' : ''}`}
                 >
-                  <div className="flex items-center gap-2.5 truncate">
-                    <Icon className={`w-4 h-4 shrink-0 ${isActive && allowed ? 'text-[#1B3B2B]' : allowed ? 'text-emerald-300' : 'text-emerald-600'}`} />
-                    <span className="truncate">{item.label}</span>
-                  </div>
-                  {!allowed ? (
-                    <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  ) : (
-                    item.badge !== undefined && (
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${isActive ? 'bg-[#1B3B2B] text-[#F8F3EF]' : 'bg-[#2D5A43] text-emerald-200'}`}>
-                        {item.badge}
-                      </span>
-                    )
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (editingTabOrder) return;
+                      if (!allowed) {
+                        showToast(`Módulo "${item.label}" bloqueado para o perfil "${currentRole.name}".`);
+                        return;
+                      }
+                      setActiveTab(item.id);
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`flex-1 min-w-0 flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all ${
+                      isActive && allowed && !editingTabOrder
+                        ? 'bg-[#F8F3EF] text-[#1B3B2B] font-bold shadow-md'
+                        : allowed
+                        ? `text-emerald-100/85 ${editingTabOrder ? 'cursor-grab active:cursor-grabbing' : 'hover:bg-[#244B38] hover:text-white cursor-pointer'}`
+                        : 'text-emerald-200/40 cursor-not-allowed'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      {editingTabOrder && <GripVertical className="w-3.5 h-3.5 text-emerald-300 shrink-0" />}
+                      <Icon className={`w-4 h-4 shrink-0 ${isActive && allowed && !editingTabOrder ? 'text-[#1B3B2B]' : allowed ? 'text-emerald-300' : 'text-emerald-600'}`} />
+                      <span className="truncate">{item.label}</span>
+                    </div>
+                    {!editingTabOrder && (
+                      !allowed ? (
+                        <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      ) : (
+                        item.badge !== undefined && (
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${isActive ? 'bg-[#1B3B2B] text-[#F8F3EF]' : 'bg-[#2D5A43] text-emerald-200'}`}>
+                            {item.badge}
+                          </span>
+                        )
+                      )
+                    )}
+                  </button>
+                  {editingTabOrder && (
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={() => handleMoveTab(item.id, 'up')}
+                        className="p-1 rounded-lg text-emerald-200 hover:bg-[#1B3B2B] disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
+                        title="Subir aba"
+                      >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === arr.length - 1}
+                        onClick={() => handleMoveTab(item.id, 'down')}
+                        className="p-1 rounded-lg text-emerald-200 hover:bg-[#1B3B2B] disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
+                        title="Descer aba"
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   )}
-                </button>
+                </div>
               );
             })}
           </nav>
@@ -6009,21 +6365,39 @@ export default function App() {
             <div className="space-y-3 text-xs">
               {Array.from(new Set([...Object.keys(DEFAULT_PERMISSIONS), ...Object.keys(editingRolePermissions.permissions || {})])).map((modKey) => {
                 const modPerms = getModulePerms(editingRolePermissions, modKey);
+                const isEditingMaster = editingRolePermissions.id === 'ROLE-01-PEDRO' || (editingRolePermissions.email && editingRolePermissions.email.toLowerCase() === 'pedrosmelos@gmail.com');
+                const actionKeys = modKey === 'layout'
+                  ? ['reorderTabs', 'reorderColumns']
+                  : ['view', 'create', 'edit', 'delete', 'approve', ...(modKey === 'contratos' ? ['viewValues'] : [])];
+                const actionLabels = {
+                  viewValues: 'Ver valores',
+                  reorderTabs: 'Editar posição das abas',
+                  reorderColumns: 'Editar posição das colunas'
+                };
                 return (
-                  <div key={modKey} className="p-3 rounded-xl border bg-slate-50 flex flex-wrap items-center justify-between gap-3">
-                    <span className="font-extrabold text-[#1B3B2B] uppercase w-32">{modKey.replace('_', ' ')}</span>
+                  <div key={modKey} className={`p-3 rounded-xl border flex flex-wrap items-center justify-between gap-3 ${modKey === 'layout' ? 'bg-emerald-50/70 border-emerald-200' : 'bg-slate-50'}`}>
+                    <span className="font-extrabold text-[#1B3B2B] uppercase w-40">
+                      {modKey === 'layout' ? 'LAYOUT (ABAS / COLUNAS)' : modKey.replace('_', ' ')}
+                    </span>
                     <div className="flex flex-wrap items-center gap-4">
-                      {['view', 'create', 'edit', 'delete', 'approve', ...(modKey === 'contratos' ? ['viewValues'] : [])].map((actKey) => (
-                        <label key={actKey} className="flex items-center gap-1.5 cursor-pointer font-medium select-none">
-                          <input
-                            type="checkbox"
-                            checked={actKey === 'viewValues' ? modPerms?.viewValues !== false : Boolean(modPerms?.[actKey])}
-                            onChange={() => handlePermissionToggle(editingRolePermissions.id, modKey, actKey)}
-                            className="w-4 h-4 rounded text-[#1B3B2B] focus:ring-[#1B3B2B] cursor-pointer"
-                          />
-                          <span className="capitalize">{actKey === 'viewValues' ? 'Ver valores' : actKey}</span>
-                        </label>
-                      ))}
+                      {actionKeys.map((actKey) => {
+                        const isChecked = actKey === 'viewValues'
+                          ? modPerms?.viewValues !== false
+                          : (modKey === 'layout' && isEditingMaster && editingRolePermissions.permissions?.layout?.[actKey] === undefined)
+                          ? true
+                          : Boolean(modPerms?.[actKey]);
+                        return (
+                          <label key={actKey} className="flex items-center gap-1.5 cursor-pointer font-medium select-none">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handlePermissionToggle(editingRolePermissions.id, modKey, actKey)}
+                              className="w-4 h-4 rounded text-[#1B3B2B] focus:ring-[#1B3B2B] cursor-pointer"
+                            />
+                            <span className={actionLabels[actKey] ? '' : 'capitalize'}>{actionLabels[actKey] || actKey}</span>
+                          </label>
+                        );
+                      })}
                     </div>
                   </div>
                 );
