@@ -3243,6 +3243,89 @@ export default function App() {
     showToast('Registro de NFS-e excluído!');
     setDeleteNfseTarget(null);
   };
+  const handleImportNfseXml = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    const importedRecords = [];
+    for (const file of files) {
+      try {
+        const xml = await file.text();
+        if (!xml.includes('<NFSe') && !xml.includes('<infNFSe')) continue;
+
+        const chaveMatch = xml.match(/Id=["']NFS(\d{50})["']/i);
+        const chave = extractTagXml(xml, 'chNFSe') || (chaveMatch ? chaveMatch[1] : '');
+        const numero = extractTagXml(xml, 'nNFSe') || extractTagXml(xml, 'nDPS') || '';
+        const tpAmb = extractTagXml(xml, 'tpAmb');
+        const ambiente = tpAmb === '1' ? 'producao' : 'homologacao';
+
+        const dCompet = extractTagXml(xml, 'dCompet') || extractTagXml(xml, 'dhEmi') || extractTagXml(xml, 'dhProc');
+        const dataEmissao = dCompet ? String(dCompet).slice(0, 10) : new Date().toISOString().split('T')[0];
+
+        const tomaBlock = extractTagXml(xml, 'toma') || '';
+        const clienteNome = extractTagXml(tomaBlock, 'xNome') || 'Cliente não identificado';
+        const clienteDocRaw = extractTagXml(tomaBlock, 'CNPJ') || extractTagXml(tomaBlock, 'CPF') || '';
+        const clienteDoc = formatCpfCnpjDoc(clienteDocRaw);
+        const clienteEmail = extractTagXml(tomaBlock, 'email') || '';
+
+        const cTribRaw = extractTagXml(xml, 'cTribNac') || '170101';
+        const codServico = /^\d{6}$/.test(cTribRaw)
+          ? `${cTribRaw.slice(0, 2)}.${cTribRaw.slice(2, 4)}.${cTribRaw.slice(4, 6)}`
+          : cTribRaw;
+        const descServico = extractTagXml(xml, 'xDescServ') || '';
+
+        const valor = parseFloat(extractTagXml(xml, 'vServ') || extractTagXml(xml, 'vLiq') || '0') || 0;
+        const aliquota = parseFloat(extractTagXml(xml, 'pAliqAplic') || extractTagXml(xml, 'pAliq') || '0') || 0;
+
+        const recordId = chave ? `NFSE-${chave.slice(-12)}` : generateUniqueId('NFSE');
+
+        importedRecords.push({
+          id: recordId,
+          numero: String(numero),
+          chave_acesso: chave,
+          ambiente,
+          data_emissao: dataEmissao,
+          cliente_nome: clienteNome,
+          cliente_documento: clienteDoc,
+          cliente_email: clienteEmail,
+          codigo_servico: codServico,
+          descricao_servico: descServico,
+          valor,
+          aliquota_iss: aliquota,
+          status: 'Autorizada',
+          pdf_url: '',
+          xml_retorno: xml,
+          mensagem_erro: '',
+          contract_id: ''
+        });
+      } catch (err) {
+        console.error('Erro ao ler XML:', file.name, err);
+      }
+    }
+
+    e.target.value = '';
+
+    if (importedRecords.length === 0) {
+      alert('Nenhum arquivo XML válido de NFS-e foi encontrado.');
+      return;
+    }
+
+    if (supabase) {
+      const { error } = await supabase.from('nfse').upsert(importedRecords);
+      if (error) {
+        alert('Erro ao salvar XMLs no Supabase: ' + error.message);
+        return;
+      }
+    }
+
+    setNfseList((prev) => {
+      const map = new Map(prev.map((item) => [item.id, item]));
+      importedRecords.forEach((rec) => map.set(rec.id, rec));
+      return Array.from(map.values());
+    });
+
+    showToast(`${importedRecords.length} nota(s) importada(s) do XML com sucesso!`);
+  };
 
 
   const handleSaveCondicionante = async (e) => {
@@ -5876,6 +5959,21 @@ export default function App() {
                               showToast('Planilha de NFS-e exportada!');
                             }}
                           />
+                          {hasPermission('nfse', 'create') && (
+                            <label
+                              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold border border-[#1B3B2B] text-[#1B3B2B] bg-white hover:bg-[#F8F3EF] cursor-pointer transition"
+                              title="Importar um ou mais arquivos XML do Portal Nacional"
+                            >
+                              <FileText className="w-4 h-4" /> Importar XML
+                              <input
+                                type="file"
+                                accept=".xml"
+                                multiple
+                                onChange={handleImportNfseXml}
+                                className="hidden"
+                              />
+                            </label>
+                          )}
                           {hasPermission('nfse', 'create') && (
                             <button
                               onClick={() => {
