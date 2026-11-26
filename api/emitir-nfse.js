@@ -7,7 +7,10 @@ import { SignedXml } from 'xml-crypto';
 /**
  * Vercel Serverless Function — Emissão Direta NFS-e Padrão Nacional (Custo Zero)
  * Rota: POST /api/emitir-nfse
- * Versão 2 — Ajuste de estrutura e ordem de tags da DPS para validação XSD
+ *
+ * Variáveis de ambiente necessárias na Vercel (Settings > Environment Variables):
+ *   NFSE_CERT_BASE64   -> Certificado A1 (.pfx) convertido em Base64
+ *   NFSE_CERT_PASSWORD -> Senha do certificado A1
  */
 
 const onlyDigits = (v) => String(v || '').replace(/\D/g, '');
@@ -54,7 +57,7 @@ function extractPemFromPfx(pfxBuffer, password) {
       try {
         new crypto.X509Certificate(pfxBuffer);
         throw new Error(
-          'O certificado .pfx usa cifra PKCS#12 não suportada pelo node-forge. Exporte novamente o .pfx no Windows com chave exportável e formato PKCS#12 compatível.'
+          'O certificado .pfx usa cifra PKCS#12 não suportada pelo node-forge. Exporte novamente o .pfx no Windows marcando "Marcar esta chave como exportável" e formato PKCS#12 compatível, atualize NFSE_CERT_BASE64 e faça Redeploy.'
         );
       } catch (x509Err) {
         if (x509Err?.message && x509Err.message.includes('node-forge')) {
@@ -62,7 +65,7 @@ function extractPemFromPfx(pfxBuffer, password) {
         }
       }
       throw new Error(
-        'Falha ao abrir o .pfx: confira se NFSE_CERT_PASSWORD está correta ou se o .pfx exige reexportação compatível.'
+        'Falha ao abrir o .pfx: confira se NFSE_CERT_PASSWORD está correta (sem espaços) ou se o .pfx exige reexportação compatível.'
       );
     }
     throw new Error(msg || 'Não foi possível extrair a chave privada ou o certificado do arquivo .pfx.');
@@ -124,6 +127,12 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
   }
   const vServ = vServNum.toFixed(2);
 
+  const descLimpa = String(servico.descricao || '')
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+    .slice(0, 2000);
+
   const opSimpNac = String(prestador.opSimpNac || '3'); // 1=Não optante, 2=MEI, 3=ME/EPP
   const regApTribSN = String(prestador.regApTribSN || '1');
   const tpRetISSQN = String(servico.issRetido ? '2' : '1'); // 1=Não retido, 2=Retido pelo tomador
@@ -134,9 +143,8 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
       ? `\n          <pAliq>${pAliqNum.toFixed(2)}</pAliq>`
       : '';
 
-  const imTag = prestador.inscricaoMunicipal
-    ? `\n      <IM>${escapeXml(onlyDigits(prestador.inscricaoMunicipal))}</IM>`
-    : '';
+  const imDigits = onlyDigits(prestador.inscricaoMunicipal || '');
+  const imTag = imDigits ? `\n      <IM>${escapeXml(imDigits)}</IM>` : '';
 
   const regApTribTag =
     opSimpNac === '3' ? `\n        <regApTribSN>${regApTribSN}</regApTribSN>` : '';
@@ -171,7 +179,7 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
       </locPrest>
       <cServ>
         <cTribNac>${cTribNac}</cTribNac>
-        <xDescServ>${escapeXml(servico.descricao)}</xDescServ>
+        <xDescServ>${escapeXml(descLimpa)}</xDescServ>
       </cServ>
     </serv>
     <valores>
