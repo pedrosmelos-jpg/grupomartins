@@ -600,6 +600,14 @@ export default function App() {
   const [condStatusFilter, setCondStatusFilter] = useState('Todos');
   const [sortField, setSortField] = useState(null);
   const [sortDirection, setSortDirection] = useState('asc');
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
 
   const [showCondModal, setShowCondModal] = useState(false);
   const [editingCond, setEditingCond] = useState(null);
@@ -4897,7 +4905,9 @@ const handleSaveRoleEdit = async (e) => {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">TIPO DE SERVIÇO / DESCRIÇÃO DA CONDICIONANTE</label>
+               <label className="block font-bold text-slate-700 uppercase mb-1">
+  {ctrlKind === 'pend' ? 'TIPO DE SERVIÇO / DESCRIÇÃO DA PENDÊNCIA' : 'TIPO DE SERVIÇO / DESCRIÇÃO DA CONDICIONANTE'}
+</label>
                 <textarea
                   value={condForm.service}
                   onChange={(e) => setCondForm({ ...condForm, service: e.target.value })}
@@ -4929,7 +4939,7 @@ const handleSaveRoleEdit = async (e) => {
                   type="submit"
                   className="px-6 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
                 >
-                  Salvar Condicionante
+                  {ctrlKind === 'pend' ? 'Salvar Pendência' : 'Salvar Condicionante'}
                 </button>
               </div>
             </form>
