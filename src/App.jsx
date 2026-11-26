@@ -1646,6 +1646,29 @@ export default function App() {
   const [editingNfse, setEditingNfse] = useState(null);
   const [deleteNfseTarget, setDeleteNfseTarget] = useState(null);
   const [emittingNfseId, setEmittingNfseId] = useState(null);
+  const [sefazStatus, setSefazStatus] = useState({ loading: false, sefin: null, adn: null, checkedAt: null });
+
+  const checkSefazStatus = useCallback(async () => {
+    setSefazStatus((prev) => ({ ...prev, loading: true }));
+    try {
+      const res = await fetch('/api/status-nfse');
+      const data = await res.json();
+      setSefazStatus({
+        loading: false,
+        sefin: data.sefin || null,
+        adn: data.adn || null,
+        checkedAt: data.checkedAt || new Date().toISOString()
+      });
+    } catch {
+      setSefazStatus({ loading: false, sefin: { online: false }, adn: { online: false }, checkedAt: new Date().toISOString() });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'nfse' && !sefazStatus.checkedAt && !sefazStatus.loading) {
+      checkSefazStatus();
+    }
+  }, [activeTab, sefazStatus.checkedAt, sefazStatus.loading, checkSefazStatus]);
   const [nfseForm, setNfseForm] = useState({
     ambiente: 'homologacao',
     data_emissao: new Date().toISOString().split('T')[0],
@@ -5915,8 +5938,64 @@ export default function App() {
                           Notas Fiscais de Serviço (NFS-e Nacional)
                         </h2>
                         <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-                          Emissão direta gratuita via Portal Nacional • Rondonópolis — MT (CNPJ 64.904.070/0001-57)
+Emissão direta gratuita via Portal Nacional • Rondonópolis — MT (CNPJ 64.904.070/0001-57)
                         </p>
+
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold shadow-sm">
+                            <span
+                              className={`w-2.5 h-2.5 rounded-full ${
+                                sefazStatus.loading
+                                  ? 'bg-amber-400 animate-pulse'
+                                  : sefazStatus.sefin?.online
+                                  ? 'bg-emerald-500'
+                                  : 'bg-rose-500'
+                              }`}
+                            />
+                            <span className="text-slate-700">
+                              Emissão (SEFIN):{' '}
+                              <strong className={sefazStatus.sefin?.online ? 'text-emerald-700' : 'text-rose-700'}>
+                                {sefazStatus.loading
+                                  ? 'Verificando...'
+                                  : sefazStatus.sefin?.online
+                                  ? `Online (${sefazStatus.sefin.ms}ms)`
+                                  : 'Instável / Offline'}
+                              </strong>
+                            </span>
+                          </div>
+
+                          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold shadow-sm">
+                            <span
+                              className={`w-2.5 h-2.5 rounded-full ${
+                                sefazStatus.loading
+                                  ? 'bg-amber-400 animate-pulse'
+                                  : sefazStatus.adn?.online
+                                  ? 'bg-emerald-500'
+                                  : 'bg-rose-500'
+                              }`}
+                            />
+                            <span className="text-slate-700">
+                              Portal PDF (ADN):{' '}
+                              <strong className={sefazStatus.adn?.online ? 'text-emerald-700' : 'text-rose-700'}>
+                                {sefazStatus.loading
+                                  ? 'Verificando...'
+                                  : sefazStatus.adn?.online
+                                  ? `Online (${sefazStatus.adn.ms}ms)`
+                                  : 'Offline (503)'}
+                              </strong>
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={checkSefazStatus}
+                            disabled={sefazStatus.loading}
+                            className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 cursor-pointer disabled:opacity-50"
+                            title="Atualizar status dos servidores da NFS-e Nacional"
+                          >
+                            <RotateCcw className={`w-3.5 h-3.5 ${sefazStatus.loading ? 'animate-spin' : ''}`} />
+                          </button>
+                        </div>
                       </div>
                     </div>
 
