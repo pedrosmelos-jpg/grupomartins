@@ -5323,17 +5323,22 @@ export default function App() {
                                 <tr key={n.id} className="hover:bg-slate-50">
                                   {orderedNfseCols.map((col) => col.render(n))}
                                   <td className="py-3 px-3 text-center space-x-1 whitespace-nowrap">
-                                    {n.pdf_url && (
-                                      <a
-                                        href={n.pdf_url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-bold text-[10px] hover:bg-emerald-200"
-                                        title="Abrir DANFSe (PDF Oficial)"
-                                      >
-                                        <ExternalLink className="w-3 h-3" /> DANFSe
-                                      </a>
-                                    )}
+                                   {(n.xml_retorno || n.pdf_url) && (
+  <button
+    type="button"
+    onClick={() => {
+      if (n.xml_retorno || n.ambiente !== 'producao') {
+        openLocalDanfsePrint(n, params);
+      } else if (n.pdf_url) {
+        window.open(n.pdf_url, '_blank', 'noopener,noreferrer');
+      }
+    }}
+    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-bold text-[10px] hover:bg-emerald-200 cursor-pointer"
+    title="Visualizar / Imprimir DANFSe"
+  >
+    <ExternalLink className="w-3 h-3" /> DANFSe
+  </button>
+)}
                                     {n.status !== 'Autorizada' && hasPermission('nfse', 'approve') && (
                                       <button
                                         type="button"
