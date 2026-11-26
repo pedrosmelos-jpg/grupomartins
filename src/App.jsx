@@ -36,7 +36,10 @@ import {
   FileText,
   ArrowLeft,
   ArrowRight,
-  GripVertical
+  GripVertical,
+  Receipt,
+  Send,
+  ExternalLink
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -344,6 +347,7 @@ const DEFAULT_PERMISSIONS = {
   prospeccao: { view: true, create: true, edit: true, delete: true, approve: false },
   condicionantes: { view: true, create: true, edit: true, delete: true, approve: false },
   pendencias: { view: true, create: true, edit: true, delete: true, approve: false },
+  nfse: { view: true, create: true, edit: true, delete: true, approve: true },
   acessos: { view: false, create: false, edit: false, delete: false, approve: false },
   layout: { reorderTabs: false, reorderColumns: false }
 };
@@ -359,6 +363,7 @@ const DEFAULT_TAB_ORDER = [
   'prospeccao',
   'condicionantes',
   'pendencias',
+  'nfse',
   'acessos',
   'config'
 ];
@@ -383,6 +388,7 @@ const INITIAL_ACCESS_ROLES = [
       prospeccao: { view: true, create: true, edit: true, delete: true, approve: true },
       condicionantes: { view: true, create: true, edit: true, delete: true, approve: true },
       pendencias: { view: true, create: true, edit: true, delete: true, approve: true },
+      nfse: { view: true, create: true, edit: true, delete: true, approve: true },
       acessos: { view: true, create: true, edit: true, delete: true, approve: true },
       layout: { reorderTabs: true, reorderColumns: true }
     }
@@ -743,7 +749,16 @@ const getModulePerms = (role, moduleKey) =>
   role?.permissions?.[moduleKey] ||
   (moduleKey === 'status_tecnico' ? role?.permissions?.contratos :
    moduleKey === 'pendencias' ? role?.permissions?.condicionantes :
-   moduleKey === 'prospeccao' ? role?.permissions?.clientes : undefined);
+   moduleKey === 'prospeccao' ? role?.permissions?.clientes :
+   moduleKey === 'nfse' ? role?.permissions?.lancamentos : undefined);
+
+const getNfseStatusBadgeClass = (s) => {
+  const n = String(s || '').toLowerCase();
+  if (n.includes('autoriz')) return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+  if (n.includes('erro') || n.includes('rejeit')) return 'bg-rose-100 text-rose-800 border-rose-200';
+  if (n.includes('cancel')) return 'bg-slate-200 text-slate-700 border-slate-300';
+  return 'bg-amber-100 text-amber-800 border-amber-200';
+};
 
 const INITIAL_TECHNICAL_STATUSES = ['FINALIZADO', 'ATENDIDO', 'EM ANDAMENTO', 'A VENCER'];
 
@@ -987,6 +1002,32 @@ export default function App() {
     responsible: '',
     status: INITIAL_PROSP_STATUSES[0],
     observation: ''
+  });
+
+  // Estados da aba Notas Fiscais (NFS-e)
+  const [nfseList, setNfseList] = useState([]);
+  const [nfseSearch, setNfseSearch] = useState('');
+  const [nfseStatusFilter, setNfseStatusFilter] = useState('Todos');
+  const [nfseDateFrom, setNfseDateFrom] = useState('');
+  const [nfseDateTo, setNfseDateTo] = useState('');
+  const [showNfseModal, setShowNfseModal] = useState(false);
+  const [editingNfse, setEditingNfse] = useState(null);
+  const [deleteNfseTarget, setDeleteNfseTarget] = useState(null);
+  const [emittingNfseId, setEmittingNfseId] = useState(null);
+  const [nfseForm, setNfseForm] = useState({
+    ambiente: 'homologacao',
+    data_emissao: new Date().toISOString().split('T')[0],
+    cliente_nome: '',
+    cliente_documento: '',
+    cliente_email: '',
+    codigo_servico: '17.01.01',
+    codigo_nbs: '1.1806.40.00',
+    regime_tributario: '3',
+    aliquota_iss: '0',
+    iss_retido: false,
+    valor: '',
+    descricao_servico: 'Referente a Serviços Ambientais. Chave PIX: 64.904.070/0001-57 Martins Soluções Ambientais e Segurança do Trabalho Banco Santander',
+    contract_id: ''
   });
 
   const [condForm, setCondForm] = useState({
@@ -1313,7 +1354,7 @@ export default function App() {
   const fetchAllData = useCallback(async () => {
     if (!supabase) return;
     try {
-      const [txRes, ctRes, cliRes, roleRes, condRes, settingsRes, pendRes, prospRes] = await Promise.all([
+      const [txRes, ctRes, cliRes, roleRes, condRes, settingsRes, pendRes, prospRes, nfseRes] = await Promise.all([
         supabase.from('transactions').select('*'),
         supabase.from('contracts').select('*'),
         supabase.from('clients').select('*'),
@@ -1321,7 +1362,8 @@ export default function App() {
         supabase.from('condicionantes').select('*'),
         supabase.from('erp_settings').select('*').eq('id', 'GLOBAL').maybeSingle(),
         supabase.from('pendencias').select('*'),
-        supabase.from('prospeccoes').select('*')
+        supabase.from('prospeccoes').select('*'),
+        supabase.from('nfse').select('*')
       ]);
 
       if (!txRes.error && txRes.data) {
@@ -1345,6 +1387,7 @@ export default function App() {
       if (!condRes.error && condRes.data) setCondicionantes(condRes.data);
       if (!pendRes.error && pendRes.data) setPendencias(pendRes.data);
       if (!prospRes.error && prospRes.data) setProspeccoes(prospRes.data);
+      if (!nfseRes.error && nfseRes.data) setNfseList(nfseRes.data);
       if (!settingsRes.error && settingsRes.data) {
         if (settingsRes.data.cond_statuses?.length) setAvailableCondStatuses(settingsRes.data.cond_statuses);
         if (settingsRes.data.pend_statuses?.length) setAvailablePendStatuses(settingsRes.data.pend_statuses);
@@ -1417,6 +1460,7 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'condicionantes' }, applyRealtimeChange(setCondicionantes))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pendencias' }, applyRealtimeChange(setPendencias))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'prospeccoes' }, applyRealtimeChange(setProspeccoes))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'nfse' }, applyRealtimeChange(setNfseList))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'erp_settings' }, (payload) => {
         const data = payload.new;
         if (data) {
@@ -1715,9 +1759,10 @@ export default function App() {
     { id: 'prospeccao', label: 'Prospecção de Clientes', icon: PhoneCall, badge: prospeccoes.length, permKey: 'prospeccao' },
     { id: 'condicionantes', label: 'Controle de Condicionantes', icon: Leaf, badge: condicionantes.length, permKey: 'condicionantes' },
     { id: 'pendencias', label: 'Controle de Pendências', icon: AlertTriangle, badge: pendencias.length, permKey: 'pendencias' },
+    { id: 'nfse', label: 'Notas Fiscais (NFS-e)', icon: Receipt, badge: nfseList.length, permKey: 'nfse' },
     { id: 'acessos', label: 'Árvore de Acessos & Perfis', icon: Network, badge: `${accessRoles.length} Nível`, permKey: 'acessos' },
     { id: 'config', label: 'Plano de Contas & Metas', icon: Settings, permKey: 'dashboard' }
-  ], [transactions.length, contracts.length, clients.length, prospeccoes.length, condicionantes.length, pendencias.length, accessRoles.length]);
+  ], [transactions.length, contracts.length, clients.length, prospeccoes.length, condicionantes.length, pendencias.length, nfseList.length, accessRoles.length]);
 
   useEffect(() => {
     const currentNav = navItems.find((item) => item.id === activeTab);
@@ -2390,6 +2435,146 @@ export default function App() {
     setDeleteProspTarget(null);
   };
 
+  // Handlers de Notas Fiscais (NFS-e)
+  const handleSaveNfse = async (e, emitNow = false) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const numericVal = parseFloat(String(nfseForm.valor).replace(',', '.'));
+    if (!nfseForm.cliente_nome.trim() || !nfseForm.descricao_servico.trim() || isNaN(numericVal) || numericVal <= 0) {
+      alert('Preencha o cliente, a descrição do serviço e um valor válido.');
+      return;
+    }
+
+    const nfseId = editingNfse ? editingNfse.id : generateUniqueId('NFSE');
+    const baseRecord = {
+      id: nfseId,
+      numero: editingNfse?.numero || '',
+      chave_acesso: editingNfse?.chave_acesso || '',
+      ambiente: nfseForm.ambiente || 'homologacao',
+      data_emissao: nfseForm.data_emissao || new Date().toISOString().split('T')[0],
+      cliente_nome: nfseForm.cliente_nome.trim(),
+      cliente_documento: nfseForm.cliente_documento.trim(),
+      cliente_email: nfseForm.cliente_email.trim(),
+      codigo_servico: nfseForm.codigo_servico.trim() || '17.01.01',
+      descricao_servico: nfseForm.descricao_servico.trim(),
+      valor: numericVal,
+      aliquota_iss: parseFloat(String(nfseForm.aliquota_iss || '0').replace(',', '.')) || 0,
+      status: editingNfse?.status === 'Autorizada' ? 'Autorizada' : 'Rascunho',
+      pdf_url: editingNfse?.pdf_url || '',
+      xml_retorno: editingNfse?.xml_retorno || '',
+      mensagem_erro: '',
+      contract_id: nfseForm.contract_id || ''
+    };
+
+    if (supabase) {
+      const { error } = await supabase.from('nfse').upsert([baseRecord]);
+      if (error) {
+        alert('Erro ao salvar NFS-e na nuvem: ' + error.message);
+        return;
+      }
+    }
+
+    setNfseList(prev => {
+      const exists = prev.some(n => n.id === nfseId);
+      return exists ? prev.map(n => (n.id === nfseId ? baseRecord : n)) : [baseRecord, ...prev];
+    });
+
+    setShowNfseModal(false);
+    setEditingNfse(null);
+
+    if (emitNow) {
+      await handleEmitirNfseApi(baseRecord, {
+        codigoNbs: nfseForm.codigo_nbs || '1.1806.40.00',
+        opSimpNac: nfseForm.regime_tributario || '3',
+        issRetido: Boolean(nfseForm.iss_retido)
+      });
+    } else {
+      showToast('Rascunho de NFS-e salvo na nuvem!');
+    }
+  };
+
+  const handleEmitirNfseApi = async (record, extra = {}) => {
+    if (!record.cliente_documento) {
+      alert('Informe o CNPJ/CPF do cliente antes de transmitir a NFS-e.');
+      return;
+    }
+    setEmittingNfseId(record.id);
+    try {
+      const nextNum = Math.max(26, ...nfseList.map(n => parseInt(n.numero || '0', 10) || 0)) + 1;
+      const res = await fetch('/api/emitir-nfse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ambiente: record.ambiente || 'homologacao',
+          numeroDps: String(nextNum),
+          serieDps: '1',
+          prestador: {
+            cnpj: '64904070000157',
+            codigoIbge: '5107602',
+            opSimpNac: extra.opSimpNac || '3',
+            regApTribSN: '1'
+          },
+          tomador: {
+            nome: record.cliente_nome,
+            documento: record.cliente_documento,
+            email: record.cliente_email
+          },
+          servico: {
+            codigoServico: record.codigo_servico || '17.01.01',
+            codigoNbs: extra.codigoNbs || '1.1806.40.00',
+            descricao: record.descricao_servico,
+            valor: Number(record.valor || 0),
+            aliquotaIss: Number(record.aliquota_iss || 0),
+            issRetido: Boolean(extra.issRetido),
+            dataCompetencia: record.data_emissao
+          }
+        })
+      });
+
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out.ok) {
+        const errMsg = out.error || `Falha HTTP ${res.status}`;
+        const failedRecord = { ...record, status: 'Erro', mensagem_erro: errMsg };
+        setNfseList(prev => prev.map(n => (n.id === record.id ? failedRecord : n)));
+        if (supabase) await supabase.from('nfse').upsert([failedRecord]);
+        alert('Não foi possível emitir a NFS-e:\n\n' + errMsg);
+        return;
+      }
+
+      const okRecord = {
+        ...record,
+        numero: out.numero || String(nextNum),
+        chave_acesso: out.chaveAcesso || '',
+        pdf_url: out.pdfUrl || '',
+        xml_retorno: out.xmlRetorno || '',
+        status: 'Autorizada',
+        mensagem_erro: ''
+      };
+      setNfseList(prev => prev.map(n => (n.id === record.id ? okRecord : n)));
+      if (supabase) await supabase.from('nfse').upsert([okRecord]);
+      showToast(`NFS-e nº ${okRecord.numero} autorizada com sucesso!`);
+    } catch (err) {
+      alert('Erro de conexão com /api/emitir-nfse: ' + err.message);
+    } finally {
+      setEmittingNfseId(null);
+    }
+  };
+
+  const confirmDeleteNfse = async () => {
+    if (!deleteNfseTarget) return;
+    const id = deleteNfseTarget.id;
+    setNfseList(prev => prev.filter(n => n.id !== id));
+    if (supabase) {
+      const { error } = await supabase.from('nfse').delete().eq('id', id);
+      if (error) {
+        alert('Erro ao excluir na nuvem: ' + error.message);
+        return;
+      }
+    }
+    showToast('Registro de NFS-e excluído!');
+    setDeleteNfseTarget(null);
+  };
+
+
   const handleSaveCondicionante = async (e) => {
     e.preventDefault();
     if (!condForm.client || !condForm.service) {
@@ -2840,6 +3025,39 @@ export default function App() {
     }
     return list;
   }, [prospeccoes, prospSearch, prospStatusFilter, prospDateFrom, prospDateTo, sortField, sortDirection]);
+
+  const filteredNfse = useMemo(() => {
+    const q = nfseSearch.toLowerCase();
+    const list = nfseList.filter((n) => {
+      const matchSearch =
+        (n.cliente_nome || '').toLowerCase().includes(q) ||
+        (n.cliente_documento || '').toLowerCase().includes(q) ||
+        (n.numero || '').toLowerCase().includes(q) ||
+        (n.descricao_servico || '').toLowerCase().includes(q) ||
+        (n.codigo_servico || '').toLowerCase().includes(q);
+      const matchStatus = nfseStatusFilter === 'Todos' || n.status === nfseStatusFilter;
+      const d = String(n.data_emissao || '').slice(0, 10);
+      const matchDate =
+        (!nfseDateFrom && !nfseDateTo) ||
+        (Boolean(d) && (!nfseDateFrom || d >= nfseDateFrom) && (!nfseDateTo || d <= nfseDateTo));
+      return matchSearch && matchStatus && matchDate;
+    });
+    if (sortField) {
+      list.sort((a, b) => {
+        if (sortField === 'valor') {
+          return sortDirection === 'asc' ? Number(a.valor || 0) - Number(b.valor || 0) : Number(b.valor || 0) - Number(a.valor || 0);
+        }
+        let vA = String(a[sortField] || '').toLowerCase();
+        let vB = String(b[sortField] || '').toLowerCase();
+        if (vA < vB) return sortDirection === 'asc' ? -1 : 1;
+        if (vA > vB) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    } else {
+      list.sort((a, b) => String(b.data_emissao || '').localeCompare(String(a.data_emissao || '')));
+    }
+    return list;
+  }, [nfseList, nfseSearch, nfseStatusFilter, nfseDateFrom, nfseDateTo, sortField, sortDirection]);
 
   const buildCtrlList = (items, search, statusF, from, to) => {
     const q = search.toLowerCase();
@@ -4890,6 +5108,258 @@ export default function App() {
               {activeTab === 'condicionantes' && renderCtrlTab('cond')}
               {activeTab === 'pendencias' && renderCtrlTab('pend')}
 
+              {activeTab === 'nfse' && (() => {
+                const todayISO = new Date().toISOString().split('T')[0];
+                const exportHeaders = ['Nº NFS-e', 'Data', 'Ambiente', 'Cliente', 'CNPJ/CPF', 'Cód. Serviço', 'ISS %', 'Valor', 'Status'];
+                const exportRows = filteredNfse.map((n) => [
+                  n.numero || '—',
+                  formatDateBR(n.data_emissao),
+                  n.ambiente === 'producao' ? 'Produção' : 'Homologação',
+                  n.cliente_nome || '—',
+                  n.cliente_documento || '—',
+                  n.codigo_servico || '—',
+                  `${Number(n.aliquota_iss || 0).toFixed(2)}%`,
+                  formatCurrency(n.valor),
+                  n.status || 'Rascunho'
+                ]);
+                const nfseCols = [
+                  { key: 'numero', label: 'Nº NFS-e', sortKey: 'numero', align: 'left', render: (n) => <td key="numero" className="py-3 px-3 font-mono font-bold text-[#1B3B2B] whitespace-nowrap">{n.numero || 'Rascunho'}</td> },
+                  { key: 'data_emissao', label: 'Data', sortKey: 'data_emissao', align: 'left', render: (n) => <td key="data_emissao" className="py-3 px-3 font-mono whitespace-nowrap">{formatDateBR(n.data_emissao)}</td> },
+                  { key: 'cliente_nome', label: 'Cliente / Tomador', sortKey: 'cliente_nome', align: 'left', render: (n) => (
+                    <td key="cliente_nome" className="py-3 px-3">
+                      <div className="font-bold text-slate-900">{n.cliente_nome}</div>
+                      {n.cliente_documento && <div className="text-[11px] font-mono text-slate-500">{n.cliente_documento}</div>}
+                    </td>
+                  ) },
+                  { key: 'codigo_servico', label: 'Cód. Serviço / ISS', sortKey: 'codigo_servico', align: 'left', render: (n) => (
+                    <td key="codigo_servico" className="py-3 px-3 whitespace-nowrap">
+                      <div className="font-mono font-bold text-slate-700">{n.codigo_servico || '17.01.01'}</div>
+                      <div className="text-[10px] text-slate-500">ISS: {Number(n.aliquota_iss || 0).toFixed(2)}% • {n.ambiente === 'producao' ? 'Produção' : 'Homologação'}</div>
+                    </td>
+                  ) },
+                  { key: 'descricao_servico', label: 'Descrição', sortKey: 'descricao_servico', align: 'left', render: (n) => (
+                    <td key="descricao_servico" className="py-3 px-3 text-slate-600 max-w-xs">
+                      <div className="truncate" title={n.descricao_servico}>{n.descricao_servico}</div>
+                      {n.mensagem_erro && <div className="text-[10px] text-rose-600 font-semibold mt-0.5 truncate" title={n.mensagem_erro}>{n.mensagem_erro}</div>}
+                    </td>
+                  ) },
+                  { key: 'valor', label: 'Valor', sortKey: 'valor', align: 'right', render: (n) => <td key="valor" className="py-3 px-3 text-right font-extrabold text-[#1B3B2B] whitespace-nowrap">{formatCurrency(n.valor)}</td> },
+                  { key: 'status', label: 'Status', sortKey: 'status', align: 'center', render: (n) => (
+                    <td key="status" className="py-3 px-3 text-center whitespace-nowrap">
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase border ${getNfseStatusBadgeClass(n.status)}`}>
+                        {n.status || 'Rascunho'}
+                      </span>
+                    </td>
+                  ) }
+                ];
+                const orderedNfseCols = getOrderedColumns('nfse', nfseCols);
+
+                return (
+                  <div className="space-y-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <h2 className="text-2xl sm:text-3xl font-extrabold text-[#1B3B2B] tracking-tight">
+                          Notas Fiscais de Serviço (NFS-e Nacional)
+                        </h2>
+                        <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+                          Emissão direta gratuita via Portal Nacional • Rondonópolis — MT (CNPJ 64.904.070/0001-57)
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="relative flex-1 min-w-[240px]">
+                          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                          <input
+                            type="text"
+                            value={nfseSearch}
+                            onChange={(e) => setNfseSearch(e.target.value)}
+                            placeholder="Buscar por nº, cliente, CNPJ/CPF, código ou descrição..."
+                            className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
+                          />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <select
+                            value={nfseStatusFilter}
+                            onChange={(e) => setNfseStatusFilter(e.target.value)}
+                            className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white text-[#1B3B2B] cursor-pointer"
+                          >
+                            <option value="Todos">Status: Todos</option>
+                            <option value="Rascunho">Rascunho</option>
+                            <option value="Autorizada">Autorizada</option>
+                            <option value="Erro">Erro</option>
+                            <option value="Cancelada">Cancelada</option>
+                          </select>
+                          {renderColumnOrganizerButton('nfse')}
+                          <ExportButtons
+                            onPDF={() => exportTableToPDF({
+                              title: 'Relatório de Notas Fiscais (NFS-e)',
+                              subtitle: (nfseDateFrom || nfseDateTo) ? `Período: ${nfseDateFrom ? formatDateBR(nfseDateFrom) : '...'} até ${nfseDateTo ? formatDateBR(nfseDateTo) : '...'}` : 'Todas as notas filtradas',
+                              headers: exportHeaders,
+                              rows: exportRows,
+                              orientation: 'landscape',
+                              params
+                            })}
+                            onExcel={() => {
+                              exportTableToExcel('Notas_Fiscais_NFSe_GrupoMartins', exportHeaders, exportRows);
+                              showToast('Planilha de NFS-e exportada!');
+                            }}
+                          />
+                          {hasPermission('nfse', 'create') && (
+                            <button
+                              onClick={() => {
+                                setEditingNfse(null);
+                                setNfseForm({
+                                  ambiente: 'homologacao',
+                                  data_emissao: todayISO,
+                                  cliente_nome: '',
+                                  cliente_documento: '',
+                                  cliente_email: '',
+                                  codigo_servico: '17.01.01',
+                                  codigo_nbs: '1.1806.40.00',
+                                  regime_tributario: '3',
+                                  aliquota_iss: '0',
+                                  iss_retido: false,
+                                  valor: '',
+                                  descricao_servico: 'Referente a Serviços Ambientais. Chave PIX: 64.904.070/0001-57 Martins Soluções Ambientais e Segurança do Trabalho Banco Santander',
+                                  contract_id: ''
+                                });
+                                setShowNfseModal(true);
+                              }}
+                              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1B3B2B] text-white hover:bg-[#2D5A43] shadow-sm cursor-pointer"
+                            >
+                              <Plus className="w-4 h-4" /> Nova NFS-e
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs">
+                        <span className="font-bold text-slate-600 flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5 text-[#1B3B2B]" /> Data de Emissão:
+                        </span>
+                        <input type="date" value={nfseDateFrom} max={nfseDateTo || undefined} onChange={(e) => setNfseDateFrom(e.target.value)} className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold cursor-pointer" />
+                        <span className="text-slate-500 font-semibold">até</span>
+                        <input type="date" value={nfseDateTo} min={nfseDateFrom || undefined} onChange={(e) => setNfseDateTo(e.target.value)} className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold cursor-pointer" />
+                        <button
+                          type="button"
+                          onClick={() => { setNfseDateFrom(todayISO); setNfseDateTo(todayISO); }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold border cursor-pointer transition ${
+                            nfseDateFrom === todayISO && nfseDateTo === todayISO
+                              ? 'bg-[#1B3B2B] text-white border-[#1B3B2B]'
+                              : 'bg-[#F8F3EF] text-[#1B3B2B] border-[#D5CFC7] hover:bg-[#EAE3DA]'
+                          }`}
+                        >
+                          Hoje
+                        </button>
+                        {(nfseDateFrom || nfseDateTo || nfseSearch || nfseStatusFilter !== 'Todos') && (
+                          <button type="button" onClick={() => { setNfseDateFrom(''); setNfseDateTo(''); setNfseSearch(''); setNfseStatusFilter('Todos'); }} className="text-rose-600 font-bold hover:underline ml-2 cursor-pointer">
+                            Limpar Filtros
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {renderColumnOrganizerPanel('nfse', nfseCols)}
+
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px]">
+                              {orderedNfseCols.map((col) => (
+                                <th key={col.key} onClick={() => handleSort(col.sortKey)} className={`py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none ${col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : ''}`}>
+                                  <div className={`flex items-center gap-1 ${col.align === 'center' ? 'justify-center' : col.align === 'right' ? 'justify-end' : ''}`}>
+                                    {col.label} {sortField === col.sortKey && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}
+                                  </div>
+                                </th>
+                              ))}
+                              <th className="py-3.5 px-3 text-center">Ações</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {filteredNfse.length === 0 ? (
+                              <tr>
+                                <td colSpan={orderedNfseCols.length + 1} className="py-10 text-center text-slate-400">
+                                  Nenhuma NFS-e registrada. Clique em "Nova NFS-e" para criar um rascunho ou emitir.
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredNfse.map((n) => (
+                                <tr key={n.id} className="hover:bg-slate-50">
+                                  {orderedNfseCols.map((col) => col.render(n))}
+                                  <td className="py-3 px-3 text-center space-x-1 whitespace-nowrap">
+                                    {n.pdf_url && (
+                                      <a
+                                        href={n.pdf_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-bold text-[10px] hover:bg-emerald-200"
+                                        title="Abrir DANFSe (PDF Oficial)"
+                                      >
+                                        <ExternalLink className="w-3 h-3" /> DANFSe
+                                      </a>
+                                    )}
+                                    {n.status !== 'Autorizada' && hasPermission('nfse', 'approve') && (
+                                      <button
+                                        type="button"
+                                        disabled={emittingNfseId === n.id}
+                                        onClick={() => handleEmitirNfseApi(n)}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#1B3B2B] text-white font-bold text-[10px] hover:bg-[#2D5A43] disabled:opacity-50 cursor-pointer"
+                                        title="Transmitir para a API Oficial da NFS-e Nacional"
+                                      >
+                                        <Send className="w-3 h-3" /> {emittingNfseId === n.id ? 'Emitindo...' : 'Emitir'}
+                                      </button>
+                                    )}
+                                    {n.status !== 'Autorizada' && hasPermission('nfse', 'edit') && (
+                                      <button
+                                        onClick={() => {
+                                          setEditingNfse(n);
+                                          setNfseForm({
+                                            ambiente: n.ambiente || 'homologacao',
+                                            data_emissao: String(n.data_emissao || todayISO).slice(0, 10),
+                                            cliente_nome: n.cliente_nome || '',
+                                            cliente_documento: n.cliente_documento || '',
+                                            cliente_email: n.cliente_email || '',
+                                            codigo_servico: n.codigo_servico || '17.01.01',
+                                            codigo_nbs: '1.1806.40.00',
+                                            regime_tributario: '3',
+                                            aliquota_iss: String(n.aliquota_iss ?? '0'),
+                                            iss_retido: false,
+                                            valor: String(n.valor || ''),
+                                            descricao_servico: n.descricao_servico || '',
+                                            contract_id: n.contract_id || ''
+                                          });
+                                          setShowNfseModal(true);
+                                        }}
+                                        className="p-1.5 rounded-lg text-teal-700 hover:bg-teal-50 cursor-pointer"
+                                        title="Editar Rascunho"
+                                      >
+                                        <Edit3 className="w-4 h-4 inline" />
+                                      </button>
+                                    )}
+                                    {hasPermission('nfse', 'delete') && (
+                                      <button
+                                        onClick={() => setDeleteNfseTarget(n)}
+                                        className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                        title="Excluir"
+                                      >
+                                        <Trash2 className="w-4 h-4 inline" />
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {activeTab === 'acessos' && (
                 <div className="space-y-6">
                   <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
@@ -6650,6 +7120,222 @@ export default function App() {
             <div className="flex justify-center gap-2 pt-2">
               <button onClick={() => setDeleteProspTarget(null)} className="px-4 py-2 rounded-xl border font-bold text-xs text-slate-600 cursor-pointer">Cancelar</button>
               <button onClick={confirmDeleteProspeccao} className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer">Sim, Excluir</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {/* 16. MODAL NOVA / EDITAR NFS-e */}
+      {showNfseModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-[#1B3B2B] max-h-[92vh] overflow-y-auto">
+            <div className="bg-[#1B3B2B] text-white px-6 py-4 flex items-center justify-between">
+              <h3 className="text-base font-extrabold">{editingNfse ? 'Editar Rascunho de NFS-e' : 'Nova Nota Fiscal de Serviço (NFS-e)'}</h3>
+              <button onClick={() => { setShowNfseModal(false); setEditingNfse(null); }} className="text-white hover:text-emerald-300 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={(e) => handleSaveNfse(e, false)} className="p-6 space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">AMBIENTE</label>
+                  <select
+                    value={nfseForm.ambiente}
+                    onChange={(e) => setNfseForm({ ...nfseForm, ambiente: e.target.value })}
+                    className="w-full px-3 py-2.5 rounded-xl border font-bold bg-white text-[#1B3B2B] cursor-pointer"
+                  >
+                    <option value="homologacao">Homologação (Teste)</option>
+                    <option value="producao">Produção (Validade Fiscal)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">DATA DE COMPETÊNCIA</label>
+                  <input
+                    type="date"
+                    value={nfseForm.data_emissao}
+                    onChange={(e) => setNfseForm({ ...nfseForm, data_emissao: e.target.value })}
+                    className="w-full px-3 py-2.5 rounded-xl border font-bold"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">VALOR DO SERVIÇO (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={nfseForm.valor}
+                    onChange={(e) => setNfseForm({ ...nfseForm, valor: e.target.value })}
+                    placeholder="2000.00"
+                    className="w-full px-3 py-2.5 rounded-xl border font-black text-[#1B3B2B]"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">CLIENTE / TOMADOR (SELECIONE DO CRM OU DIGITE)</label>
+                <input
+                  type="text"
+                  list="client-list-nfse"
+                  value={nfseForm.cliente_nome}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const found = clients.find(c => c.name === val);
+                    setNfseForm(prev => ({
+                      ...prev,
+                      cliente_nome: val,
+                      cliente_documento: found?.document || prev.cliente_documento,
+                      cliente_email: found?.email || prev.cliente_email
+                    }));
+                  }}
+                  placeholder="Razão social ou nome do cliente..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-slate-800"
+                  required
+                />
+                <datalist id="client-list-nfse">
+                  {clients.map(cli => <option key={cli.id} value={cli.name} />)}
+                </datalist>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">CNPJ / CPF DO CLIENTE</label>
+                  <input
+                    type="text"
+                    value={nfseForm.cliente_documento}
+                    onChange={(e) => setNfseForm({ ...nfseForm, cliente_documento: e.target.value })}
+                    placeholder="00.000.000/0000-00"
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-mono font-bold"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">E-MAIL DO CLIENTE (OPCIONAL)</label>
+                  <input
+                    type="email"
+                    value={nfseForm.cliente_email}
+                    onChange={(e) => setNfseForm({ ...nfseForm, cliente_email: e.target.value })}
+                    placeholder="financeiro@cliente.com.br"
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-[#F4F9F5] border border-[#B7DFC5] space-y-3">
+                <div className="text-[10px] font-extrabold uppercase text-[#1B3B2B]">
+                  Parâmetros Fiscais (Editáveis por Nota)
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 uppercase mb-1">CÓD. SERVIÇO</label>
+                    <input
+                      type="text"
+                      value={nfseForm.codigo_servico}
+                      onChange={(e) => setNfseForm({ ...nfseForm, codigo_servico: e.target.value })}
+                      placeholder="17.01.01"
+                      className="w-full px-3 py-2 rounded-lg border bg-white font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 uppercase mb-1">CÓD. NBS</label>
+                    <input
+                      type="text"
+                      value={nfseForm.codigo_nbs}
+                      onChange={(e) => setNfseForm({ ...nfseForm, codigo_nbs: e.target.value })}
+                      placeholder="1.1806.40.00"
+                      className="w-full px-3 py-2 rounded-lg border bg-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 uppercase mb-1">REGIME TRIBUTÁRIO</label>
+                    <select
+                      value={nfseForm.regime_tributario}
+                      onChange={(e) => setNfseForm({ ...nfseForm, regime_tributario: e.target.value })}
+                      className="w-full px-2.5 py-2 rounded-lg border bg-white font-bold cursor-pointer"
+                    >
+                      <option value="3">Simples Nacional (ME/EPP)</option>
+                      <option value="2">MEI</option>
+                      <option value="1">Não Optante (LP/LR)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 uppercase mb-1">ALÍQUOTA ISS (%)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={nfseForm.aliquota_iss}
+                      onChange={(e) => setNfseForm({ ...nfseForm, aliquota_iss: e.target.value })}
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 rounded-lg border bg-white font-bold"
+                    />
+                  </div>
+                </div>
+                <label className="inline-flex items-center gap-2 cursor-pointer font-bold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={nfseForm.iss_retido}
+                    onChange={(e) => setNfseForm({ ...nfseForm, iss_retido: e.target.checked })}
+                    className="w-4 h-4 rounded text-[#1B3B2B]"
+                  />
+                  ISS Retido pelo Tomador
+                </label>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">DESCRIÇÃO DO SERVIÇO</label>
+                <textarea
+                  value={nfseForm.descricao_servico}
+                  onChange={(e) => setNfseForm({ ...nfseForm, descricao_servico: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border h-24 resize-none"
+                  required
+                />
+              </div>
+
+              <div className="flex flex-wrap justify-end gap-2.5 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => { setShowNfseModal(false); setEditingNfse(null); }}
+                  className="px-4 py-2.5 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl border border-[#1B3B2B] text-[#1B3B2B] font-extrabold hover:bg-[#F8F3EF] cursor-pointer"
+                >
+                  Salvar Rascunho
+                </button>
+                {hasPermission('nfse', 'approve') && (
+                  <button
+                    type="button"
+                    onClick={(e) => handleSaveNfse(e, true)}
+                    className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#1B3B2B] text-white font-extrabold hover:bg-[#2D5A43] shadow-md cursor-pointer"
+                  >
+                    <Send className="w-3.5 h-3.5" /> Salvar &amp; Emitir NFS-e
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 17. MODAL EXCLUIR NFS-e */}
+      {deleteNfseTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl border border-rose-200">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-extrabold text-rose-700">Excluir NFS-e?</h3>
+            <p className="text-xs text-slate-600">
+              Deseja realmente remover o registro de NFS-e de <strong>{deleteNfseTarget.cliente_nome}</strong>?
+            </p>
+            <div className="flex justify-center gap-2 pt-2">
+              <button onClick={() => setDeleteNfseTarget(null)} className="px-4 py-2 rounded-xl border font-bold text-xs text-slate-600 cursor-pointer">Cancelar</button>
+              <button onClick={confirmDeleteNfse} className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md cursor-pointer">Sim, Excluir</button>
             </div>
           </div>
         </div>
