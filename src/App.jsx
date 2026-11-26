@@ -119,7 +119,7 @@ const GrupoMartinsLogo = ({ size = 'md', theme = 'cream', className = '' }) => {
           />
           <path d="M75 50 L64 55" stroke={bgBadge} strokeWidth="2.2" strokeLinecap="round" />
         </svg>
-        <div className="leading-tight overflow-hidden">
+        ="leading-tight overflow-hidden">
           <div
             className="text-[9px] tracking-[0.28em] font-semibold uppercase"
             style={{ color: secondaryColor }}
@@ -190,7 +190,7 @@ const GrupoMartinsLogo = ({ size = 'md', theme = 'cream', className = '' }) => {
         <path d="M91 59 L77 66" stroke="#F8F3EF" strokeWidth="2.4" strokeLinecap="round" />
       </svg>
 
-      <div className="flex items-center gap-2.5 mt-1.5 w-full justify-center">
+      ="flex items-center gap-2.5 mt-1.5 w-full justify-center">
         <span className="h-[1px] w-8 bg-[#2D5A43]" />
         <span className="text-[10px] tracking-[0.35em] font-semibold text-[#1B3B2B]">
           GRUPO
@@ -207,8 +207,8 @@ const GrupoMartinsLogo = ({ size = 'md', theme = 'cream', className = '' }) => {
         MARTINS
       </div>
 
-      <div className="flex items-center justify-center gap-2.5 mt-2.5 pt-2 border-t border-[#DFD8CE] w-full">
-        <div className="flex items-center gap-1.5 text-left">
+      ="flex items-center justify-center gap-2.5 mt-2.5 pt-2 border-t border-[#DFD8CE] w-full">
+        ="flex items-center gap-1.5 text-left">
           <svg viewBox="0 0 32 32" className="w-5 h-5 shrink-0">
             <path
               d="M16 28 L16 16 M16 22 C10 22, 5 17, 6 10 C12 10, 16 15, 16 22 Z"
@@ -7900,14 +7900,10 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-[#F4F9F5] border border-[#B7DFC5] space-y-3">
-                <div className="text-[10px] font-extrabold uppercase text-[#1B3B2B]">
-<div className="p-3.5 rounded-xl bg-[#F4F9F5] border border-[#B7DFC5] space-y-3">
+            <div className="p-3.5 rounded-xl bg-[#F4F9F5] border border-[#B7DFC5] space-y-3">
                 <div className="text-[10px] font-extrabold uppercase text-[#1B3B2B]">
                   Parâmetros Fiscais (Editáveis por Nota)
                 </div>
-
-                <div>
                   <label className="block font-bold text-slate-700 uppercase mb-1">
                     ESCOLHER SERVIÇO / CNAE (PREENCHE CÓD. SERVIÇO E NBS)
                   </label>
