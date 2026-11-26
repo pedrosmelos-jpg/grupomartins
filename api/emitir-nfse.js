@@ -96,8 +96,19 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
     throw new Error('Documento do tomador inválido: informe CPF (11 dígitos) ou CNPJ (14 dígitos).');
   }
 
-  const cMunTomador = onlyDigits(tomador.codigoMunicipio || tomador.codigoIbge || '');
-  const cepTomador = onlyDigits(tomador.cep || '');
+  const opSimpNac = String(prestador.opSimpNac || '3');
+  const regApTribSN = String(prestador.regApTribSN || '1');
+  const tpRetISSQN = String(servico.issRetido ? '2' : '1');
+
+  const rawMunTomador = onlyDigits(tomador.codigoMunicipio || tomador.codigoIbge || '');
+  const rawCepTomador = onlyDigits(tomador.cep || '');
+  const exigirEndNac = tpRetISSQN === '2';
+
+  const cMunTomador =
+    rawMunTomador.length === 7 ? rawMunTomador : exigirEndNac ? cLocEmi : '';
+  const cepTomador =
+    rawCepTomador.length === 8 ? rawCepTomador : exigirEndNac ? '78700000' : '';
+
   const hasEndNac = cMunTomador.length === 7 || cepTomador.length === 8;
 
   const endNacInner = [
@@ -107,11 +118,15 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
     .filter(Boolean)
     .join('\n          ');
 
+  const xLgrVal = tomador.logradouro || (exigirEndNac ? 'Nao informado' : '');
+  const nroVal = tomador.numero ? String(tomador.numero) : exigirEndNac ? 'S/N' : '';
+  const xBairroVal = tomador.bairro || (exigirEndNac ? 'Centro' : '');
+
   const endTomadorXml = hasEndNac
     ? `\n      <end>\n        <endNac>\n          ${endNacInner}\n        </endNac>${
-        tomador.logradouro ? `\n        <xLgr>${escapeXml(tomador.logradouro)}</xLgr>` : ''
-      }${tomador.numero ? `\n        <nro>${escapeXml(String(tomador.numero))}</nro>` : ''}${
-        tomador.bairro ? `\n        <xBairro>${escapeXml(tomador.bairro)}</xBairro>` : ''
+        xLgrVal ? `\n        <xLgr>${escapeXml(xLgrVal)}</xLgr>` : ''
+      }${nroVal ? `\n        <nro>${escapeXml(nroVal)}</nro>` : ''}${
+        xBairroVal ? `\n        <xBairro>${escapeXml(xBairroVal)}</xBairro>` : ''
       }\n      </end>`
     : '';
 
@@ -127,10 +142,6 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
     .replace(/\s{2,}/g, ' ')
     .trim()
     .slice(0, 2000);
-
-  const opSimpNac = String(prestador.opSimpNac || '3');
-  const regApTribSN = String(prestador.regApTribSN || '1');
-  const tpRetISSQN = String(servico.issRetido ? '2' : '1');
 
   const imDigits = onlyDigits(prestador.inscricaoMunicipal || '');
   const imTag = imDigits ? `\n      <IM>${escapeXml(imDigits)}</IM>` : '';
