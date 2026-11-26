@@ -1534,10 +1534,15 @@ export default function App() {
   };
 
   const handleMoveTab = (tabId, dir) => {
-    const fullIds = getOrderedNavItems(navItems).map(i => i.id);
-    const idx = fullIds.indexOf(tabId);
-    const nextIdx = dir === 'up' ? idx - 1 : idx + 1;
-    const updated = reorderArray(fullIds, idx, nextIdx);
+    const ordered = getOrderedNavItems(navItems);
+    const visible = ordered.filter((i) => hasPermission(i.permKey, 'view'));
+    const visIdx = visible.findIndex((i) => i.id === tabId);
+    const targetVisIdx = dir === 'up' ? visIdx - 1 : visIdx + 1;
+    if (visIdx < 0 || targetVisIdx < 0 || targetVisIdx >= visible.length) return;
+    const fullIds = ordered.map((i) => i.id);
+    const fromIdx = fullIds.indexOf(tabId);
+    const toIdx = fullIds.indexOf(visible[targetVisIdx].id);
+    const updated = reorderArray(fullIds, fromIdx, toIdx);
     if (updated === fullIds) return;
     setTabOrder(updated);
     persistLayoutSettings(updated, columnOrders);
@@ -3098,10 +3103,11 @@ export default function App() {
           )}
 
           <nav className="mt-3 px-3 space-y-1">
-            {getOrderedNavItems(navItems).map((item, idx, arr) => {
+            {getOrderedNavItems(navItems)
+              .filter((item) => hasPermission(item.permKey, 'view'))
+              .map((item, idx, arr) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
-              const allowed = hasPermission(item.permKey, 'view');
               return (
                 <div
                   key={item.id}
@@ -3121,36 +3127,24 @@ export default function App() {
                     type="button"
                     onClick={() => {
                       if (editingTabOrder) return;
-                      if (!allowed) {
-                        showToast(`Módulo "${item.label}" bloqueado para o perfil "${currentRole.name}".`);
-                        return;
-                      }
                       setActiveTab(item.id);
                       setMobileMenuOpen(false);
                     }}
                     className={`flex-1 min-w-0 flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all ${
-                      isActive && allowed && !editingTabOrder
+                      isActive && !editingTabOrder
                         ? 'bg-[#F8F3EF] text-[#1B3B2B] font-bold shadow-md'
-                        : allowed
-                        ? `text-emerald-100/85 ${editingTabOrder ? 'cursor-grab active:cursor-grabbing' : 'hover:bg-[#244B38] hover:text-white cursor-pointer'}`
-                        : 'text-emerald-200/40 cursor-not-allowed'
+                        : `text-emerald-100/85 ${editingTabOrder ? 'cursor-grab active:cursor-grabbing' : 'hover:bg-[#244B38] hover:text-white cursor-pointer'}`
                     }`}
                   >
                     <div className="flex items-center gap-2.5 truncate">
                       {editingTabOrder && <GripVertical className="w-3.5 h-3.5 text-emerald-300 shrink-0" />}
-                      <Icon className={`w-4 h-4 shrink-0 ${isActive && allowed && !editingTabOrder ? 'text-[#1B3B2B]' : allowed ? 'text-emerald-300' : 'text-emerald-600'}`} />
+                      <Icon className={`w-4 h-4 shrink-0 ${isActive && !editingTabOrder ? 'text-[#1B3B2B]' : 'text-emerald-300'}`} />
                       <span className="truncate">{item.label}</span>
                     </div>
-                    {!editingTabOrder && (
-                      !allowed ? (
-                        <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                      ) : (
-                        item.badge !== undefined && (
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${isActive ? 'bg-[#1B3B2B] text-[#F8F3EF]' : 'bg-[#2D5A43] text-emerald-200'}`}>
-                            {item.badge}
-                          </span>
-                        )
-                      )
+                    {!editingTabOrder && item.badge !== undefined && (
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${isActive ? 'bg-[#1B3B2B] text-[#F8F3EF]' : 'bg-[#2D5A43] text-emerald-200'}`}>
+                        {item.badge}
+                      </span>
                     )}
                   </button>
                   {editingTabOrder && (
