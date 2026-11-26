@@ -5917,10 +5917,10 @@ export default function App() {
   <button
     type="button"
     onClick={() => {
-      if (n.chave_acesso) {
-        abrirDanfseOficial(n.chave_acesso, n.ambiente === 'producao' ? '1' : '2');
-      } else if (n.xml_retorno) {
-        openLocalDanfsePrint(n, params);
+      if (n.xml_retorno) {
+        openOfficialDanfsePrint(n, params);
+      } else if (n.chave_acesso && n.ambiente === 'producao') {
+        abrirDanfseOficial(n.chave_acesso, '1');
       } else if (n.pdf_url) {
         window.open(n.pdf_url, '_blank', 'noopener,noreferrer');
       }
