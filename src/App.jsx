@@ -2884,14 +2884,21 @@ export default function App() {
       client: '', service: '', dueDate: new Date().toISOString().split('T')[0],
       license: '', responsible: '', observation: '', status: statuses[0] || 'EM ANDAMENTO'
     });
-    const cols = [
-      ['client', 'Nome do Cliente'],
-      ['service', isPend ? 'Pendência / Serviço' : 'Condicionantes / Serviço'],
-      ['duedate', 'Vencimento Final'],
-      ['license', 'Licença'],
-      ['responsible', 'Responsável - Empresa'],
-      ['observation', 'Observação']
+    const tableKey = isPend ? 'pendencias' : 'condicionantes';
+    const ctrlColDefs = [
+      { key: 'client', label: 'Nome do Cliente', sortKey: 'client', thClass: '', render: (row) => <td key="client" className="py-3 px-3 font-bold text-slate-900">{row.client}</td> },
+      { key: 'service', label: isPend ? 'Pendência / Serviço' : 'Condicionantes / Serviço', sortKey: 'service', thClass: '', render: (row) => <td key="service" className="py-3 px-3 text-slate-700 max-w-xs">{row.service}</td> },
+      { key: 'duedate', label: 'Vencimento Final', sortKey: 'duedate', thClass: '', render: (row) => <td key="duedate" className="py-3 px-3 font-mono">{row.dueDate || row.duedate}</td> },
+      { key: 'license', label: 'Licença', sortKey: 'license', thClass: '', render: (row) => <td key="license" className="py-3 px-3 font-semibold">{row.license}</td> },
+      { key: 'responsible', label: 'Responsável - Empresa', sortKey: 'responsible', thClass: '', render: (row) => <td key="responsible" className="py-3 px-3 font-bold text-slate-700">{row.responsible}</td> },
+      { key: 'observation', label: 'Observação', sortKey: 'observation', thClass: '', render: (row) => <td key="observation" className="py-3 px-3 text-slate-500 max-w-xs truncate">{row.observation || '—'}</td> },
+      { key: 'status', label: 'Status', sortKey: 'status', thClass: 'text-center', align: 'center', render: (row) => (
+        <td key="status" className="py-3 px-3 text-center">
+          <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${getCtrlStatusBadgeClass(row.status)}`}>{row.status}</span>
+        </td>
+      ) }
     ];
+    const orderedCtrlCols = getOrderedColumns(tableKey, ctrlColDefs);
     const SortIcon = ({ f }) => sortField === f ? (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />) : null;
 
     const exportHeaders = ['Cliente', isPend ? 'Pendência / Serviço' : 'Condicionante / Serviço', 'Vencimento Final', 'Licença', 'Responsável', 'Observação', 'Status'];
@@ -2919,6 +2926,7 @@ export default function App() {
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border border-[#1B3B2B] text-[#1B3B2B] hover:bg-[#F8F3EF] cursor-pointer">
                 <Plus className="w-4 h-4" /> {showCtrlStatusMgr ? 'Fechar Status' : 'Cadastrar / Editar Status'}
               </button>
+              {renderColumnOrganizerButton(tableKey)}
               <ExportButtons
                 onPDF={() => exportTableToPDF({ title: isPend ? 'Controle de Pendências' : 'Controle de Condicionantes', subtitle: periodSubtitle, headers: exportHeaders, rows: exportRows, orientation: 'landscape', params })}
                 onExcel={() => { exportTableToExcel(isPend ? 'Controle_Pendencias_GrupoMartins' : 'Controle_Condicionantes_GrupoMartins', exportHeaders, exportRows); showToast('Planilha exportada com sucesso!'); }}
@@ -2978,36 +2986,27 @@ export default function App() {
           )}
         </div>
 
+        {renderColumnOrganizerPanel(tableKey, ctrlColDefs)}
+
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px]">
-                  {cols.map(([f, lbl]) => (
-                    <th key={f} onClick={() => handleSort(f)} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                      <div className="flex items-center gap-1.5">{lbl} <SortIcon f={f} /></div>
+                  {orderedCtrlCols.map((col) => (
+                    <th key={col.key} onClick={() => handleSort(col.sortKey)} className={`py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none ${col.thClass || ''}`}>
+                      <div className={`flex items-center gap-1.5 ${col.align === 'center' ? 'justify-center' : ''}`}>{col.label} <SortIcon f={col.sortKey} /></div>
                     </th>
                   ))}
-                  <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                    <div className="flex items-center justify-center gap-1">Status <SortIcon f="status" /></div>
-                  </th>
                   <th className="py-3.5 px-3 text-center">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {list.length === 0 ? (
-                  <tr><td colSpan="8" className="py-8 text-center text-slate-400">Nenhum registro encontrado.</td></tr>
+                  <tr><td colSpan={orderedCtrlCols.length + 1} className="py-8 text-center text-slate-400">Nenhum registro encontrado.</td></tr>
                 ) : list.map((row) => (
                   <tr key={row.id} className="hover:bg-slate-50">
-                    <td className="py-3 px-3 font-bold text-slate-900">{row.client}</td>
-                    <td className="py-3 px-3 text-slate-700 max-w-xs">{row.service}</td>
-                    <td className="py-3 px-3 font-mono">{row.dueDate || row.duedate}</td>
-                    <td className="py-3 px-3 font-semibold">{row.license}</td>
-                    <td className="py-3 px-3 font-bold text-slate-700">{row.responsible}</td>
-                    <td className="py-3 px-3 text-slate-500 max-w-xs truncate">{row.observation || '—'}</td>
-                    <td className="py-3 px-3 text-center">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${getCtrlStatusBadgeClass(row.status)}`}>{row.status}</span>
-                    </td>
+                    {orderedCtrlCols.map((col) => col.render(row))}
                     <td className="py-3 px-3 text-center space-x-1">
                       {hasPermission(perm, 'edit') && (
                         <button onClick={() => {
@@ -3451,58 +3450,71 @@ export default function App() {
                         <p className="text-sm text-slate-600 mt-0.5">Controle individualizado de retiradas e emissão de recibos oficiais.</p>
                       </div>
                     </div>
-                    <ExportButtons
-                      onPDF={() => {
-                        const list = transactions.filter(t => (t.category || t.planocontas || t.planoContas || '').includes('Pró-Labore'));
-                        const headers = ['Código', 'Data', 'Competência', 'Descrição', 'Status', 'Valor'];
-                        const rows = list.map(tx => [tx.id, formatDateBR(tx.date), `${tx.month}/${selectedDreYear}`, tx.description || '—', tx.status, formatCurrency(tx.amount)]);
-                        exportTableToPDF({ title: `Histórico de Pró-Labore — ${params.socioDiretor}`, subtitle: `Exercício ${selectedDreYear}`, headers, rows, orientation: 'portrait', params });
-                      }}
-                      onExcel={() => {
-                        const list = transactions.filter(t => (t.category || t.planocontas || t.planoContas || '').includes('Pró-Labore'));
-                        const headers = ['Código', 'Data', 'Competência', 'Descrição', 'Status', 'Valor'];
-                        const rows = list.map(tx => [tx.id, formatDateBR(tx.date), `${tx.month}/${selectedDreYear}`, tx.description || '—', tx.status, Number(tx.amount || 0).toFixed(2)]);
-                        exportTableToExcel(`ProLabore_${selectedDreYear}_GrupoMartins`, headers, rows);
-                        showToast('Planilha de Pró-Labore exportada!');
-                      }}
-                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      {renderColumnOrganizerButton('prolabore')}
+                      <ExportButtons
+                        onPDF={() => {
+                          const list = transactions.filter(t => (t.category || t.planocontas || t.planoContas || '').includes('Pró-Labore'));
+                          const headers = ['Código', 'Data', 'Competência', 'Descrição', 'Status', 'Valor'];
+                          const rows = list.map(tx => [tx.id, formatDateBR(tx.date), `${tx.month}/${selectedDreYear}`, tx.description || '—', tx.status, formatCurrency(tx.amount)]);
+                          exportTableToPDF({ title: `Histórico de Pró-Labore — ${params.socioDiretor}`, subtitle: `Exercício ${selectedDreYear}`, headers, rows, orientation: 'portrait', params });
+                        }}
+                        onExcel={() => {
+                          const list = transactions.filter(t => (t.category || t.planocontas || t.planoContas || '').includes('Pró-Labore'));
+                          const headers = ['Código', 'Data', 'Competência', 'Descrição', 'Status', 'Valor'];
+                          const rows = list.map(tx => [tx.id, formatDateBR(tx.date), `${tx.month}/${selectedDreYear}`, tx.description || '—', tx.status, Number(tx.amount || 0).toFixed(2)]);
+                          exportTableToExcel(`ProLabore_${selectedDreYear}_GrupoMartins`, headers, rows);
+                          showToast('Planilha de Pró-Labore exportada!');
+                        }}
+                      />
+                    </div>
                   </div>
 
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="px-6 py-4 bg-[#1B3B2B] text-white">
-                      <h3 className="text-sm font-bold uppercase">Histórico de Saques de Pró-Labore ({selectedDreYear})</h3>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse text-xs sm:text-sm">
-                        <thead>
-                          <tr className="bg-slate-100 text-slate-600 border-b border-slate-200 font-bold uppercase text-xs">
-                            <th className="py-3.5 px-4">Código</th>
-                            <th className="py-3.5 px-4">Data</th>
-                            <th className="py-3.5 px-4">Competência</th>
-                            <th className="py-3.5 px-4">Descrição</th>
-                            <th className="py-3.5 px-4 text-center">Status</th>
-                            <th className="py-3.5 px-4 text-right">Valor</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {transactions.filter(t => (t.category || t.planocontas || t.planoContas || '').includes('Pró-Labore')).map((tx) => (
-                            <tr key={tx.id} className="hover:bg-[#F8F3EF]/50">
-                              <td className="py-3 px-4 font-mono font-bold text-[#1B3B2B]">{tx.id}</td>
-                              <td className="py-3 px-4">{tx.date}</td>
-                              <td className="py-3 px-4 font-bold">{tx.month}/{selectedDreYear}</td>
-                              <td className="py-3 px-4">{tx.description}</td>
-                              <td className="py-3 px-4 text-center">
-                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${tx.status === 'Pago / Recebido' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                                  {tx.status}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 text-right font-extrabold text-[#1B3B2B]">{formatCurrency(tx.amount)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
+                  {(() => {
+                    const prolaboreCols = [
+                      { key: 'id', label: 'Código', thClass: '', render: (tx) => <td key="id" className="py-3 px-4 font-mono font-bold text-[#1B3B2B]">{tx.id}</td> },
+                      { key: 'date', label: 'Data', thClass: '', render: (tx) => <td key="date" className="py-3 px-4">{tx.date}</td> },
+                      { key: 'month', label: 'Competência', thClass: '', render: (tx) => <td key="month" className="py-3 px-4 font-bold">{tx.month}/{selectedDreYear}</td> },
+                      { key: 'description', label: 'Descrição', thClass: '', render: (tx) => <td key="description" className="py-3 px-4">{tx.description}</td> },
+                      { key: 'status', label: 'Status', thClass: 'text-center', render: (tx) => (
+                        <td key="status" className="py-3 px-4 text-center">
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${tx.status === 'Pago / Recebido' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                            {tx.status}
+                          </span>
+                        </td>
+                      ) },
+                      { key: 'amount', label: 'Valor', thClass: 'text-right', render: (tx) => <td key="amount" className="py-3 px-4 text-right font-extrabold text-[#1B3B2B]">{formatCurrency(tx.amount)}</td> }
+                    ];
+                    const orderedProCols = getOrderedColumns('prolabore', prolaboreCols);
+                    return (
+                      <>
+                        {renderColumnOrganizerPanel('prolabore', prolaboreCols)}
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                          <div className="px-6 py-4 bg-[#1B3B2B] text-white">
+                            <h3 className="text-sm font-bold uppercase">Histórico de Saques de Pró-Labore ({selectedDreYear})</h3>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse text-xs sm:text-sm">
+                              <thead>
+                                <tr className="bg-slate-100 text-slate-600 border-b border-slate-200 font-bold uppercase text-xs">
+                                  {orderedProCols.map(col => (
+                                    <th key={col.key} className={`py-3.5 px-4 ${col.thClass}`}>{col.label}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {transactions.filter(t => (t.category || t.planocontas || t.planoContas || '').includes('Pró-Labore')).map((tx) => (
+                                  <tr key={tx.id} className="hover:bg-[#F8F3EF]/50">
+                                    {orderedProCols.map(col => col.render(tx))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -3698,6 +3710,7 @@ export default function App() {
                         />
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
+                        {renderColumnOrganizerButton('lancamentos')}
                         <ExportButtons
                           onPDF={() => {
                             const headers = ['ID', 'Data', 'Tipo', 'Plano', 'Categoria', 'Favorecido / Cliente', 'Descrição', 'Status', 'Valor'];
@@ -3818,69 +3831,63 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
-                            <th onClick={() => handleSort('id')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">ID {sortField === 'id' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th onClick={() => handleSort('date')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Data {sortField === 'date' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th onClick={() => handleSort('type')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Tipo {sortField === 'type' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th onClick={() => handleSort('planocontas')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Plano de Contas {sortField === 'planocontas' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th onClick={() => handleSort('category')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Categoria Detalhada {sortField === 'category' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th onClick={() => handleSort('entity')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Favorecido / Cliente {sortField === 'entity' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th onClick={() => handleSort('description')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Descrição {sortField === 'description' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th onClick={() => handleSort('amount')} className="py-3.5 px-3 text-right cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center justify-end gap-1">Valor {sortField === 'amount' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th className="py-3.5 px-3 text-center">Ações</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {filteredTransactions.length === 0 ? (
-                            <tr>
-                              <td colSpan="10" className="py-8 text-center text-slate-400">Nenhum lançamento encontrado com os filtros atuais.</td>
-                            </tr>
-                          ) : (
-                            filteredTransactions.map((tx) => (
-                              <tr key={tx.id} className="hover:bg-slate-50">
-                                <td className="py-2.5 px-3 font-mono font-bold">{tx.id}</td>
-                                <td className="py-2.5 px-3">{tx.date}</td>
-                                <td className="py-2.5 px-3">
-                                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${tx.type === 'Entrada' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                                    {tx.type}
-                                  </span>
-                                </td>
-                                <td className="py-2.5 px-3 font-mono font-bold text-teal-900">{tx.planocontas || tx.planoContas || '1.1.01'}</td>
-                                <td className="py-2.5 px-3 text-slate-700">{tx.category}</td>
-                                <td className="py-2.5 px-3 font-bold">{tx.entity}</td>
-                                <td className="py-2.5 px-3">{tx.description}</td>
-                                <td className="py-2.5 px-3 text-center">
-                                  <button onClick={() => handleToggleStatus(tx.id)} className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${tx.status === 'Pago / Recebido' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'} cursor-pointer`}>
-                                    {tx.status}
-                                  </button>
-                                </td>
-                                <td className={`py-2.5 px-3 text-right font-extrabold ${tx.type === 'Entrada' ? 'text-emerald-700' : 'text-rose-700'}`}>
-                                  {formatCurrency(tx.amount)}
-                                </td>
-                                <td className="py-2.5 px-3 text-center space-x-2">
+                  {(() => {
+                    const txCols = [
+                      { key: 'id', label: 'ID', sortKey: 'id', align: 'left', render: (tx) => <td key="id" className="py-2.5 px-3 font-mono font-bold">{tx.id}</td> },
+                      { key: 'date', label: 'Data', sortKey: 'date', align: 'left', render: (tx) => <td key="date" className="py-2.5 px-3">{tx.date}</td> },
+                      { key: 'type', label: 'Tipo', sortKey: 'type', align: 'left', render: (tx) => (
+                        <td key="type" className="py-2.5 px-3">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${tx.type === 'Entrada' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                            {tx.type}
+                          </span>
+                        </td>
+                      ) },
+                      { key: 'planocontas', label: 'Plano de Contas', sortKey: 'planocontas', align: 'left', render: (tx) => <td key="planocontas" className="py-2.5 px-3 font-mono font-bold text-teal-900">{tx.planocontas || tx.planoContas || '1.1.01'}</td> },
+                      { key: 'category', label: 'Categoria Detalhada', sortKey: 'category', align: 'left', render: (tx) => <td key="category" className="py-2.5 px-3 text-slate-700">{tx.category}</td> },
+                      { key: 'entity', label: 'Favorecido / Cliente', sortKey: 'entity', align: 'left', render: (tx) => <td key="entity" className="py-2.5 px-3 font-bold">{tx.entity}</td> },
+                      { key: 'description', label: 'Descrição', sortKey: 'description', align: 'left', render: (tx) => <td key="description" className="py-2.5 px-3">{tx.description}</td> },
+                      { key: 'status', label: 'Status', sortKey: 'status', align: 'center', render: (tx) => (
+                        <td key="status" className="py-2.5 px-3 text-center">
+                          <button onClick={() => handleToggleStatus(tx.id)} className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${tx.status === 'Pago / Recebido' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'} cursor-pointer`}>
+                            {tx.status}
+                          </button>
+                        </td>
+                      ) },
+                      { key: 'amount', label: 'Valor', sortKey: 'amount', align: 'right', render: (tx) => (
+                        <td key="amount" className={`py-2.5 px-3 text-right font-extrabold ${tx.type === 'Entrada' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                          {formatCurrency(tx.amount)}
+                        </td>
+                      ) }
+                    ];
+                    const orderedTxCols = getOrderedColumns('lancamentos', txCols);
+                    return (
+                      <>
+                        {renderColumnOrganizerPanel('lancamentos', txCols)}
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse text-xs">
+                              <thead>
+                                <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
+                                  {orderedTxCols.map((col) => (
+                                    <th key={col.key} onClick={() => handleSort(col.sortKey)} className={`py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none ${col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : ''}`}>
+                                      <div className={`flex items-center gap-1 ${col.align === 'center' ? 'justify-center' : col.align === 'right' ? 'justify-end' : ''}`}>
+                                        {col.label} {sortField === col.sortKey && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}
+                                      </div>
+                                    </th>
+                                  ))}
+                                  <th className="py-3.5 px-3 text-center">Ações</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {filteredTransactions.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={orderedTxCols.length + 1} className="py-8 text-center text-slate-400">Nenhum lançamento encontrado com os filtros atuais.</td>
+                                  </tr>
+                                ) : (
+                                  filteredTransactions.map((tx) => (
+                                    <tr key={tx.id} className="hover:bg-slate-50">
+                                      {orderedTxCols.map((col) => col.render(tx))}
+                                      <td className="py-2.5 px-3 text-center space-x-2">
                                   {hasPermission('lancamentos', 'edit') && (
                                     <button
                                       onClick={() => {
@@ -3917,14 +3924,17 @@ export default function App() {
                                       <Trash2 className="w-4 h-4 inline" />
                                     </button>
                                   )}
-                                </td>
-                              </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
+                                      </td>
+                                    </tr>
+                                  ))
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -3999,6 +4009,7 @@ export default function App() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      {renderColumnOrganizerButton('contratos')}
                       <ExportButtons
                         onPDF={() => {
                           const headers = canViewContractValues
@@ -4054,57 +4065,68 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px] tracking-wider">
-                            <th onClick={() => handleSort('id')} className="py-3.5 px-4 cursor-pointer hover:bg-[#244B38] transition select-none">
-                              <div className="flex items-center gap-1">CÓDIGO {sortField === 'id' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th onClick={() => handleSort('client')} className="py-3.5 px-4 cursor-pointer hover:bg-[#244B38] transition select-none">
-                              <div className="flex items-center gap-1">CLIENTE / EMPREENDIMENTO {sortField === 'client' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th onClick={() => handleSort('service')} className="py-3.5 px-4 cursor-pointer hover:bg-[#244B38] transition select-none">
-                              <div className="flex items-center gap-1">PLANO DE CONTAS {sortField === 'service' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th onClick={() => handleSort('agency')} className="py-3.5 px-4 cursor-pointer hover:bg-[#244B38] transition select-none">
-                              <div className="flex items-center gap-1">ÓRGÃO / SETOR {sortField === 'agency' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th className="py-3.5 px-4 text-center">SITUAÇÃO PARCELA</th>
-                            <th onClick={() => handleSort('contractvalue')} className="py-3.5 px-4 text-right cursor-pointer hover:bg-[#244B38] transition select-none">
-                              <div className="flex items-center justify-end gap-1">VALOR CONTRATO {sortField === 'contractvalue' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th className="py-3.5 px-4 text-right">AÇÕES</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {paginatedContracts.length === 0 ? (
-                            <tr>
-                              <td colSpan="7" className="py-10 text-center text-slate-400">
-                                Nenhum contrato cadastrado com os filtros selecionados.
-                              </td>
-                            </tr>
-                          ) : (
-                            paginatedContracts.map((ct) => {
-                              const val = Number(ct.contractvalue || ct.contractValue || 0);
-                              const sitBadge = getInstallmentSituationBadge(ct);
-                              return (
-                                <tr key={ct.id} className="hover:bg-[#F8F3EF]/60 transition-colors">
-                                  <td className="py-4 px-4 font-mono font-medium text-slate-700 whitespace-nowrap">{ct.id}</td>
-                                  <td className="py-4 px-4 font-semibold text-slate-900">{ct.client}</td>
-                                  <td className="py-4 px-4 text-slate-700">{ct.service}</td>
-                                  <td className="py-4 px-4 font-medium text-slate-700 whitespace-nowrap">{ct.agency || 'SEMA-MT'}</td>
-                                  <td className="py-4 px-4 text-center whitespace-nowrap">
-                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border ${sitBadge.className}`}>
-                                      {sitBadge.dotColor && <span className={`w-1.5 h-1.5 rounded-full ${sitBadge.dotColor}`} />}
-                                      {sitBadge.label}
-                                    </span>
-                                  </td>
-                                  <td className="py-4 px-4 text-right font-bold text-slate-900 whitespace-nowrap">
-                                    <MaskedValue show={canViewContractValues} value={formatCurrency(val)} />
-                                  </td>
-                                  <td className="py-4 px-4 text-right whitespace-nowrap">
+                  {(() => {
+                    const ctCols = [
+                      { key: 'id', label: 'CÓDIGO', sortKey: 'id', align: 'left', render: (ct) => <td key="id" className="py-4 px-4 font-mono font-medium text-slate-700 whitespace-nowrap">{ct.id}</td> },
+                      { key: 'client', label: 'CLIENTE / EMPREENDIMENTO', sortKey: 'client', align: 'left', render: (ct) => <td key="client" className="py-4 px-4 font-semibold text-slate-900">{ct.client}</td> },
+                      { key: 'service', label: 'PLANO DE CONTAS', sortKey: 'service', align: 'left', render: (ct) => <td key="service" className="py-4 px-4 text-slate-700">{ct.service}</td> },
+                      { key: 'agency', label: 'ÓRGÃO / SETOR', sortKey: 'agency', align: 'left', render: (ct) => <td key="agency" className="py-4 px-4 font-medium text-slate-700 whitespace-nowrap">{ct.agency || 'SEMA-MT'}</td> },
+                      { key: 'situation', label: 'SITUAÇÃO PARCELA', sortKey: null, align: 'center', render: (ct) => {
+                        const sitBadge = getInstallmentSituationBadge(ct);
+                        return (
+                          <td key="situation" className="py-4 px-4 text-center whitespace-nowrap">
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border ${sitBadge.className}`}>
+                              {sitBadge.dotColor && <span className={`w-1.5 h-1.5 rounded-full ${sitBadge.dotColor}`} />}
+                              {sitBadge.label}
+                            </span>
+                          </td>
+                        );
+                      } },
+                      { key: 'contractvalue', label: 'VALOR CONTRATO', sortKey: 'contractvalue', align: 'right', render: (ct) => {
+                        const val = Number(ct.contractvalue || ct.contractValue || 0);
+                        return (
+                          <td key="contractvalue" className="py-4 px-4 text-right font-bold text-slate-900 whitespace-nowrap">
+                            <MaskedValue show={canViewContractValues} value={formatCurrency(val)} />
+                          </td>
+                        );
+                      } }
+                    ];
+                    const orderedCtCols = getOrderedColumns('contratos', ctCols);
+                    return (
+                      <>
+                        {renderColumnOrganizerPanel('contratos', ctCols)}
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse text-xs">
+                              <thead>
+                                <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px] tracking-wider">
+                                  {orderedCtCols.map((col) => (
+                                    <th
+                                      key={col.key}
+                                      onClick={col.sortKey ? () => handleSort(col.sortKey) : undefined}
+                                      className={`py-3.5 px-4 select-none ${col.sortKey ? 'cursor-pointer hover:bg-[#244B38] transition' : ''} ${col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : ''}`}
+                                    >
+                                      <div className={`flex items-center gap-1 ${col.align === 'center' ? 'justify-center' : col.align === 'right' ? 'justify-end' : ''}`}>
+                                        {col.label}
+                                        {col.sortKey && sortField === col.sortKey && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}
+                                      </div>
+                                    </th>
+                                  ))}
+                                  <th className="py-3.5 px-4 text-right">AÇÕES</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {paginatedContracts.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={orderedCtCols.length + 1} className="py-10 text-center text-slate-400">
+                                      Nenhum contrato cadastrado com os filtros selecionados.
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  paginatedContracts.map((ct) => (
+                                    <tr key={ct.id} className="hover:bg-[#F8F3EF]/60 transition-colors">
+                                      {orderedCtCols.map((col) => col.render(ct))}
+                                      <td className="py-4 px-4 text-right whitespace-nowrap">
                                     <div className="inline-flex items-center justify-end gap-1.5">
                                       <button
                                         onClick={() => setViewingContractInstallments(ct)}
@@ -4150,12 +4172,11 @@ export default function App() {
                                     </div>
                                   </td>
                                 </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
+                                  ))
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
 
                     <div className="px-4 py-3 bg-[#F8F3EF]/50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
                       <div>
@@ -4186,6 +4207,9 @@ export default function App() {
                       </div>
                     </div>
                   </div>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -4201,6 +4225,7 @@ export default function App() {
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                      {renderColumnOrganizerButton('status_tecnico')}
                       <ExportButtons
                         onPDF={() => {
                           const headers = ['Código', 'Cliente / Empreendimento', 'Plano de Contas', 'Órgão / Setor', 'Observação', 'Status Atual'];
@@ -4350,60 +4375,64 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px] tracking-wider">
-                            {[
-                              ['id', 'CÓDIGO', ''],
-                              ['client', 'CLIENTE / EMPREENDIMENTO', ''],
-                              ['service', 'PLANO DE CONTAS', ''],
-                              ['agency', 'ÓRGÃO / SETOR', ''],
-                              ['observation', 'OBSERVAÇÃO', ''],
-                              ['status', 'STATUS ATUAL', 'text-center justify-center']
-                            ].map(([field, label, extra]) => (
-                              <th
-                                key={field}
-                                onClick={() => handleTechSort(field)}
-                                className={`py-3.5 px-4 cursor-pointer hover:bg-[#244B38] transition select-none ${extra.includes('text-center') ? 'text-center' : ''}`}
-                              >
-                                <div className={`flex items-center gap-1 ${extra.includes('justify-center') ? 'justify-center' : ''}`}>
-                                  {label}
-                                  {techSortField === field && (techSortDirection === 'asc'
-                                    ? <ArrowUp className="w-3 h-3 text-emerald-300" />
-                                    : <ArrowDown className="w-3 h-3 text-emerald-300" />)}
-                                </div>
-                              </th>
-                            ))}
-                            <th className="py-3.5 px-4 text-right">ALTERAR STATUS</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {filteredTechnicalContracts.length === 0 ? (
-                            <tr>
-                              <td colSpan="7" className="py-10 text-center text-slate-400">
-                                Nenhum contrato encontrado para o filtro selecionado.
-                              </td>
-                            </tr>
-                          ) : (
-                            filteredTechnicalContracts.map((ct) => {
-                              const currentTechStatus = ct.status || 'Em Andamento';
-                              return (
-                                <tr key={ct.id} className="hover:bg-[#F8F3EF]/60 transition-colors">
-                                  <td className="py-4 px-4 font-mono font-bold text-[#1B3B2B] whitespace-nowrap">{ct.id}</td>
-                                  <td className="py-4 px-4 font-semibold text-slate-900">{ct.client}</td>
-                                  <td className="py-4 px-4 text-slate-700">{ct.service}</td>
-                                  <td className="py-4 px-4 font-medium text-slate-700 whitespace-nowrap">{ct.agency || 'SEMA-MT'}</td>
-                                  <td className="py-4 px-4 text-slate-500 max-w-xs truncate" title={ct.observation || ''}>
-                                    {ct.observation || '—'}
-                                  </td>
-                                  <td className="py-4 px-4 text-center whitespace-nowrap">
-                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold border ${getTechnicalStatusBadgeClass(currentTechStatus)}`}>
-                                      {currentTechStatus}
-                                    </span>
-                                  </td>
-                                  <td className="py-4 px-4 text-right whitespace-nowrap">
+                  {(() => {
+                    const techCols = [
+                      { key: 'id', label: 'CÓDIGO', align: 'left', render: (ct) => <td key="id" className="py-4 px-4 font-mono font-bold text-[#1B3B2B] whitespace-nowrap">{ct.id}</td> },
+                      { key: 'client', label: 'CLIENTE / EMPREENDIMENTO', align: 'left', render: (ct) => <td key="client" className="py-4 px-4 font-semibold text-slate-900">{ct.client}</td> },
+                      { key: 'service', label: 'PLANO DE CONTAS', align: 'left', render: (ct) => <td key="service" className="py-4 px-4 text-slate-700">{ct.service}</td> },
+                      { key: 'agency', label: 'ÓRGÃO / SETOR', align: 'left', render: (ct) => <td key="agency" className="py-4 px-4 font-medium text-slate-700 whitespace-nowrap">{ct.agency || 'SEMA-MT'}</td> },
+                      { key: 'observation', label: 'OBSERVAÇÃO', align: 'left', render: (ct) => <td key="observation" className="py-4 px-4 text-slate-500 max-w-xs truncate" title={ct.observation || ''}>{ct.observation || '—'}</td> },
+                      { key: 'status', label: 'STATUS ATUAL', align: 'center', render: (ct) => {
+                        const st = ct.status || 'Em Andamento';
+                        return (
+                          <td key="status" className="py-4 px-4 text-center whitespace-nowrap">
+                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold border ${getTechnicalStatusBadgeClass(st)}`}>
+                              {st}
+                            </span>
+                          </td>
+                        );
+                      } }
+                    ];
+                    const orderedTechCols = getOrderedColumns('status_tecnico', techCols);
+                    return (
+                      <>
+                        {renderColumnOrganizerPanel('status_tecnico', techCols)}
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse text-xs">
+                              <thead>
+                                <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px] tracking-wider">
+                                  {orderedTechCols.map((col) => (
+                                    <th
+                                      key={col.key}
+                                      onClick={() => handleTechSort(col.key)}
+                                      className={`py-3.5 px-4 cursor-pointer hover:bg-[#244B38] transition select-none ${col.align === 'center' ? 'text-center' : ''}`}
+                                    >
+                                      <div className={`flex items-center gap-1 ${col.align === 'center' ? 'justify-center' : ''}`}>
+                                        {col.label}
+                                        {techSortField === col.key && (techSortDirection === 'asc'
+                                          ? <ArrowUp className="w-3 h-3 text-emerald-300" />
+                                          : <ArrowDown className="w-3 h-3 text-emerald-300" />)}
+                                      </div>
+                                    </th>
+                                  ))}
+                                  <th className="py-3.5 px-4 text-right">ALTERAR STATUS</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {filteredTechnicalContracts.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={orderedTechCols.length + 1} className="py-10 text-center text-slate-400">
+                                      Nenhum contrato encontrado para o filtro selecionado.
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  filteredTechnicalContracts.map((ct) => {
+                                    const currentTechStatus = ct.status || 'Em Andamento';
+                                    return (
+                                      <tr key={ct.id} className="hover:bg-[#F8F3EF]/60 transition-colors">
+                                        {orderedTechCols.map((col) => col.render(ct))}
+                                        <td className="py-4 px-4 text-right whitespace-nowrap">
                                     <select
                                       value={currentTechStatus}
                                       disabled={!hasPermission('status_tecnico', 'edit')}
@@ -4423,6 +4452,9 @@ export default function App() {
                       </table>
                     </div>
                   </div>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -4440,6 +4472,7 @@ export default function App() {
                       />
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
+                      {renderColumnOrganizerButton('clientes')}
                       <ExportButtons
                         onPDF={() => {
                           const headers = ['ID', 'Razão Social / Empreendimento', 'CNPJ', 'Segmento', 'Contato', 'Telefone', 'Cidade', 'Status'];
@@ -4480,51 +4513,50 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
-                            <th onClick={() => handleSort('id')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">ID {sortField === 'id' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th onClick={() => handleSort('name')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Razão Social / Empreendimento {sortField === 'name' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th onClick={() => handleSort('segment')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Segmento Econômico {sortField === 'segment' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th onClick={() => handleSort('contactname')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Responsável / Contato {sortField === 'contactname' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th onClick={() => handleSort('city')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center gap-1">Cidade {sortField === 'city' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                              <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                            </th>
-                            <th className="py-3.5 px-3 text-center">Ações</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {filteredClients.length === 0 ? (
-                            <tr>
-                              <td colSpan="7" className="py-8 text-center text-slate-400">Nenhum cliente cadastrado.</td>
-                            </tr>
-                          ) : (
-                            filteredClients.map((cli) => (
-                              <tr key={cli.id} className="hover:bg-slate-50">
-                                <td className="py-3 px-3 font-mono font-bold">{cli.id}</td>
-                                <td className="py-3 px-3 font-bold">{cli.name}</td>
-                                <td className="py-3 px-3">{cli.segment}</td>
-                                <td className="py-3 px-3">{cli.contactName || cli.contactname || '—'}</td>
-                                <td className="py-3 px-3">{cli.city}</td>
-                                <td className="py-3 px-3 text-center">
-                                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
-                                    {cli.status}
-                                  </span>
-                                </td>
-                                <td className="py-3 px-3 text-center space-x-2">
+                  {(() => {
+                    const cliCols = [
+                      { key: 'id', label: 'ID', sortKey: 'id', align: 'left', render: (cli) => <td key="id" className="py-3 px-3 font-mono font-bold">{cli.id}</td> },
+                      { key: 'name', label: 'Razão Social / Empreendimento', sortKey: 'name', align: 'left', render: (cli) => <td key="name" className="py-3 px-3 font-bold">{cli.name}</td> },
+                      { key: 'segment', label: 'Segmento Econômico', sortKey: 'segment', align: 'left', render: (cli) => <td key="segment" className="py-3 px-3">{cli.segment}</td> },
+                      { key: 'contactname', label: 'Responsável / Contato', sortKey: 'contactname', align: 'left', render: (cli) => <td key="contactname" className="py-3 px-3">{cli.contactName || cli.contactname || '—'}</td> },
+                      { key: 'city', label: 'Cidade', sortKey: 'city', align: 'left', render: (cli) => <td key="city" className="py-3 px-3">{cli.city}</td> },
+                      { key: 'status', label: 'Status', sortKey: 'status', align: 'center', render: (cli) => (
+                        <td key="status" className="py-3 px-3 text-center">
+                          <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                            {cli.status}
+                          </span>
+                        </td>
+                      ) }
+                    ];
+                    const orderedCliCols = getOrderedColumns('clientes', cliCols);
+                    return (
+                      <>
+                        {renderColumnOrganizerPanel('clientes', cliCols)}
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse text-xs">
+                              <thead>
+                                <tr className="bg-[#1B3B2B] text-white font-bold uppercase">
+                                  {orderedCliCols.map((col) => (
+                                    <th key={col.key} onClick={() => handleSort(col.sortKey)} className={`py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none ${col.align === 'center' ? 'text-center' : ''}`}>
+                                      <div className={`flex items-center gap-1 ${col.align === 'center' ? 'justify-center' : ''}`}>
+                                        {col.label} {sortField === col.sortKey && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}
+                                      </div>
+                                    </th>
+                                  ))}
+                                  <th className="py-3.5 px-3 text-center">Ações</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {filteredClients.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={orderedCliCols.length + 1} className="py-8 text-center text-slate-400">Nenhum cliente cadastrado.</td>
+                                  </tr>
+                                ) : (
+                                  filteredClients.map((cli) => (
+                                    <tr key={cli.id} className="hover:bg-slate-50">
+                                      {orderedCliCols.map((col) => col.render(cli))}
+                                      <td className="py-3 px-3 text-center space-x-2">
                                   {hasPermission('clientes', 'edit') && (
                                     <button
                                       onClick={() => {
@@ -4567,6 +4599,9 @@ export default function App() {
                       </table>
                     </div>
                   </div>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -4631,6 +4666,7 @@ export default function App() {
                             <Plus className="w-4 h-4" /> {showProspStatusMgr ? 'Fechar Status' : 'Cadastrar / Editar Status'}
                           </button>
 
+                          {renderColumnOrganizerButton('prospeccao')}
                           <ExportButtons
                             onPDF={() => exportTableToPDF({
                               title: 'Relatório de Prospecção de Clientes',
@@ -4761,58 +4797,57 @@ export default function App() {
                       )}
                     </div>
 
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse text-xs">
-                          <thead>
-                            <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px]">
-                              <th onClick={() => handleSort('calldate')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                                <div className="flex items-center gap-1">Data {sortField === 'calldate' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                              </th>
-                              <th onClick={() => handleSort('company')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                                <div className="flex items-center gap-1">Empresa {sortField === 'company' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                              </th>
-                              <th onClick={() => handleSort('contact')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                                <div className="flex items-center gap-1">Contato / Telefone {sortField === 'contact' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                              </th>
-                              <th onClick={() => handleSort('responsible')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                                <div className="flex items-center gap-1">Comercial {sortField === 'responsible' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                              </th>
-                              <th onClick={() => handleSort('status')} className="py-3.5 px-3 text-center cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                                <div className="flex items-center justify-center gap-1">Status {sortField === 'status' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                              </th>
-                              <th onClick={() => handleSort('observation')} className="py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none">
-                                <div className="flex items-center gap-1">Observação {sortField === 'observation' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}</div>
-                              </th>
-                              <th className="py-3.5 px-3 text-center">Ações</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {filteredProspeccoes.length === 0 ? (
-                              <tr>
-                                <td colSpan="7" className="py-10 text-center text-slate-400">
-                                  Nenhuma ligação registrada para os filtros selecionados.
-                                </td>
-                              </tr>
-                            ) : (
-                              filteredProspeccoes.map((row) => (
-                                <tr key={row.id} className="hover:bg-slate-50">
-                                  <td className="py-3 px-3 font-mono font-bold text-[#1B3B2B] whitespace-nowrap">
-                                    {formatDateBR(row.callDate || row.calldate)}
-                                  </td>
-                                  <td className="py-3 px-3 font-bold text-slate-900">{row.company}</td>
-                                  <td className="py-3 px-3 text-slate-700">
-                                    <div className="font-semibold">{row.contact || '—'}</div>
-                                    {row.phone && <div className="text-[11px] text-slate-500 font-mono">{row.phone}</div>}
-                                  </td>
-                                  <td className="py-3 px-3 font-semibold text-slate-700">{row.responsible || '—'}</td>
-                                  <td className="py-3 px-3 text-center whitespace-nowrap">
-                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase border ${getProspStatusBadgeClass(row.status)}`}>
-                                      {row.status}
-                                    </span>
-                                  </td>
-                                  <td className="py-3 px-3 text-slate-600 max-w-md">{row.observation || '—'}</td>
-                                  <td className="py-3 px-3 text-center space-x-1 whitespace-nowrap">
+                    {(() => {
+                      const prospCols = [
+                        { key: 'calldate', label: 'Data', sortKey: 'calldate', align: 'left', render: (row) => <td key="calldate" className="py-3 px-3 font-mono font-bold text-[#1B3B2B] whitespace-nowrap">{formatDateBR(row.callDate || row.calldate)}</td> },
+                        { key: 'company', label: 'Empresa', sortKey: 'company', align: 'left', render: (row) => <td key="company" className="py-3 px-3 font-bold text-slate-900">{row.company}</td> },
+                        { key: 'contact', label: 'Contato / Telefone', sortKey: 'contact', align: 'left', render: (row) => (
+                          <td key="contact" className="py-3 px-3 text-slate-700">
+                            <div className="font-semibold">{row.contact || '—'}</div>
+                            {row.phone && <div className="text-[11px] text-slate-500 font-mono">{row.phone}</div>}
+                          </td>
+                        ) },
+                        { key: 'responsible', label: 'Comercial', sortKey: 'responsible', align: 'left', render: (row) => <td key="responsible" className="py-3 px-3 font-semibold text-slate-700">{row.responsible || '—'}</td> },
+                        { key: 'status', label: 'Status', sortKey: 'status', align: 'center', render: (row) => (
+                          <td key="status" className="py-3 px-3 text-center whitespace-nowrap">
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase border ${getProspStatusBadgeClass(row.status)}`}>
+                              {row.status}
+                            </span>
+                          </td>
+                        ) },
+                        { key: 'observation', label: 'Observação', sortKey: 'observation', align: 'left', render: (row) => <td key="observation" className="py-3 px-3 text-slate-600 max-w-md">{row.observation || '—'}</td> }
+                      ];
+                      const orderedProspCols = getOrderedColumns('prospeccao', prospCols);
+                      return (
+                        <>
+                          {renderColumnOrganizerPanel('prospeccao', prospCols)}
+                          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left border-collapse text-xs">
+                                <thead>
+                                  <tr className="bg-[#1B3B2B] text-white font-bold uppercase text-[11px]">
+                                    {orderedProspCols.map((col) => (
+                                      <th key={col.key} onClick={() => handleSort(col.sortKey)} className={`py-3.5 px-3 cursor-pointer hover:bg-[#2D5A43] transition select-none ${col.align === 'center' ? 'text-center' : ''}`}>
+                                        <div className={`flex items-center gap-1 ${col.align === 'center' ? 'justify-center' : ''}`}>
+                                          {col.label} {sortField === col.sortKey && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-300" /> : <ArrowDown className="w-3 h-3 text-emerald-300" />)}
+                                        </div>
+                                      </th>
+                                    ))}
+                                    <th className="py-3.5 px-3 text-center">Ações</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                  {filteredProspeccoes.length === 0 ? (
+                                    <tr>
+                                      <td colSpan={orderedProspCols.length + 1} className="py-10 text-center text-slate-400">
+                                        Nenhuma ligação registrada para os filtros selecionados.
+                                      </td>
+                                    </tr>
+                                  ) : (
+                                    filteredProspeccoes.map((row) => (
+                                      <tr key={row.id} className="hover:bg-slate-50">
+                                        {orderedProspCols.map((col) => col.render(row))}
+                                        <td className="py-3 px-3 text-center space-x-1 whitespace-nowrap">
                                     {hasPermission('prospeccao', 'edit') && (
                                       <button
                                         onClick={() => {
@@ -4851,6 +4886,9 @@ export default function App() {
                         </table>
                       </div>
                     </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 );
               })()}
