@@ -477,7 +477,7 @@ const exportTableToPDF = ({ title, subtitle = '', headers = [], rows = [], orien
       size: A4 ${orientation};
       margin: 26mm 14mm 18mm 14mm;
     }
-    * { box-sizing: border-box; }
+- { box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
       color: #1e293b;
@@ -967,7 +967,7 @@ const openLocalDanfsePrint = (nfseRecord, params = INITIAL_PARAMETERS) => {
   <title>DANFSe - NFS-e ${escapeHtml(numNfse)}</title>
   <style>
     @page { size: A4 portrait; margin: 6mm 7mm; }
-    * { box-sizing: border-box; }
+- { box-sizing: border-box; }
     body {
       font-family: Arial, Helvetica, sans-serif;
       color: #111827;
@@ -1669,16 +1669,12 @@ export default function App() {
       checkSefazStatus();
     }
   }, [activeTab, sefazStatus.checkedAt, sefazStatus.loading, checkSefazStatus]);
-const [nfseForm, setNfseForm] = useState({
+  const [nfseForm, setNfseForm] = useState({
     ambiente: 'homologacao',
     data_emissao: new Date().toISOString().split('T')[0],
     cliente_nome: '',
     cliente_documento: '',
     cliente_email: '',
-    cliente_telefone: '',
-    cliente_endereco: '',
-    cliente_cidade: 'Rondonópolis — MT',
-    cliente_cep: '',
     codigo_servico: '17.01.01',
     codigo_nbs: '1.1806.40.00',
     regime_tributario: '3',
@@ -1756,14 +1752,12 @@ const [nfseForm, setNfseForm] = useState({
     observation: ''
   });
 
- const [cliForm, setCliForm] = useState({
+  const [cliForm, setCliForm] = useState({
     name: '',
     document: '',
     registration: '',
     segment: INITIAL_SEGMENTS[0],
-    address: '',
     city: 'Rondonópolis — MT',
-    cep: '',
     contactName: '',
     phone: '',
     email: '',
@@ -1995,27 +1989,16 @@ const [nfseForm, setNfseForm] = useState({
       const uf = data.uf || data.estabelecimento?.estado?.sigla;
       const telefone = data.ddd_telefone_1 || data.estabelecimento?.telefone1;
       const emailCorretor = data.email || data.estabelecimento?.email;
-const logradouro = data.logradouro || data.estabelecimento?.logradouro || '';
-      const numero = data.numero || data.estabelecimento?.numero || '';
-      const bairro = data.bairro || data.estabelecimento?.bairro || '';
-      const cepRaw = String(data.cep || data.estabelecimento?.cep || '').replace(/\D/g, '');
-      const enderecoMontado = [
-        [logradouro, numero].filter(Boolean).join(', '),
-        bairro
-      ]
-        .filter(Boolean)
-        .join(' — ');
 
       setCliForm(prev => ({
         ...prev,
         name: razaoSocial || prev.name,
         document: cnpjValue,
-        address: enderecoMontado || prev.address,
-        cep: cepRaw || prev.cep,
         city: municipio && uf ? `${municipio} — ${uf}` : prev.city,
         phone: telefone ? String(telefone) : prev.phone,
         email: emailCorretor || prev.email
       }));
+
       showToast('Dados preenchidos com sucesso!');
     } catch (err) {
       console.error(err);
@@ -2907,30 +2890,28 @@ const logradouro = data.logradouro || data.estabelecimento?.logradouro || '';
     setDeleteContractTarget(null);
   };
 
-const handleSaveClient = async (e) => {
+  const handleSaveClient = async (e) => {
     e.preventDefault();
-    if (!cliForm?.name || !String(cliForm.name).trim()) {
+    if (!cliForm.name) {
       alert('Por favor, preencha a Razão Social / Nome.');
       return;
     }
 
     try {
-      const clientId = editingClient?.id ? editingClient.id : generateUniqueId('CLI');
+      const clientId = editingClient ? editingClient.id : generateUniqueId('CLI');
       const clientData = {
         id: clientId,
-        name: String(cliForm.name).trim(),
-        document: String(cliForm.document || '').trim(),
-        registration: String(cliForm.registration || '').trim(),
-        segment: cliForm.segment || availableSegments?.[0] || 'Comércio / Serviços',
-        address: String(cliForm.address || '').trim(),
-        city: String(cliForm.city || 'Rondonópolis — MT').trim(),
-        cep: String(cliForm.cep || '').trim(),
-        contactname: String(cliForm.contactName || cliForm.contactname || '').trim(),
-        phone: String(cliForm.phone || '').trim(),
-        email: String(cliForm.email || '').trim(),
-        mainprogram: String(cliForm.mainProgram || cliForm.mainprogram || 'Licenciamento Ambiental (LP / LI / LO)').trim(),
-        status: cliForm.status || availableStatuses?.[0] || 'Ativo',
-        observation: String(cliForm.observation || '').trim()
+        name: cliForm.name,
+        document: cliForm.document || '',
+        registration: cliForm.registration || '',
+        segment: cliForm.segment,
+        city: cliForm.city,
+        contactname: cliForm.contactName || cliForm.contactname || '',
+        phone: cliForm.phone || '',
+        email: cliForm.email || '',
+        mainprogram: cliForm.mainProgram || cliForm.mainprogram || 'Licenciamento Ambiental (LP / LI / LO)',
+        status: cliForm.status,
+        observation: cliForm.observation || ''
       };
 
       if (supabase) {
@@ -2942,24 +2923,36 @@ const handleSaveClient = async (e) => {
         }
       }
 
-      setClients((prev) => {
-        const list = Array.isArray(prev) ? prev : [];
-        const exists = list.some((c) => c.id === clientId);
-        return exists ? list.map((c) => (c.id === clientId ? clientData : c)) : [...list, clientData];
+      setClients(prev => {
+        const exists = prev.some(c => c.id === clientId);
+        return exists ? prev.map(c => c.id === clientId ? clientData : c) : [...prev, clientData];
       });
 
       setShowClientModal(false);
       setEditingClient(null);
-      if (typeof showToast === 'function') {
-        showToast('Cliente salvo com sucesso na nuvem!');
-      }
+      showToast('Cliente salvo com sucesso na nuvem!');
+
+      setCliForm({
+        name: '',
+        document: '',
+        registration: '',
+        segment: availableSegments[0],
+        city: 'Rondonópolis — MT',
+        contactName: '',
+        phone: '',
+        email: '',
+        mainProgram: 'Licenciamento Ambiental (LP / LI / LO)',
+        status: availableStatuses[0],
+        observation: ''
+      });
+
     } catch (err) {
       console.error('Erro crítico ao salvar:', err);
-      alert('Erro ao processar o salvamento: ' + (err?.message || String(err)));
+      alert('Erro ao processar o salvamento.');
     }
   };
 
-const confirmDeleteClient = async () => {
+  const confirmDeleteClient = async () => {
     if (!deleteClientTarget) return;
     const clientId = deleteClientTarget.id;
     setClients(prev => prev.filter(c => c.id !== clientId));
@@ -3107,7 +3100,7 @@ const confirmDeleteClient = async () => {
     }
 
     const nfseId = editingNfse ? editingNfse.id : generateUniqueId('NFSE');
-const baseRecord = {
+    const baseRecord = {
       id: nfseId,
       numero: editingNfse?.numero || '',
       chave_acesso: editingNfse?.chave_acesso || '',
@@ -3116,10 +3109,6 @@ const baseRecord = {
       cliente_nome: nfseForm.cliente_nome.trim(),
       cliente_documento: nfseForm.cliente_documento.trim(),
       cliente_email: nfseForm.cliente_email.trim(),
-      cliente_telefone: nfseForm.cliente_telefone.trim(),
-      cliente_endereco: nfseForm.cliente_endereco.trim(),
-      cliente_cidade: nfseForm.cliente_cidade.trim(),
-      cliente_cep: nfseForm.cliente_cep.trim(),
       codigo_servico: nfseForm.codigo_servico.trim() || '17.01.01',
       descricao_servico: nfseForm.descricao_servico.trim(),
       valor: numericVal,
@@ -3130,7 +3119,7 @@ const baseRecord = {
       mensagem_erro: '',
       contract_id: nfseForm.contract_id || ''
     };
-    
+
     if (supabase) {
       const { error } = await supabase.from('nfse').upsert([baseRecord]);
       if (error) {
@@ -3189,25 +3178,10 @@ const baseRecord = {
       opSimpNac: extra.opSimpNac || '3',
       regApTribSN: '1'
     };
-const matchedClient = clients.find(
-      (c) =>
-        (c.name && c.name.trim().toLowerCase() === String(record.cliente_nome || '').trim().toLowerCase()) ||
-        (c.document && c.document.replace(/\D/g, '') && c.document.replace(/\D/g, '') === String(record.cliente_documento || '').replace(/\D/g, ''))
-    );
-
-    const cepClean = String(record.cliente_cep || matchedClient?.cep || '').replace(/\D/g, '');
-    const cidadeTexto = String(record.cliente_cidade || matchedClient?.city || '');
-    const isRondonopolis = cidadeTexto.toLowerCase().includes('rondonopolis') || cidadeTexto.toLowerCase().includes('rondonópolis');
-
     const tomadorPayload = {
-      nome: record.cliente_nome || matchedClient?.name || '',
-      documento: record.cliente_documento || matchedClient?.document || '',
-      email: record.cliente_email || matchedClient?.email || '',
-      telefone: record.cliente_telefone || matchedClient?.phone || '',
-      logradouro: record.cliente_endereco || matchedClient?.address || '',
-      cidade: cidadeTexto,
-      cep: cepClean,
-      ...(isRondonopolis ? { codigoMunicipio: '5107602' } : {})
+      nome: record.cliente_nome,
+      documento: record.cliente_documento,
+      email: record.cliente_email
     };
     const servicoPayload = {
       codigoServico: record.codigo_servico || '17.01.01',
@@ -5591,23 +5565,21 @@ const matchedClient = clients.find(
                                   {hasPermission('clientes', 'edit') && (
                                     <button
                                       onClick={() => {
-setEditingClient(cli);
-setCliForm({
-  name: cli.name,
-  document: cli.document || '',
-  registration: cli.registration || '',
-  segment: cli.segment || availableSegments[0],
-  address: cli.address || '',
-  city: cli.city || 'Rondonópolis — MT',
-  cep: cli.cep || '',
-  contactName: cli.contactName || cli.contactname || '',
-  phone: cli.phone || '',
-  email: cli.email || '',
-  mainProgram: cli.mainProgram || cli.mainprogram || 'Licenciamento Ambiental',
-  status: cli.status || availableStatuses[0],
-  observation: cli.observation || ''
-});
-setShowClientModal(true);
+                                        setEditingClient(cli);
+                                        setCliForm({
+                                          name: cli.name,
+                                          document: cli.document || '',
+                                          registration: cli.registration || '',
+                                          segment: cli.segment || availableSegments[0],
+                                          city: cli.city || 'Rondonópolis — MT',
+                                          contactName: cli.contactName || cli.contactname || '',
+                                          phone: cli.phone || '',
+                                          email: cli.email || '',
+                                          mainProgram: cli.mainProgram || cli.mainprogram || 'Licenciamento Ambiental',
+                                          status: cli.status || availableStatuses[0],
+                                          observation: cli.observation || ''
+                                        });
+                                        setShowClientModal(true);
                                       }}
                                       className="p-1.5 rounded-lg text-teal-700 hover:bg-teal-50 cursor-pointer"
                                       title="Editar Cliente"
@@ -7260,29 +7232,7 @@ Emissão direta gratuita via Portal Nacional • Rondonópolis — MT (CNPJ 64.9
                   required
                 />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="sm:col-span-2">
-                  <label className="block font-bold text-slate-700 uppercase mb-1">ENDEREÇO (LOGRADOURO, Nº, BAIRRO)</label>
-                  <input
-                    type="text"
-                    value={cliForm.address || ''}
-                    onChange={(e) => setCliForm({ ...cliForm, address: e.target.value })}
-                    placeholder="Ex: Av. Cuiabá, 829 — Centro"
-                    className="w-full px-3.5 py-2.5 rounded-xl border"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">CEP</label>
-                  <input
-                    type="text"
-                    value={cliForm.cep || ''}
-                    onChange={(e) => setCliForm({ ...cliForm, cep: e.target.value })}
-                    placeholder="78700-090"
-                    className="w-full px-3.5 py-2.5 rounded-xl border font-mono"
-                  />
-                </div>
-              </div>
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -8108,7 +8058,7 @@ Emissão direta gratuita via Portal Nacional • Rondonópolis — MT (CNPJ 64.9
 
               <div>
                 <label className="block font-bold text-slate-700 uppercase mb-1">CLIENTE / TOMADOR (SELECIONE DO CRM OU DIGITE)</label>
-<input
+                <input
                   type="text"
                   list="client-list-nfse"
                   value={nfseForm.cliente_nome}
@@ -8119,11 +8069,7 @@ Emissão direta gratuita via Portal Nacional • Rondonópolis — MT (CNPJ 64.9
                       ...prev,
                       cliente_nome: val,
                       cliente_documento: found?.document || prev.cliente_documento,
-                      cliente_email: found?.email || prev.cliente_email,
-                      cliente_telefone: found?.phone || prev.cliente_telefone,
-                      cliente_endereco: found?.address || prev.cliente_endereco,
-                      cliente_cidade: found?.city || prev.cliente_cidade,
-                      cliente_cep: found?.cep || prev.cliente_cep
+                      cliente_email: found?.email || prev.cliente_email
                     }));
                   }}
                   placeholder="Razão social ou nome do cliente..."
@@ -8455,3 +8401,5 @@ Emissão direta gratuita via Portal Nacional • Rondonópolis — MT (CNPJ 64.9
     </div>
   );
 }
+
+e agora?
