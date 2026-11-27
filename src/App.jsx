@@ -1001,7 +1001,29 @@ const isCancelada = String(nfseRecord?.status || '').toLowerCase().includes('can
     .page {
       width: 100%;
       max-width: 794px;
+      min-height: 282mm;
       margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .info-comp-box {
+      flex: 1 1 auto;
+      display: flex;
+      border: 1px solid #6b7280;
+      margin-bottom: 6px;
+    }
+    .info-comp-left {
+      width: 76%;
+      padding: 4px 6px;
+      border-right: 1px solid #6b7280;
+    }
+    .info-comp-right {
+      width: 24%;
+      padding: 4px 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
     }
     table.t {
       width: 100%;
@@ -1264,23 +1286,21 @@ const isCancelada = String(nfseRecord?.status || '').toLowerCase().includes('can
       </tr>
     </table>
 
-    <table class="t">
-      <tr>
-        <td style="width: 76%;">
-          <div class="sec" style="margin: -2.5px -4px 3px -4px; padding: 2px 4px; border-bottom: 1px solid #9ca3af;">INFORMAÇÕES COMPLEMENTARES</div>
-          <div class="txt">Totais aproximados dos Tributos cfe. Lei nº 12.741/2012: Federais: -; Estaduais: -; Municipais: -.</div>
-          <div class="txt" style="margin-top: 3px;">A autenticidade desta NFS-e pode ser verificada pela leitura deste código QR ou pela consulta da chave de acesso no portal nacional da NFS-e.</div>
-        </td>
-        <td style="width: 24%;" class="qr-cell">
-          <canvas id="danfseQrCanvas" width="84" height="84"></canvas>
-          <div class="qr-note">Consulta / Autenticidade NFS-e</div>
-        </td>
-      </tr>
-    </table>
+<div class="info-comp-box">
+      <div class="info-comp-left">
+        <div class="sec" style="margin: -4px -6px 4px -6px; padding: 2.5px 6px; border-bottom: 1px solid #9ca3af;">INFORMAÇÕES COMPLEMENTARES</div>
+        <div class="txt">Totais aproximados dos Tributos cfe. Lei nº 12.741/2012: Federais: -; Estaduais: -; Municipais: -.</div>
+        <div class="txt" style="margin-top: 3px;">A autenticidade desta NFS-e pode ser verificada pela leitura deste código QR ou pela consulta da chave de acesso no portal nacional da NFS-e.</div>
+      </div>
+      <div class="info-comp-right">
+        <canvas id="danfseQrCanvas" width="84" height="84"></canvas>
+        <div class="qr-note">Consulta / Autenticidade NFS-e</div>
+      </div>
+    </div>
 
-<table class="t" style="margin-top: 6px;">
+    <table class="t" style="margin-top: auto; margin-bottom: 0;">
       <tr>
-        <td style="width: 22%; height: 28px;">
+        <td style="width: 22%; height: 32px;">
           <span class="lbl">DATA CIENTIFICAÇÃO:</span>
         </td>
         <td style="width: 38%;">
@@ -1470,6 +1490,89 @@ const openOfficialDanfsePrint = async (nfseRecord, params = INITIAL_PARAMETERS) 
     const printScript = `
       <script>
         window.onload = function () {
+          try {
+            var ruler = document.createElement('div');
+            ruler.style.cssText = 'position:absolute;top:0;left:0;height:282mm;width:1px;visibility:hidden;pointer-events:none;';
+            document.body.appendChild(ruler);
+            var targetH = ruler.getBoundingClientRect().height;
+            document.body.removeChild(ruler);
+
+            var findDeepestByText = function (needle) {
+              var upper = needle.toUpperCase();
+              var all = document.body.querySelectorAll('div, section, table, tr, td, p, header, footer');
+              var best = null;
+              for (var i = 0; i < all.length; i++) {
+                var el = all[i];
+                if (el.closest('.gm-cancelada-watermark')) continue;
+                var txt = (el.textContent || '').toUpperCase();
+                if (txt.indexOf(upper) !== -1) {
+                  best = el;
+                }
+              }
+              return best;
+            };
+
+            var infoEl = findDeepestByText('INFORMAÇÕES COMPLEMENTARES') || findDeepestByText('INFORMACOES COMPLEMENTARES');
+            var canhotoEl = findDeepestByText('DATA CIENTIFICAÇÃO') || findDeepestByText('DATA CIENTIFICACAO');
+
+            if (infoEl && canhotoEl) {
+              var common = infoEl.parentElement;
+              while (common && !common.contains(canhotoEl)) {
+                common = common.parentElement;
+              }
+
+              if (common) {
+                var infoBlock = infoEl;
+                while (infoBlock.parentElement && infoBlock.parentElement !== common) {
+                  infoBlock = infoBlock.parentElement;
+                }
+                var canhotoBlock = canhotoEl;
+                while (canhotoBlock.parentElement && canhotoBlock.parentElement !== common) {
+                  canhotoBlock = canhotoBlock.parentElement;
+                }
+
+                // Se infoBlock for apenas a barra de título, expande o bloco de conteúdo logo abaixo
+                var targetExpand = infoBlock;
+                var infoTextLen = (infoBlock.textContent || '').trim().length;
+                if (infoTextLen < 45 && infoBlock.nextElementSibling && infoBlock.nextElementSibling !== canhotoBlock) {
+                  targetExpand = infoBlock.nextElementSibling;
+                }
+
+                var rootBox = common;
+                while (rootBox.parentElement && rootBox.parentElement !== document.body) {
+                  rootBox = rootBox.parentElement;
+                }
+
+                var currentH = rootBox.getBoundingClientRect().height;
+                var extraH = Math.floor(targetH - currentH);
+
+                if (extraH > 10 && targetExpand !== canhotoBlock) {
+                  var newH = Math.floor(targetExpand.getBoundingClientRect().height + extraH);
+                  if (targetExpand.tagName === 'TR') {
+                    targetExpand.style.height = newH + 'px';
+                    var cells = targetExpand.querySelectorAll('td, th');
+                    for (var c = 0; c < cells.length; c++) {
+                      cells[c].style.verticalAlign = 'top';
+                    }
+                  } else {
+                    targetExpand.style.minHeight = newH + 'px';
+                    targetExpand.style.boxSizing = 'border-box';
+                    var disp = window.getComputedStyle(targetExpand).display;
+                    if (disp === 'block' || disp === 'flex') {
+                      targetExpand.style.display = 'flex';
+                      targetExpand.style.flexDirection = 'column';
+                      if (targetExpand.lastElementChild && targetExpand.lastElementChild !== infoEl) {
+                        targetExpand.lastElementChild.style.flex = '1 1 auto';
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.error('Erro ao ajustar altura A4 do DANFSe:', e);
+          }
+
           setTimeout(function () {
             window.print();
           }, 250);
