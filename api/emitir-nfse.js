@@ -117,9 +117,9 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
   const cepTomador =
     rawCepTomador.length === 8 ? rawCepTomador : exigirEndNac ? '78700090' : '';
 
-  const xLgrVal = String(tomador.logradouro || '').trim().slice(0, 255);
-  const nroVal = String(tomador.numero || '').trim().slice(0, 60);
-  const xBairroVal = String(tomador.bairro || '').trim().slice(0, 60);
+  const xLgrVal = String(tomador.logradouro || '').trim().slice(0, 255) || 'Nao informado';
+  const nroVal = String(tomador.numero || '').trim().slice(0, 60) || 'S/N';
+  const xBairroVal = String(tomador.bairro || '').trim().slice(0, 60) || 'Centro';
 
   const hasEndNac = cMunTomador.length === 7 || cepTomador.length === 8;
 
@@ -131,11 +131,7 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
     .join('\n          ');
 
   const endTomadorXml = hasEndNac
-    ? `\n      <end>\n        <endNac>\n          ${endNacInner}\n        </endNac>${
-        xLgrVal ? `\n        <xLgr>${escapeXml(xLgrVal)}</xLgr>` : ''
-      }${nroVal ? `\n        <nro>${escapeXml(nroVal)}</nro>` : ''}${
-        xBairroVal ? `\n        <xBairro>${escapeXml(xBairroVal)}</xBairro>` : ''
-      }\n      </end>`
+    ? `\n      <end>\n        <endNac>\n          ${endNacInner}\n        </endNac>\n        <xLgr>${escapeXml(xLgrVal)}</xLgr>\n        <nro>${escapeXml(nroVal)}</nro>\n        <xBairro>${escapeXml(xBairroVal)}</xBairro>\n      </end>`
     : '';
 
   const cTribNac = padLeft(onlyDigits(servico.codigoServico || '170101'), 6).slice(-6);
