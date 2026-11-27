@@ -14,6 +14,32 @@ const escapeXml = (s) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
 
+const normalizeText = (s) =>
+  String(s || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+// Descobre o código IBGE do município do tomador (quando o cadastro não tiver)
+async function resolveCodigoIbge(cidade, uf) {
+  const nome = normalizeText(cidade);
+  const sigla = String(uf || '').trim().toUpperCase();
+  if (!nome || !/^[A-Z]{2}$/.test(sigla)) return '';
+  try {
+    const r = await fetch(
+      `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${sigla}/municipios`,
+      { signal: AbortSignal.timeout(6000) }
+    );
+    if (!r.ok) return '';
+    const list = await r.json();
+    const hit = Array.isArray(list) ? list.find((m) => normalizeText(m.nome) === nome) : null;
+    return hit ? String(hit.id) : '';
+  } catch {
+    return '';
+  }
+}
+
 function extractPemFromPfx(pfxBuffer, password) {
   if (!pfxBuffer || !pfxBuffer.length) {
     throw new Error('Conteúdo de NFSE_CERT_BASE64 vazio ou inválido.');
@@ -119,6 +145,31 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
   const regApTribTag =
     opSimpNac === '3' ? `\n        <regApTribSN>${regApTribSN}</regApTribSN>` : '';
 
+  // ===== Dados do tomador vindos do cadastro do cliente =====
+  const tomaCep = onlyDigits(tomador.cep).slice(0, 8);
+  const tomaCMun = onlyDigits(tomador.codigoIbge);
+  const tomaLogr = String(tomador.endereco || '').replace(/\s{2,}/g, ' ').trim().slice(0, 255);
+  const tomaNro = String(tomador.numero || '').trim().slice(0, 60) || 'S/N';
+  const tomaBairro = String(tomador.bairro || '').trim().slice(0, 60);
+
+  let tomadorEndTag = '';
+  if (tomaCMun.length === 7 && tomaCep.length === 8 && tomaLogr && tomaBairro) {
+    tomadorEndTag =
+      `\n      <end>` +
+      `\n        <endNac>` +
+      `\n          <cMun>${tomaCMun}</cMun>` +
+      `\n          <CEP>${tomaCep}</CEP>` +
+      `\n        </endNac>` +
+      `\n        <xLgr>${escapeXml(tomaLogr)}</xLgr>` +
+      `\n        <nro>${escapeXml(tomaNro)}</nro>` +
+      `\n        <xBairro>${escapeXml(tomaBairro)}</xBairro>` +
+      `\n      </end>`;
+  }
+
+  const tomaFone = onlyDigits(tomador.telefone);
+  const foneTomadorTag =
+    tomaFone.length >= 6 && tomaFone.length <= 20 ? `\n      <fone>${tomaFone}</fone>` : '';
+
   const emailTomadorTag = tomador.email ? `\n      <email>${escapeXml(tomador.email)}</email>` : '';
 
   const totTribTag = `\n        <totTrib>\n          <vTotTrib>\n            <vTotTribFed>0.00</vTotTribFed>\n            <vTotTribEst>0.00</vTotTribEst>\n            <vTotTribMun>0.00</vTotTribMun>\n          </vTotTrib>\n        </totTrib>`;
@@ -144,7 +195,7 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
     </prest>
     <toma>
       ${tomadorDocTag}
-      <xNome>${escapeXml(tomador.nome)}</xNome>${emailTomadorTag}
+      <xNome>${escapeXml(tomador.nome)}</xNome>${tomadorEndTag}${foneTomadorTag}${emailTomadorTag}
     </toma>
     <indDest>0</indDest>
     <serv>
@@ -264,10 +315,24 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Preencha cliente, CNPJ/CPF, descrição e valor do serviço.' });
     }
 
+    // Completa o código IBGE do município do tomador, se o cadastro não tiver
+    let codigoIbgeTomador = onlyDigits(tomador.codigoIbge);
+    if (codigoIbgeTomador.length !== 7) {
+      codigoIbgeTomador = await resolveCodigoIbge(tomador.cidade, tomador.uf);
+    }
+    const tomadorFinal = { ...tomador, codigoIbge: codigoIbgeTomador };
+
     const pfxBuffer = Buffer.from(certBase64, 'base64');
     const { privateKeyPem, certBase64Clean } = extractPemFromPfx(pfxBuffer, certPassword);
 
-    const { xml, infDpsId } = buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDps });
+    const { xml, infDpsId } = buildDpsXml({
+      ambiente,
+      prestador,
+      tomador: tomadorFinal,
+      servico,
+      numeroDps,
+      serieDps
+    });
     signedXmlDebug = signDpsXml(xml, infDpsId, privateKeyPem, certBase64Clean);
 
     const gzipped = zlib.gzipSync(Buffer.from(signedXmlDebug, 'utf8'));
