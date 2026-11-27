@@ -2907,30 +2907,30 @@ const logradouro = data.logradouro || data.estabelecimento?.logradouro || '';
     setDeleteContractTarget(null);
   };
 
-  const handleSaveClient = async (e) => {
+const handleSaveClient = async (e) => {
     e.preventDefault();
-    if (!cliForm.name) {
+    if (!cliForm?.name || !String(cliForm.name).trim()) {
       alert('Por favor, preencha a Razão Social / Nome.');
       return;
     }
 
     try {
-      const clientId = editingClient ? editingClient.id : generateUniqueId('CLI');
- const clientData = {
+      const clientId = editingClient?.id ? editingClient.id : generateUniqueId('CLI');
+      const clientData = {
         id: clientId,
-        name: cliForm.name,
-        document: cliForm.document || '',
-        registration: cliForm.registration || '',
-        segment: cliForm.segment,
-        address: cliForm.address || '',
-        city: cliForm.city,
-        cep: cliForm.cep || '',
-        contactname: cliForm.contactName || cliForm.contactname || '',
-        phone: cliForm.phone || '',
-        email: cliForm.email || '',
-        mainprogram: cliForm.mainProgram || cliForm.mainprogram || 'Licenciamento Ambiental (LP / LI / LO)',
-        status: cliForm.status,
-        observation: cliForm.observation || ''
+        name: String(cliForm.name).trim(),
+        document: String(cliForm.document || '').trim(),
+        registration: String(cliForm.registration || '').trim(),
+        segment: cliForm.segment || availableSegments?.[0] || 'Comércio / Serviços',
+        address: String(cliForm.address || '').trim(),
+        city: String(cliForm.city || 'Rondonópolis — MT').trim(),
+        cep: String(cliForm.cep || '').trim(),
+        contactname: String(cliForm.contactName || cliForm.contactname || '').trim(),
+        phone: String(cliForm.phone || '').trim(),
+        email: String(cliForm.email || '').trim(),
+        mainprogram: String(cliForm.mainProgram || cliForm.mainprogram || 'Licenciamento Ambiental (LP / LI / LO)').trim(),
+        status: cliForm.status || availableStatuses?.[0] || 'Ativo',
+        observation: String(cliForm.observation || '').trim()
       };
 
       if (supabase) {
@@ -2942,15 +2942,20 @@ const logradouro = data.logradouro || data.estabelecimento?.logradouro || '';
         }
       }
 
-      setClients(prev => {
-        const exists = prev.some(c => c.id === clientId);
-        return exists ? prev.map(c => c.id === clientId ? clientData : c) : [...prev, clientData];
+      setClients((prev) => {
+        const list = Array.isArray(prev) ? prev : [];
+        const exists = list.some((c) => c.id === clientId);
+        return exists ? list.map((c) => (c.id === clientId ? clientData : c)) : [...list, clientData];
       });
 
       setShowClientModal(false);
       setEditingClient(null);
       showToast('Cliente salvo com sucesso na nuvem!');
-
+    } catch (err) {
+      console.error('Erro crítico ao salvar:', err);
+      alert('Erro ao processar o salvamento: ' + (err?.message || 'erro desconhecido'));
+    }
+  };
 setCliForm({
   name: cli.name,
   document: cli.document || '',
@@ -2973,7 +2978,7 @@ setCliForm({
     }
   };
 
-  const confirmDeleteClient = async () => {
+const confirmDeleteClient = async () => {
     if (!deleteClientTarget) return;
     const clientId = deleteClientTarget.id;
     setClients(prev => prev.filter(c => c.id !== clientId));
@@ -5605,21 +5610,23 @@ const matchedClient = clients.find(
                                   {hasPermission('clientes', 'edit') && (
                                     <button
                                       onClick={() => {
-                                        setEditingClient(cli);
-                                        setCliForm({
-                                          name: cli.name,
-                                          document: cli.document || '',
-                                          registration: cli.registration || '',
-                                          segment: cli.segment || availableSegments[0],
-                                          city: cli.city || 'Rondonópolis — MT',
-                                          contactName: cli.contactName || cli.contactname || '',
-                                          phone: cli.phone || '',
-                                          email: cli.email || '',
-                                          mainProgram: cli.mainProgram || cli.mainprogram || 'Licenciamento Ambiental',
-                                          status: cli.status || availableStatuses[0],
-                                          observation: cli.observation || ''
-                                        });
-                                        setShowClientModal(true);
+setEditingClient(cli);
+setCliForm({
+  name: cli.name,
+  document: cli.document || '',
+  registration: cli.registration || '',
+  segment: cli.segment || availableSegments[0],
+  address: cli.address || '',
+  city: cli.city || 'Rondonópolis — MT',
+  cep: cli.cep || '',
+  contactName: cli.contactName || cli.contactname || '',
+  phone: cli.phone || '',
+  email: cli.email || '',
+  mainProgram: cli.mainProgram || cli.mainprogram || 'Licenciamento Ambiental',
+  status: cli.status || availableStatuses[0],
+  observation: cli.observation || ''
+});
+setShowClientModal(true);
                                       }}
                                       className="p-1.5 rounded-lg text-teal-700 hover:bg-teal-50 cursor-pointer"
                                       title="Editar Cliente"
