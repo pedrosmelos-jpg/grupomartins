@@ -5287,9 +5287,8 @@ const [ctForm, setCtForm] = useState({
                                       {hasPermission('contratos', 'edit') && (
                                         <button
                                           onClick={() => {
-                                            setEditingContract(ct);
+                                           setEditingContract(ct);
                                             setShowAgencyManager(false);
-                                            setCtForm({
                                             setCtForm({
                                               client: ct.client,
                                               service: ct.service,
