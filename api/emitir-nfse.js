@@ -118,9 +118,10 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
     .filter(Boolean)
     .join('\n          ');
 
-  const xLgrVal = tomador.logradouro || (exigirEndNac ? 'Nao informado' : '');
+  const xLgrVal =
+    String(tomador.logradouro || '').trim() || (exigirEndNac ? 'Nao informado' : '');
   const nroVal = tomador.numero ? String(tomador.numero) : exigirEndNac ? 'S/N' : '';
-  const xBairroVal = tomador.bairro || (exigirEndNac ? 'Centro' : '');
+  const xBairroVal = tomador.bairro ? String(tomador.bairro) : exigirEndNac ? 'Centro' : '';
 
   const endTomadorXml = hasEndNac
     ? `\n      <end>\n        <endNac>\n          ${endNacInner}\n        </endNac>${
