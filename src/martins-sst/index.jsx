@@ -4,6 +4,8 @@ import { SST_TABS } from './sstConstants';
 import SstCentralHub from './modules/SstCentralHub';
 import SstPainelAlertas from './modules/SstPainelAlertas';
 import SstEstruturaVidas from './modules/SstEstruturaVidas';
+import SstEngenhariaGro from './modules/SstEngenhariaGro';
+import SstMedicinaPcmso from './modules/SstMedicinaPcmso';
 
 export default function MartinsSegurancaTrabalho({
   supabase,
@@ -251,7 +253,31 @@ export default function MartinsSegurancaTrabalho({
         />
       )}
 
-      {!['hub', 'alertas', 'estrutura'].includes(activeSubTab) && (
+      {activeSubTab === 'engenharia' && (
+        <SstEngenhariaGro
+          supabase={supabase}
+          selectedClientId={selectedClientId}
+          clients={clients}
+          sstData={sstData}
+          onReload={loadSstData}
+          showToast={showToast}
+          params={params}
+        />
+      )}
+
+      {activeSubTab === 'medicina' && (
+        <SstMedicinaPcmso
+          supabase={supabase}
+          selectedClientId={selectedClientId}
+          clients={clients}
+          sstData={sstData}
+          onReload={loadSstData}
+          showToast={showToast}
+          params={params}
+        />
+      )}
+
+      {!['hub', 'alertas', 'estrutura', 'engenharia', 'medicina'].includes(activeSubTab) && (
         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-2">
           <div className="text-[11px] font-extrabold uppercase text-[#2D5A43]">
             Martins Segurança do Trabalho • {activeClient ? activeClient.name : 'Todas as Empresas'}
