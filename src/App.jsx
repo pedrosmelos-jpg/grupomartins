@@ -956,6 +956,8 @@ const openLocalDanfsePrint = (nfseRecord, params = INITIAL_PARAMETERS) => {
   const tomaMun = extractTagXml(xml, 'xMun') || 'Rondonópolis / MT';
   const tomaCep = formatCepDoc(extractTagXml(xml, 'CEP')) || '-';
 
+const isCancelada = String(nfseRecord?.status || '').toLowerCase().includes('cancel');
+
   const qrContent = chave
     ? `https://www.nfse.gov.br/ConsultaPublica/?chave=${chave}`
     : `NFSE-${numNfse}-DPS-${numDps}`;
@@ -967,7 +969,28 @@ const openLocalDanfsePrint = (nfseRecord, params = INITIAL_PARAMETERS) => {
   <title>DANFSe - NFS-e ${escapeHtml(numNfse)}</title>
   <style>
     @page { size: A4 portrait; margin: 6mm 7mm; }
-- { box-sizing: border-box; }
+    * { box-sizing: border-box; }
+    .cancelada-watermark {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 9999;
+      overflow: hidden;
+    }
+    .cancelada-watermark span {
+      transform: rotate(-42deg);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 96px;
+      font-weight: 900;
+      letter-spacing: 10px;
+      color: rgba(220, 38, 38, 0.22);
+      text-transform: uppercase;
+      white-space: nowrap;
+      user-select: none;
+    }
     body {
       font-family: Arial, Helvetica, sans-serif;
       color: #111827;
@@ -1100,6 +1123,7 @@ const openLocalDanfsePrint = (nfseRecord, params = INITIAL_PARAMETERS) => {
   </style>
 </head>
 <body>
+  ${isCancelada ? '<div class="cancelada-watermark"><span>CANCELADA</span></div>' : ''}
   <div class="page">
     <table class="t hdr-outer">
       <tr>
@@ -1257,10 +1281,20 @@ const openLocalDanfsePrint = (nfseRecord, params = INITIAL_PARAMETERS) => {
       </tr>
     </table>
 
-    <div class="foot-end">
-      <span>N° NFS-e/ CHAVE NFS-e: ${escapeHtml(numNfse)}/${escapeHtml(chave || '-')}</span>
-      <span>${escapeHtml(params.cidadeSede || 'Rondonópolis - MT')}</span>
-    </div>
+<table class="t" style="margin-top: 6px;">
+      <tr>
+        <td style="width: 22%; height: 28px;">
+          <span class="lbl">DATA CIENTIFICAÇÃO:</span>
+        </td>
+        <td style="width: 38%;">
+          <span class="lbl">IDENTIFICAÇÃO E ASSINATURA</span>
+        </td>
+        <td style="width: 40%;">
+          <span class="lbl">N° NFS-e/ CHAVE NFS-e</span>
+          <span class="val mono">${escapeHtml(numNfse)}/${escapeHtml(chave || '-')}</span>
+        </td>
+      </tr>
+    </table>
   </div>
   <script>
     (function() {
@@ -1320,7 +1354,94 @@ const openOfficialDanfsePrint = async (nfseRecord, params = INITIAL_PARAMETERS) 
     const data = await parser.parse(xml);
 
     const builder = new DanfseHtmlBuilder();
-    const html = builder.build(data);
+    let html = builder.build(data);
+
+    const isCancelada = String(nfseRecord?.status || '').toLowerCase().includes('cancel');
+    const chave = nfseRecord?.chave_acesso || extractTagXml(xml, 'chNFSe') || '-';
+    const numNfse = nfseRecord?.numero || extractTagXml(xml, 'nNFSe') || extractTagXml(xml, 'nDPS') || '-';
+
+    const extraStyles = `
+      <style>
+        body {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        .gm-cancelada-watermark {
+          position: fixed;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          pointer-events: none;
+          z-index: 9999;
+          overflow: hidden;
+        }
+        .gm-cancelada-watermark span {
+          transform: rotate(-42deg);
+          font-family: Arial, Helvetica, sans-serif;
+          font-size: 96px;
+          font-weight: 900;
+          letter-spacing: 10px;
+          color: rgba(220, 38, 38, 0.22);
+          text-transform: uppercase;
+          white-space: nowrap;
+          user-select: none;
+        }
+        .gm-canhoto {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 8px;
+          font-family: Arial, Helvetica, sans-serif;
+          table-layout: fixed;
+        }
+        .gm-canhoto td {
+          border: 1px solid #6b7280;
+          padding: 4px 6px;
+          vertical-align: top;
+          font-size: 7.5px;
+          color: #111827;
+        }
+        .gm-canhoto .lbl {
+          display: block;
+          font-size: 6.3px;
+          font-weight: 700;
+          text-transform: uppercase;
+          color: #4b5563;
+          margin-bottom: 2px;
+        }
+        .gm-canhoto .val {
+          display: block;
+          font-size: 7.8px;
+          font-weight: 700;
+          font-family: "Liberation Mono", "DejaVu Sans Mono", monospace;
+          word-break: break-all;
+        }
+      </style>
+    `;
+
+    const canceladaOverlay = isCancelada
+      ? `<div class="gm-cancelada-watermark"><span>CANCELADA</span></div>`
+      : '';
+
+    const hasCanhoto = html.includes('DATA CIENTIFICAÇÃO') || html.includes('IDENTIFICAÇÃO E ASSINATURA');
+    const canhotoHtml = hasCanhoto
+      ? ''
+      : `
+        <table class="gm-canhoto">
+          <tr>
+            <td style="width: 22%; height: 32px;">
+              <span class="lbl">DATA CIENTIFICAÇÃO:</span>
+            </td>
+            <td style="width: 38%;">
+              <span class="lbl">IDENTIFICAÇÃO E ASSINATURA</span>
+            </td>
+            <td style="width: 40%;">
+              <span class="lbl">N° NFS-e/ CHAVE NFS-e</span>
+              <span class="val">${escapeHtml(numNfse)}/${escapeHtml(chave)}</span>
+            </td>
+          </tr>
+        </table>
+      `;
 
     const printScript = `
       <script>
@@ -1332,9 +1453,15 @@ const openOfficialDanfsePrint = async (nfseRecord, params = INITIAL_PARAMETERS) 
       </script>
     `;
 
+    if (html.includes('</head>')) {
+      html = html.replace('</head>', `${extraStyles}</head>`);
+    } else {
+      html = `${extraStyles}${html}`;
+    }
+
     const finalHtml = html.includes('</body>')
-      ? html.replace('</body>', `${printScript}</body>`)
-      : `${html}${printScript}`;
+      ? html.replace('</body>', `${canhotoHtml}${canceladaOverlay}${printScript}</body>`)
+      : `${html}${canhotoHtml}${canceladaOverlay}${printScript}`;
 
     win.document.open();
     win.document.write(finalHtml);
