@@ -1363,7 +1363,10 @@ const openOfficialDanfsePrint = async (nfseRecord, params = INITIAL_PARAMETERS) 
           size: A4 portrait;
           margin: 5mm;
         }
-        body {
+        html, body {
+          margin: 0 !important;
+          padding: 0 !important;
+          background: #ffffff !important;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
         }
@@ -1371,9 +1374,6 @@ const openOfficialDanfsePrint = async (nfseRecord, params = INITIAL_PARAMETERS) 
           html, body {
             width: 100% !important;
             max-width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #ffffff !important;
           }
           body > *:not(.gm-cancelada-watermark):not(script):not(style) {
             width: 100% !important;
@@ -1382,6 +1382,50 @@ const openOfficialDanfsePrint = async (nfseRecord, params = INITIAL_PARAMETERS) 
             margin-right: 0 !important;
             box-shadow: none !important;
           }
+        }
+        .gm-a4-flex {
+          display: flex !important;
+          flex-direction: column !important;
+          min-height: 278mm !important;
+          height: 278mm !important;
+          box-sizing: border-box !important;
+        }
+        .gm-info-expand {
+          flex: 1 1 auto !important;
+          display: flex !important;
+          flex-direction: column !important;
+          height: auto !important;
+          max-height: none !important;
+          min-height: 0 !important;
+        }
+        .gm-flex-fill {
+          flex: 1 1 auto !important;
+          height: auto !important;
+          max-height: none !important;
+          min-height: 0 !important;
+        }
+        .gm-canhoto-end {
+          margin-top: auto !important;
+          flex: 0 0 auto !important;
+        }
+        .gm-table-fullpage {
+          height: 278mm !important;
+          min-height: 278mm !important;
+        }
+        .gm-table-expand {
+          flex: 1 1 auto !important;
+          height: 100% !important;
+        }
+        .gm-tr-fit {
+          height: 1px !important;
+        }
+        .gm-tr-grow {
+          height: 100% !important;
+        }
+        .gm-tr-grow > td,
+        .gm-tr-grow > th {
+          height: 100% !important;
+          vertical-align: top !important;
         }
         .gm-cancelada-watermark {
           position: fixed;
@@ -1467,13 +1511,124 @@ const openOfficialDanfsePrint = async (nfseRecord, params = INITIAL_PARAMETERS) 
         </table>
       `;
 
-    const printScript = `
+    const layoutAndPrintScript = `
       <script>
-        window.onload = function () {
-          setTimeout(function () {
-            window.print();
-          }, 250);
-        };
+        (function () {
+          function applyFullPageLayout() {
+            try {
+              var norm = function (s) {
+                return String(s || '')
+                  .normalize('NFD')
+                  .replace(/[\\u0300-\\u036f]/g, '')
+                  .toUpperCase();
+              };
+
+              var findDeepest = function (needle) {
+                var all = document.body.querySelectorAll('*');
+                var best = null;
+                for (var i = 0; i < all.length; i++) {
+                  var el = all[i];
+                  if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE') continue;
+                  if (el.closest('.gm-cancelada-watermark')) continue;
+                  if (norm(el.textContent).indexOf(needle) !== -1) {
+                    best = el;
+                  }
+                }
+                return best;
+              };
+
+              var infoEl = findDeepest('INFORMACOES COMPLEMENTARES');
+              var canhotoEl = findDeepest('DATA CIENTIFICACAO');
+              if (!infoEl || !canhotoEl) return;
+
+              var common = infoEl.parentElement;
+              while (common && !common.contains(canhotoEl)) {
+                common = common.parentElement;
+              }
+              if (!common) return;
+
+              var canhotoBlock = canhotoEl;
+              while (canhotoBlock.parentElement && canhotoBlock.parentElement !== common) {
+                canhotoBlock = canhotoBlock.parentElement;
+              }
+
+              var infoBlock = infoEl;
+              while (infoBlock.parentElement && infoBlock.parentElement !== common) {
+                infoBlock = infoBlock.parentElement;
+              }
+
+              if (common.tagName === 'TBODY' || common.tagName === 'TABLE') {
+                var tbl = common.tagName === 'TABLE' ? common : common.closest('table');
+                if (tbl) tbl.classList.add('gm-table-fullpage');
+
+                var growTr =
+                  canhotoBlock.previousElementSibling && canhotoBlock.previousElementSibling !== infoBlock
+                    ? canhotoBlock.previousElementSibling
+                    : infoBlock;
+
+                var rows = common.children;
+                for (var r = 0; r < rows.length; r++) {
+                  if (rows[r] === growTr) {
+                    rows[r].classList.add('gm-tr-grow');
+                  } else {
+                    rows[r].classList.add('gm-tr-fit');
+                  }
+                }
+              } else {
+                var cur = common;
+                while (cur && cur !== document.documentElement) {
+                  if (cur.tagName !== 'TABLE' && cur.tagName !== 'TBODY' && cur.tagName !== 'TR') {
+                    cur.classList.add('gm-a4-flex');
+                  }
+                  if (cur === document.body) break;
+                  cur = cur.parentElement;
+                }
+
+                canhotoBlock.classList.add('gm-canhoto-end');
+
+                var targetGrow = infoBlock;
+                if (
+                  canhotoBlock.previousElementSibling &&
+                  canhotoBlock.previousElementSibling !== infoBlock &&
+                  norm(infoBlock.textContent).trim().length < 60
+                ) {
+                  targetGrow = canhotoBlock.previousElementSibling;
+                }
+
+                if (targetGrow && targetGrow !== canhotoBlock) {
+                  if (targetGrow.tagName === 'TABLE') {
+                    targetGrow.classList.add('gm-table-expand');
+                    var lastTr = targetGrow.querySelector('tr:last-child');
+                    if (lastTr) lastTr.classList.add('gm-tr-grow');
+                  } else {
+                    targetGrow.classList.add('gm-info-expand');
+                    var kids = targetGrow.children;
+                    if (kids.length >= 1) {
+                      var lastKid = kids[kids.length - 1];
+                      if (lastKid.tagName === 'TABLE') {
+                        lastKid.classList.add('gm-table-expand');
+                        var lTr = lastKid.querySelector('tr:last-child');
+                        if (lTr) lTr.classList.add('gm-tr-grow');
+                      } else if (lastKid !== infoEl) {
+                        lastKid.classList.add('gm-flex-fill');
+                      }
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              console.error('Erro ao ajustar layout A4 do DANFSe:', e);
+            }
+          }
+
+          applyFullPageLayout();
+          window.onload = function () {
+            applyFullPageLayout();
+            setTimeout(function () {
+              window.print();
+            }, 250);
+          };
+        })();
       </script>
     `;
 
@@ -1484,8 +1639,8 @@ const openOfficialDanfsePrint = async (nfseRecord, params = INITIAL_PARAMETERS) 
     }
 
     const finalHtml = html.includes('</body>')
-      ? html.replace('</body>', `${canhotoHtml}${canceladaOverlay}${printScript}</body>`)
-      : `${html}${canhotoHtml}${canceladaOverlay}${printScript}`;
+      ? html.replace('</body>', `${canhotoHtml}${canceladaOverlay}${layoutAndPrintScript}</body>`)
+      : `${html}${canhotoHtml}${canceladaOverlay}${layoutAndPrintScript}`;
 
     win.document.open();
     win.document.write(finalHtml);
