@@ -968,28 +968,25 @@ const isCancelada = String(nfseRecord?.status || '').toLowerCase().includes('can
   <meta charset="UTF-8" />
   <title>DANFSe - NFS-e ${escapeHtml(numNfse)}</title>
   <style>
-    @page { size: A4 portrait; margin: 6mm 7mm; }
+    @page { size: A4 portrait; margin: 5mm; }
     * { box-sizing: border-box; }
+    @media print {
+      html, body, .page {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+    }
     .cancelada-watermark {
       position: fixed;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
       pointer-events: none;
       z-index: 9999;
       overflow: hidden;
-    }
-    .cancelada-watermark span {
-      transform: rotate(-42deg);
-      font-family: Arial, Helvetica, sans-serif;
-      font-size: 96px;
-      font-weight: 900;
-      letter-spacing: 10px;
-      color: rgba(220, 38, 38, 0.22);
-      text-transform: uppercase;
-      white-space: nowrap;
-      user-select: none;
     }
     body {
       font-family: Arial, Helvetica, sans-serif;
@@ -1123,7 +1120,7 @@ const isCancelada = String(nfseRecord?.status || '').toLowerCase().includes('can
   </style>
 </head>
 <body>
-  ${isCancelada ? '<div class="cancelada-watermark"><span>CANCELADA</span></div>' : ''}
+  ${isCancelada ? `<div class="cancelada-watermark"><svg viewBox="0 0 600 848" preserveAspectRatio="xMidYMid meet" width="100%" height="100%"><text x="300" y="424" text-anchor="middle" dominant-baseline="middle" transform="rotate(-42 300 424)" fill="#dc2626" fill-opacity="0.22" font-family="Arial, Helvetica, sans-serif" font-size="92" font-weight="900" letter-spacing="8">CANCELADA</text></svg></div>` : ''}
   <div class="page">
     <table class="t hdr-outer">
       <tr>
@@ -1362,35 +1359,44 @@ const openOfficialDanfsePrint = async (nfseRecord, params = INITIAL_PARAMETERS) 
 
     const extraStyles = `
       <style>
+        @page {
+          size: A4 portrait;
+          margin: 5mm;
+        }
         body {
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
         }
+        @media print {
+          html, body {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+          }
+          body > *:not(.gm-cancelada-watermark):not(script):not(style) {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            box-shadow: none !important;
+          }
+        }
         .gm-cancelada-watermark {
           position: fixed;
-          inset: 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
           pointer-events: none;
           z-index: 9999;
           overflow: hidden;
         }
-        .gm-cancelada-watermark span {
-          transform: rotate(-42deg);
-          font-family: Arial, Helvetica, sans-serif;
-          font-size: 96px;
-          font-weight: 900;
-          letter-spacing: 10px;
-          color: rgba(220, 38, 38, 0.22);
-          text-transform: uppercase;
-          white-space: nowrap;
-          user-select: none;
-        }
         .gm-canhoto {
           width: 100%;
           border-collapse: collapse;
-          margin-top: 8px;
+          margin-top: 6px;
           font-family: Arial, Helvetica, sans-serif;
           table-layout: fixed;
         }
@@ -1420,7 +1426,25 @@ const openOfficialDanfsePrint = async (nfseRecord, params = INITIAL_PARAMETERS) 
     `;
 
     const canceladaOverlay = isCancelada
-      ? `<div class="gm-cancelada-watermark"><span>CANCELADA</span></div>`
+      ? `
+        <div class="gm-cancelada-watermark">
+          <svg viewBox="0 0 600 848" preserveAspectRatio="xMidYMid meet" width="100%" height="100%">
+            <text
+              x="300"
+              y="424"
+              text-anchor="middle"
+              dominant-baseline="middle"
+              transform="rotate(-42 300 424)"
+              fill="#dc2626"
+              fill-opacity="0.22"
+              font-family="Arial, Helvetica, sans-serif"
+              font-size="92"
+              font-weight="900"
+              letter-spacing="8"
+            >CANCELADA</text>
+          </svg>
+        </div>
+      `
       : '';
 
     const hasCanhoto = html.includes('DATA CIENTIFICAÇÃO') || html.includes('IDENTIFICAÇÃO E ASSINATURA');
