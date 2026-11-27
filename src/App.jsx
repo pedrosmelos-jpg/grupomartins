@@ -3203,14 +3203,19 @@ const matchedClient = clients.find(
         (c.document && c.document.replace(/\D/g, '') && c.document.replace(/\D/g, '') === String(record.cliente_documento || '').replace(/\D/g, ''))
     );
 
+    const cepClean = String(record.cliente_cep || matchedClient?.cep || '').replace(/\D/g, '');
+    const cidadeTexto = String(record.cliente_cidade || matchedClient?.city || '');
+    const isRondonopolis = cidadeTexto.toLowerCase().includes('rondonopolis') || cidadeTexto.toLowerCase().includes('rondonópolis');
+
     const tomadorPayload = {
       nome: record.cliente_nome || matchedClient?.name || '',
       documento: record.cliente_documento || matchedClient?.document || '',
       email: record.cliente_email || matchedClient?.email || '',
       telefone: record.cliente_telefone || matchedClient?.phone || '',
       logradouro: record.cliente_endereco || matchedClient?.address || '',
-      cidade: record.cliente_cidade || matchedClient?.city || '',
-      cep: record.cliente_cep || matchedClient?.cep || ''
+      cidade: cidadeTexto,
+      cep: cepClean,
+      ...(isRondonopolis ? { codigoMunicipio: '5107602' } : {})
     };
     const servicoPayload = {
       codigoServico: record.codigo_servico || '17.01.01',
