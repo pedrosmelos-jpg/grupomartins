@@ -175,7 +175,6 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
       ${tomadorDocTag}
       <xNome>${escapeXml(tomador.nome)}</xNome>${endTomadorXml}${emailTomadorTag}
     </toma>
-    <indDest>0</indDest>
     <serv>
       <locPrest>
         <cLocPrestacao>${cLocEmi}</cLocPrestacao>
