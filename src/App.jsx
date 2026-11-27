@@ -1582,6 +1582,7 @@ export default function App() {
   const [ctPage, setCtPage] = useState(1);
 
   const [cliSearch, setCliSearch] = useState('');
+    const [cliSearchBy, setCliSearchBy] = useState({ name: true, fantasia: true, document: true });
 
   const [condSearch, setCondSearch] = useState('');
   const [condStatusFilter, setCondStatusFilter] = useState('Todos');
@@ -1754,10 +1755,17 @@ export default function App() {
 
   const [cliForm, setCliForm] = useState({
     name: '',
+    fantasia: '',
+    personType: 'J',
     document: '',
     registration: '',
     segment: INITIAL_SEGMENTS[0],
     city: 'Rondonópolis — MT',
+    address: '',
+    addressNumber: '',
+    neighborhood: '',
+    cep: '',
+    cityIbge: '',
     contactName: '',
     phone: '',
     email: '',
@@ -2005,6 +2013,7 @@ export default function App() {
       setCliForm(prev => ({
         ...prev,
         name: razaoSocial || prev.name,
+        fantasia: data.nome_fantasia || est.nome_fantasia || prev.fantasia,
         document: cnpjValue,
         city: municipio && uf ? `${municipio} — ${uf}` : prev.city,
         phone: telefone ? String(telefone) : prev.phone,
@@ -2939,6 +2948,8 @@ export default function App() {
       const clientData = {
         id: clientId,
         name: cliForm.name,
+        fantasia: cliForm.fantasia || '',
+        persontype: cliForm.personType || 'J',
         document: cliForm.document || '',
         registration: cliForm.registration || '',
         segment: cliForm.segment,
@@ -2976,6 +2987,8 @@ export default function App() {
 
       setCliForm({
         name: '',
+        fantasia: '',
+        personType: 'J',
         document: '',
         registration: '',
         segment: availableSegments[0],
@@ -3836,7 +3849,18 @@ export default function App() {
   }, [filteredContracts, safeCtPage]);
 
   const filteredClients = useMemo(() => {
-    let list = clients.filter(cli => (cli.name || '').toLowerCase().includes(cliSearch.toLowerCase()));
+    const q = cliSearch.toLowerCase().trim();
+    const qDigits = q.replace(/\D/g, '');
+    let list = clients.filter((cli) => {
+      if (!q) return true;
+      const byName = cliSearchBy.name && (cli.name || '').toLowerCase().includes(q);
+      const byFantasia = cliSearchBy.fantasia && (cli.fantasia || '').toLowerCase().includes(q);
+      const byDocument =
+        cliSearchBy.document &&
+        ((cli.document || '').toLowerCase().includes(q) ||
+          (qDigits.length > 0 && String(cli.document || '').replace(/\D/g, '').includes(qDigits)));
+      return byName || byFantasia || byDocument;
+    });
     if (sortField) {
       list.sort((a, b) => {
         let valA = a[sortField] || a[sortField?.toLowerCase()] || '';
@@ -3850,7 +3874,7 @@ export default function App() {
       });
     }
     return list;
-  }, [clients, cliSearch, sortField, sortDirection]);
+  }, [clients, cliSearch, cliSearchBy, sortField, sortDirection]);
 
   const filteredProspeccoes = useMemo(() => {
     const q = prospSearch.toLowerCase();
@@ -5530,15 +5554,35 @@ export default function App() {
               {activeTab === 'clientes' && (
                 <div className="space-y-6">
                   <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
-                    <div className="relative flex-1 min-w-[220px] max-w-md">
-                      <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                      <input
-                        type="text"
-                        value={cliSearch}
-                        onChange={(e) => setCliSearch(e.target.value)}
-                        placeholder="Buscar clientes..."
-                        className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
-                      />
+                    <div className="flex-1 min-w-[220px] max-w-xl space-y-2">
+                      <div className="relative">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                        <input
+                          type="text"
+                          value={cliSearch}
+                          onChange={(e) => setCliSearch(e.target.value)}
+                          placeholder="Buscar por razão social, fantasia ou CNPJ/CPF..."
+                          className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm"
+                        />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-slate-600">
+                        <span>Buscar em:</span>
+                        {[
+                          { k: 'name', l: 'Razão Social' },
+                          { k: 'fantasia', l: 'Fantasia' },
+                          { k: 'document', l: 'CNPJ / CPF' }
+                        ].map((opt) => (
+                          <label key={opt.k} className="flex items-center gap-1.5 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={cliSearchBy[opt.k]}
+                              onChange={() => setCliSearchBy((prev) => ({ ...prev, [opt.k]: !prev[opt.k] }))}
+                              className="w-4 h-4 rounded text-[#1B3B2B] cursor-pointer"
+                            />
+                            {opt.l}
+                          </label>
+                        ))}
+                      </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       {renderColumnOrganizerButton('clientes')}
@@ -5561,10 +5605,17 @@ export default function App() {
                             setEditingClient(null);
                             setCliForm({
                               name: '',
+                              fantasia: '',
+                              personType: 'J',
                               document: '',
                               registration: '',
                               segment: availableSegments[0],
                               city: 'Rondonópolis — MT',
+                              address: '',
+                              addressNumber: '',
+                              neighborhood: '',
+                              cep: '',
+                              cityIbge: '',
                               contactName: '',
                               phone: '',
                               email: '',
@@ -5586,6 +5637,8 @@ export default function App() {
                     const cliCols = [
                       { key: 'id', label: 'ID', sortKey: 'id', align: 'left', render: (cli) => <td key="id" className="py-3 px-3 font-mono font-bold">{cli.id}</td> },
                       { key: 'name', label: 'Razão Social / Empreendimento', sortKey: 'name', align: 'left', render: (cli) => <td key="name" className="py-3 px-3 font-bold">{cli.name}</td> },
+                      { key: 'fantasia', label: 'Nome Fantasia', sortKey: 'fantasia', align: 'left', render: (cli) => <td key="fantasia" className="py-3 px-3">{cli.fantasia || '—'}</td> },
+                      { key: 'document', label: 'CNPJ / CPF', sortKey: 'document', align: 'left', render: (cli) => <td key="document" className="py-3 px-3 font-mono">{cli.document || '—'}</td> },
                       { key: 'segment', label: 'Segmento Econômico', sortKey: 'segment', align: 'left', render: (cli) => <td key="segment" className="py-3 px-3">{cli.segment}</td> },
                       { key: 'contactname', label: 'Responsável / Contato', sortKey: 'contactname', align: 'left', render: (cli) => <td key="contactname" className="py-3 px-3">{cli.contactName || cli.contactname || '—'}</td> },
                       { key: 'city', label: 'Cidade', sortKey: 'city', align: 'left', render: (cli) => <td key="city" className="py-3 px-3">{cli.city}</td> },
@@ -5632,6 +5685,8 @@ export default function App() {
                                         setEditingClient(cli);
                                         setCliForm({
                                           name: cli.name,
+                                          fantasia: cli.fantasia || '',
+                                          personType: cli.persontype || cli.personType || (String(cli.document || '').replace(/\D/g, '').length === 11 ? 'F' : 'J'),
                                           document: cli.document || '',
                                           registration: cli.registration || '',
                                           segment: cli.segment || availableSegments[0],
@@ -7277,31 +7332,73 @@ Emissão direta gratuita via Portal Nacional • Rondonópolis — MT (CNPJ 64.9
 
             <form onSubmit={handleSaveClient} className="p-6 space-y-4 text-xs">
               <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">CNPJ (BUSCA AUTOMÁTICA AO SAIR DO CAMPO)</label>
+                <label className="block font-bold text-slate-700 uppercase mb-1">TIPO DE PESSOA</label>
+                <div className="flex gap-2">
+                  {[
+                    { v: 'J', l: 'Pessoa Jurídica' },
+                    { v: 'F', l: 'Pessoa Física' }
+                  ].map((opt) => (
+                    <button
+                      key={opt.v}
+                      type="button"
+                      onClick={() => {
+                        if (cliForm.personType === opt.v) return;
+                        setCliForm({ ...cliForm, personType: opt.v, document: '', fantasia: opt.v === 'F' ? '' : cliForm.fantasia });
+                      }}
+                      className={`flex-1 px-3 py-2.5 rounded-xl border font-bold cursor-pointer transition ${
+                        cliForm.personType === opt.v
+                          ? 'bg-[#1B3B2B] text-white border-[#1B3B2B]'
+                          : 'bg-white text-[#1B3B2B] border-slate-300 hover:bg-[#F8F3EF]'
+                      }`}
+                    >
+                      {opt.l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">
+                  {cliForm.personType === 'F' ? 'CPF' : 'CNPJ (BUSCA AUTOMÁTICA AO SAIR DO CAMPO)'}
+                </label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={cliForm.document}
                     onChange={(e) => setCliForm({ ...cliForm, document: e.target.value })}
-                    onBlur={(e) => { if (e.target.value) handleCnpjBlur(e.target.value); }}
-                    placeholder="Digite o CNPJ (apenas números)..."
+                    onBlur={(e) => { if (cliForm.personType !== 'F' && e.target.value) handleCnpjBlur(e.target.value); }}
+                    placeholder={cliForm.personType === 'F' ? 'Digite o CPF (apenas números)...' : 'Digite o CNPJ (apenas números)...'}
                     className="w-full px-3.5 py-2.5 rounded-xl border font-mono font-bold"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">RAZÃO SOCIAL / NOME</label>
+                <label className="block font-bold text-slate-700 uppercase mb-1">
+                  {cliForm.personType === 'F' ? 'NOME COMPLETO' : 'RAZÃO SOCIAL'}
+                </label>
                 <input
                   type="text"
                   value={cliForm.name}
                   onChange={(e) => setCliForm({ ...cliForm, name: e.target.value })}
-                  placeholder="Nome do cliente ou empresa..."
+                  placeholder={cliForm.personType === 'F' ? 'Nome da pessoa...' : 'Razão social da empresa...'}
                   className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-slate-800"
                   required
                 />
               </div>
 
+              {cliForm.personType !== 'F' && (
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">NOME FANTASIA</label>
+                  <input
+                    type="text"
+                    value={cliForm.fantasia}
+                    onChange={(e) => setCliForm({ ...cliForm, fantasia: e.target.value })}
+                    placeholder="Nome fantasia (preenchido ao digitar o CNPJ)..."
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-semibold"
+                  />
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -7509,7 +7606,7 @@ Emissão direta gratuita via Portal Nacional • Rondonópolis — MT (CNPJ 64.9
                     type="text"
                     value={cliForm.cep}
                     onChange={(e) => setCliForm({ ...cliForm, cep: e.target.value })}
-                    onBlur={(e) => handleCepBlur(e.target.value)}
+                    onBlur={(e) => { if (cliForm.personType !== 'F') handleCepBlur(e.target.value); }}
                     placeholder="78700-090"
                     className="w-full px-3.5 py-2.5 rounded-xl border font-mono font-bold"
                   />
