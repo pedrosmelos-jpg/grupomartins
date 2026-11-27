@@ -1579,6 +1579,8 @@ export default function App() {
   const [ctDueDateFilter, setCtDueDateFilter] = useState('Todos');
   const [ctDateFrom, setCtDateFrom] = useState('');
   const [ctDateTo, setCtDateTo] = useState('');
+  const [ctClosingFrom, setCtClosingFrom] = useState('');
+  const [ctClosingTo, setCtClosingTo] = useState('');
   const [ctPage, setCtPage] = useState(1);
 
   const [cliSearch, setCliSearch] = useState('');
@@ -1739,11 +1741,12 @@ export default function App() {
     amount: ''
   });
 
-  const [ctForm, setCtForm] = useState({
+const [ctForm, setCtForm] = useState({
     client: '',
     service: INITIAL_PLANO_CONTAS.receitas[0].nome,
     agency: INITIAL_AGENCIES[0],
     status: 'Em Andamento',
+    closingDate: new Date().toISOString().split('T')[0],
     contractValue: '',
     directCosts: '',
     installmentsCount: '1',
@@ -2730,12 +2733,13 @@ export default function App() {
 
       const contractStatus = editingContract ? (editingContract.status || 'Em Andamento') : 'Em Andamento';
 
-      const contractData = {
+        const contractData = {
         id: contractId,
         client: ctForm.client,
         service: ctForm.service,
         agency: ctForm.agency,
         status: contractStatus,
+        closingdate: ctForm.closingDate || null,
         contractvalue: contractVal,
         receivedvalue: installments.filter(i => i.status === 'Pago').reduce((acc, cur) => acc + Number(cur.amount), 0),
         directcosts: directVal,
@@ -3777,7 +3781,16 @@ export default function App() {
           });
       }
 
-      return matchSearch && matchStatus && matchDueDate && matchPeriod;
+    let matchClosingPeriod = true;
+      if (ctClosingFrom || ctClosingTo) {
+        const closingDay = String(c.closingdate || c.closingDate || '').slice(0, 10);
+        matchClosingPeriod =
+          Boolean(closingDay) &&
+          (!ctClosingFrom || closingDay >= ctClosingFrom) &&
+          (!ctClosingTo || closingDay <= ctClosingTo);
+      }
+
+      return matchSearch && matchStatus && matchDueDate && matchPeriod && matchClosingPeriod;
     });
 
     if (sortField) {
@@ -3798,8 +3811,8 @@ export default function App() {
       });
     }
 
-    return list;
-  }, [contracts, ctSearch, ctStatusFilter, ctDueDateFilter, ctDateFrom, ctDateTo, sortField, sortDirection]);
+  return list;
+  }, [contracts, ctSearch, ctStatusFilter, ctDueDateFilter, ctDateFrom, ctDateTo, ctClosingFrom, ctClosingTo, sortField, sortDirection]);
 
   const technicalStatusOptions = useMemo(() => {
     const merged = [...availableTechnicalStatuses];
@@ -3839,7 +3852,7 @@ export default function App() {
 
   useEffect(() => {
     setCtPage(1);
-  }, [ctSearch, ctStatusFilter, ctDueDateFilter, ctDateFrom, ctDateTo]);
+  }, [ctSearch, ctStatusFilter, ctDueDateFilter, ctDateFrom, ctDateTo, ctClosingFrom, ctClosingTo]);
 
   const totalContractPages = Math.max(1, Math.ceil(filteredContracts.length / CONTRACTS_PER_PAGE));
   const safeCtPage = Math.min(ctPage, totalContractPages);
@@ -5079,15 +5092,15 @@ export default function App() {
                         ))}
                       </select>
 
-                      <div className="flex items-center gap-1.5 text-xs text-slate-600">
-                        <span className="font-medium">Período:</span>
+<div className="flex items-center gap-1.5 text-xs text-slate-600">
+                        <span className="font-medium">Venc. Parcelas:</span>
                         <input
                           type="date"
                           value={ctDateFrom}
                           max={ctDateTo || undefined}
                           onChange={(e) => setCtDateFrom(e.target.value)}
                           className="px-2 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-medium cursor-pointer"
-                          title="Data inicial"
+                          title="Vencimento inicial"
                         />
                         <span className="text-slate-400">a</span>
                         <input
@@ -5096,9 +5109,48 @@ export default function App() {
                           min={ctDateFrom || undefined}
                           onChange={(e) => setCtDateTo(e.target.value)}
                           className="px-2 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-medium cursor-pointer"
-                          title="Data final"
+                          title="Vencimento final"
                         />
                       </div>
+
+                      <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                        <span className="font-bold text-[#1B3B2B]">Fechamento:</span>
+                        <input
+                          type="date"
+                          value={ctClosingFrom}
+                          max={ctClosingTo || undefined}
+                          onChange={(e) => setCtClosingFrom(e.target.value)}
+                          className="px-2 py-1.5 rounded-xl border border-[#B7DFC5] bg-[#F4F9F5] text-xs font-semibold text-[#1B3B2B] cursor-pointer"
+                          title="Data inicial de fechamento do contrato"
+                        />
+                        <span className="text-slate-400">a</span>
+                        <input
+                          type="date"
+                          value={ctClosingTo}
+                          min={ctClosingFrom || undefined}
+                          onChange={(e) => setCtClosingTo(e.target.value)}
+                          className="px-2 py-1.5 rounded-xl border border-[#B7DFC5] bg-[#F4F9F5] text-xs font-semibold text-[#1B3B2B] cursor-pointer"
+                          title="Data final de fechamento do contrato"
+                        />
+                      </div>
+
+                      {(ctSearch || ctStatusFilter !== 'Todos' || ctDueDateFilter !== 'Todos' || ctDateFrom || ctDateTo || ctClosingFrom || ctClosingTo) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCtSearch('');
+                            setCtStatusFilter('Todos');
+                            setCtDueDateFilter('Todos');
+                            setCtDateFrom('');
+                            setCtDateTo('');
+                            setCtClosingFrom('');
+                            setCtClosingTo('');
+                          }}
+                          className="text-xs text-rose-600 font-bold hover:underline cursor-pointer"
+                        >
+                          Limpar Filtros
+                        </button>
+                      )}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -5106,23 +5158,26 @@ export default function App() {
                       <ExportButtons
                         onPDF={() => {
                           const headers = canViewContractValues
-                            ? ['Código', 'Cliente', 'Plano de Contas', 'Órgão', 'Status Técnico', 'Situação Parcela', 'Valor Contrato']
-                            : ['Código', 'Cliente', 'Plano de Contas', 'Órgão', 'Status Técnico', 'Situação Parcela'];
+                            ? ['Código', 'Cliente', 'Plano de Contas', 'Órgão', 'Fechamento', 'Status Técnico', 'Situação Parcela', 'Valor Contrato']
+                            : ['Código', 'Cliente', 'Plano de Contas', 'Órgão', 'Fechamento', 'Status Técnico', 'Situação Parcela'];
                           const rows = filteredContracts.map(ct => {
                             const sit = getInstallmentSituationBadge(ct).label;
-                            const base = [ct.id, ct.client, ct.service, ct.agency || 'SEMA-MT', ct.status || 'Em Andamento', sit];
+                            const base = [ct.id, ct.client, ct.service, ct.agency || 'SEMA-MT', formatDateBR(ct.closingdate || ct.closingDate), ct.status || 'Em Andamento', sit];
                             if (canViewContractValues) base.push(formatCurrency(ct.contractvalue || ct.contractValue || 0));
                             return base;
                           });
-                          exportTableToPDF({ title: 'Contratos Ambientais & SST', subtitle: (ctDateFrom || ctDateTo) ? `Período: ${ctDateFrom ? formatDateBR(ctDateFrom) : '...'} a ${ctDateTo ? formatDateBR(ctDateTo) : '...'}` : 'Relatório de contratos filtrados', headers, rows, orientation: 'landscape', params });
+                          const subParts = [];
+                          if (ctClosingFrom || ctClosingTo) subParts.push(`Fechamento: ${ctClosingFrom ? formatDateBR(ctClosingFrom) : '...'} a ${ctClosingTo ? formatDateBR(ctClosingTo) : '...'}`);
+                          if (ctDateFrom || ctDateTo) subParts.push(`Parcelas: ${ctDateFrom ? formatDateBR(ctDateFrom) : '...'} a ${ctDateTo ? formatDateBR(ctDateTo) : '...'}`);
+                          exportTableToPDF({ title: 'Contratos Ambientais & SST', subtitle: subParts.length ? subParts.join(' • ') : 'Relatório de contratos filtrados', headers, rows, orientation: 'landscape', params });
                         }}
                         onExcel={() => {
                           const headers = canViewContractValues
-                            ? ['Código', 'Cliente', 'Plano de Contas', 'Órgão', 'Status Técnico', 'Situação Parcela', 'Valor Contrato']
-                            : ['Código', 'Cliente', 'Plano de Contas', 'Órgão', 'Status Técnico', 'Situação Parcela'];
+                            ? ['Código', 'Cliente', 'Plano de Contas', 'Órgão', 'Fechamento', 'Status Técnico', 'Situação Parcela', 'Valor Contrato']
+                            : ['Código', 'Cliente', 'Plano de Contas', 'Órgão', 'Fechamento', 'Status Técnico', 'Situação Parcela'];
                           const rows = filteredContracts.map(ct => {
                             const sit = getInstallmentSituationBadge(ct).label;
-                            const base = [ct.id, ct.client, ct.service, ct.agency || 'SEMA-MT', ct.status || 'Em Andamento', sit];
+                            const base = [ct.id, ct.client, ct.service, ct.agency || 'SEMA-MT', formatDateBR(ct.closingdate || ct.closingDate), ct.status || 'Em Andamento', sit];
                             if (canViewContractValues) base.push(Number(ct.contractvalue || ct.contractValue || 0).toFixed(2));
                             return base;
                           });
@@ -5140,6 +5195,7 @@ export default function App() {
                               service: planoContasData.receitas[0]?.nome || '',
                               agency: availableAgencies[0] || 'SEMA-MT',
                               status: 'Em Andamento',
+                              closingDate: new Date().toISOString().split('T')[0],
                               contractValue: '',
                               directCosts: '',
                               installmentsCount: '1',
@@ -5164,6 +5220,7 @@ export default function App() {
                       { key: 'client', label: 'CLIENTE / EMPREENDIMENTO', sortKey: 'client', align: 'left', render: (ct) => <td key="client" className="py-4 px-4 font-semibold text-slate-900">{ct.client}</td> },
                       { key: 'service', label: 'PLANO DE CONTAS', sortKey: 'service', align: 'left', render: (ct) => <td key="service" className="py-4 px-4 text-slate-700">{ct.service}</td> },
                       { key: 'agency', label: 'ÓRGÃO / SETOR', sortKey: 'agency', align: 'left', render: (ct) => <td key="agency" className="py-4 px-4 font-medium text-slate-700 whitespace-nowrap">{ct.agency || 'SEMA-MT'}</td> },
+                      { key: 'closingdate', label: 'FECHAMENTO', sortKey: 'closingdate', align: 'center', render: (ct) => <td key="closingdate" className="py-4 px-4 text-center font-mono text-slate-700 whitespace-nowrap">{formatDateBR(ct.closingdate || ct.closingDate)}</td> },
                       { key: 'situation', label: 'SITUAÇÃO PARCELA', sortKey: null, align: 'center', render: (ct) => {
                         const sitBadge = getInstallmentSituationBadge(ct);
                         return (
@@ -5233,10 +5290,12 @@ export default function App() {
                                             setEditingContract(ct);
                                             setShowAgencyManager(false);
                                             setCtForm({
+                                            setCtForm({
                                               client: ct.client,
                                               service: ct.service,
                                               agency: ct.agency || availableAgencies[0] || 'SEMA-MT',
                                               status: ct.status || 'Em Andamento',
+                                              closingDate: String(ct.closingdate || ct.closingDate || '').slice(0, 10),
                                               contractValue: ct.contractvalue || ct.contractValue,
                                               directCosts: ct.directcosts || ct.directCosts,
                                               installmentsCount: ct.installmentscount || ct.installmentsCount || '1',
@@ -6918,6 +6977,16 @@ Emissão direta gratuita via Portal Nacional • Rondonópolis — MT (CNPJ 64.9
                     </div>
                   </div>
                 )}
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">DATA DE FECHAMENTO DO CONTRATO</label>
+                <input
+                  type="date"
+                  value={ctForm.closingDate || ''}
+                  onChange={(e) => setCtForm({ ...ctForm, closingDate: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border font-bold text-[#1B3B2B] bg-white"
+                />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
