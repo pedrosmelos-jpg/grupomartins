@@ -3119,7 +3119,7 @@ const logradouro = data.logradouro || data.estabelecimento?.logradouro || '';
     }
 
     const nfseId = editingNfse ? editingNfse.id : generateUniqueId('NFSE');
-    const baseRecord = {
+const baseRecord = {
       id: nfseId,
       numero: editingNfse?.numero || '',
       chave_acesso: editingNfse?.chave_acesso || '',
@@ -3128,6 +3128,10 @@ const logradouro = data.logradouro || data.estabelecimento?.logradouro || '';
       cliente_nome: nfseForm.cliente_nome.trim(),
       cliente_documento: nfseForm.cliente_documento.trim(),
       cliente_email: nfseForm.cliente_email.trim(),
+      cliente_telefone: nfseForm.cliente_telefone.trim(),
+      cliente_endereco: nfseForm.cliente_endereco.trim(),
+      cliente_cidade: nfseForm.cliente_cidade.trim(),
+      cliente_cep: nfseForm.cliente_cep.trim(),
       codigo_servico: nfseForm.codigo_servico.trim() || '17.01.01',
       descricao_servico: nfseForm.descricao_servico.trim(),
       valor: numericVal,
@@ -3138,7 +3142,7 @@ const logradouro = data.logradouro || data.estabelecimento?.logradouro || '';
       mensagem_erro: '',
       contract_id: nfseForm.contract_id || ''
     };
-
+    
     if (supabase) {
       const { error } = await supabase.from('nfse').upsert([baseRecord]);
       if (error) {
