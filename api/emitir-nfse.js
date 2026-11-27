@@ -164,7 +164,7 @@ const totTribTag = `\n    <totTrib>\n      <vTotTrib>\n        <vTotTribFed>0.00
     <nDPS>${nDpsNum}</nDPS>
     <dCompet>${dCompet}</dCompet>
     <tpEmit>1</tpEmit>
-    <finNFSe>1</finNFSe>
+    <finNFSe>0</finNFSe>
     <cLocEmi>${cLocEmi}</cLocEmi>
     <prest>
       <CNPJ>${cnpjPrest}</CNPJ>${imTag}
