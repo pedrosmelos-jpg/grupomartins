@@ -146,6 +146,7 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
       ${tomadorDocTag}
       <xNome>${escapeXml(tomador.nome)}</xNome>${emailTomadorTag}
     </toma>
+    <indDest>0</indDest>
     <serv>
       <locPrest>
         <cLocPrestacao>${cLocEmi}</cLocPrestacao>
@@ -290,36 +291,3 @@ export default async function handler(req, res) {
       if (response.parsed.nfseXmlGZipB64) {
         try {
           xmlRetorno = zlib.gunzipSync(Buffer.from(response.parsed.nfseXmlGZipB64, 'base64')).toString('utf8');
-        } catch {}
-      }
-      const matchNum = xmlRetorno.match(/<nNFSe>(\d+)<\/nNFSe>/);
-      const numeroNfse = matchNum ? matchNum[1] : String(numeroDps);
-
-      return res.status(200).json({
-        ok: true,
-        numero: numeroNfse,
-        chaveAcesso,
-        pdfUrl: `https://${danfseHost}/danfse/${chaveAcesso}`,
-        xmlRetorno
-      });
-    }
-
-    const errDetail =
-      response.parsed?.erros?.map((e) => `${e.Codigo || ''}: ${e.Descricao || e.Mensagem || ''}`).join(' | ') ||
-      response.parsed?.mensagem ||
-      response.raw ||
-      `HTTP ${response.statusCode}`;
-
-    return res.status(422).json({
-      error: `Retorno da SEFIN Nacional (${response.statusCode}): ${errDetail}`,
-      sefinRaw: response.raw,
-      ...(ambiente !== 'producao' ? { xmlGerado: signedXmlDebug } : {})
-    });
-  } catch (err) {
-    console.error('Erro emitir-nfse:', err);
-    return res.status(500).json({
-      error: err.message || 'Erro interno ao processar emissão de NFS-e.',
-      ...(signedXmlDebug ? { xmlGerado: signedXmlDebug } : {})
-    });
-  }
-}
