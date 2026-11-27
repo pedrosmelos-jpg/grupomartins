@@ -1983,12 +1983,24 @@ export default function App() {
       }
 
       const data = await response.json();
+      const est = data.estabelecimento || {};
 
       const razaoSocial = data.razao_social || data.nome_fantasia;
-      const municipio = data.municipio || data.estabelecimento?.cidade?.nome;
-      const uf = data.uf || data.estabelecimento?.estado?.sigla;
-      const telefone = data.ddd_telefone_1 || data.estabelecimento?.telefone1;
-      const emailCorretor = data.email || data.estabelecimento?.email;
+      const municipio = data.municipio || est.cidade?.nome;
+      const uf = data.uf || est.estado?.sigla;
+      const telefone = data.ddd_telefone_1 || est.telefone1;
+      const emailCorretor = data.email || est.email;
+
+      const tipoLog = String(data.descricao_tipo_de_logradouro || est.tipo_logradouro || '').trim();
+      const logr = String(data.logradouro || est.logradouro || '').trim();
+      const logradouroCompleto =
+        tipoLog && logr && !logr.toUpperCase().startsWith(tipoLog.toUpperCase())
+          ? `${tipoLog} ${logr}`
+          : logr;
+      const numero = String(data.numero || est.numero || '').trim();
+      const bairro = String(data.bairro || est.bairro || '').trim();
+      const cepApi = String(data.cep || est.cep || '').replace(/\D/g, '');
+      const ibge = String(data.codigo_municipio_ibge || est.cidade?.ibge_id || '').replace(/\D/g, '');
 
       setCliForm(prev => ({
         ...prev,
@@ -1996,7 +2008,12 @@ export default function App() {
         document: cnpjValue,
         city: municipio && uf ? `${municipio} — ${uf}` : prev.city,
         phone: telefone ? String(telefone) : prev.phone,
-        email: emailCorretor || prev.email
+        email: emailCorretor || prev.email,
+        address: logradouroCompleto || prev.address,
+        addressNumber: numero || prev.addressNumber,
+        neighborhood: bairro || prev.neighborhood,
+        cep: cepApi || prev.cep,
+        cityIbge: ibge || prev.cityIbge
       }));
 
       showToast('Dados preenchidos com sucesso!');
@@ -2006,6 +2023,26 @@ export default function App() {
     }
   };
 
+  // Preenche endereço/bairro/cidade ao digitar o CEP (para clientes sem CNPJ ou CPF)
+  const handleCepBlur = async (cepValue) => {
+    const cleanCep = String(cepValue || '').replace(/\D/g, '');
+    if (cleanCep.length !== 8) return;
+    try {
+      const response = await fetch(`https://brasilapi.com.br/api/cep/v2/${cleanCep}`);
+      if (!response.ok) return;
+      const d = await response.json();
+      setCliForm(prev => ({
+        ...prev,
+        address: prev.address || d.street || '',
+        neighborhood: prev.neighborhood || d.neighborhood || '',
+        city: d.city && d.state ? `${d.city} — ${d.state}` : prev.city,
+        cityIbge: d.city && d.state ? '' : prev.cityIbge
+      }));
+    } catch (err) {
+      console.error('Erro ao consultar CEP:', err);
+    }
+  };
+  
   const fetchAllData = useCallback(async () => {
     if (!supabase) return;
     try {
@@ -2906,6 +2943,11 @@ export default function App() {
         registration: cliForm.registration || '',
         segment: cliForm.segment,
         city: cliForm.city,
+        address: cliForm.address || '',
+        addressnumber: cliForm.addressNumber || '',
+        neighborhood: cliForm.neighborhood || '',
+        cep: cliForm.cep || '',
+        cityibge: cliForm.cityIbge || '',
         contactname: cliForm.contactName || cliForm.contactname || '',
         phone: cliForm.phone || '',
         email: cliForm.email || '',
@@ -2938,6 +2980,11 @@ export default function App() {
         registration: '',
         segment: availableSegments[0],
         city: 'Rondonópolis — MT',
+        address: '',
+        addressNumber: '',
+        neighborhood: '',
+        cep: '',
+        cityIbge: '',
         contactName: '',
         phone: '',
         email: '',
@@ -3178,10 +3225,27 @@ export default function App() {
       opSimpNac: extra.opSimpNac || '3',
       regApTribSN: '1'
     };
+     // Busca o cadastro do cliente (por CNPJ/CPF ou nome) para enviar endereço, cidade, UF e CEP
+    const docDigits = String(record.cliente_documento || '').replace(/\D/g, '');
+    const cli =
+      clients.find((c) => docDigits && String(c.document || '').replace(/\D/g, '') === docDigits) ||
+      clients.find(
+        (c) => String(c.name || '').trim().toLowerCase() === String(record.cliente_nome || '').trim().toLowerCase()
+      );
+    const cidadeMatch = String(cli?.city || '').match(/^(.*?)\s*[—–-]\s*([A-Za-z]{2})\s*$/);
+
     const tomadorPayload = {
       nome: record.cliente_nome,
       documento: record.cliente_documento,
-      email: record.cliente_email
+      email: record.cliente_email || cli?.email || '',
+      telefone: cli?.phone || '',
+      endereco: cli?.address || '',
+      numero: cli?.addressnumber || cli?.addressNumber || '',
+      bairro: cli?.neighborhood || '',
+      cep: cli?.cep || '',
+      cidade: cidadeMatch ? cidadeMatch[1].trim() : String(cli?.city || '').trim(),
+      uf: cidadeMatch ? cidadeMatch[2].toUpperCase() : '',
+      codigoIbge: cli?.cityibge || cli?.cityIbge || ''
     };
     const servicoPayload = {
       codigoServico: record.codigo_servico || '17.01.01',
@@ -5572,6 +5636,11 @@ export default function App() {
                                           registration: cli.registration || '',
                                           segment: cli.segment || availableSegments[0],
                                           city: cli.city || 'Rondonópolis — MT',
+                                          address: cli.address || '',
+                                          addressNumber: cli.addressnumber || cli.addressNumber || '',
+                                          neighborhood: cli.neighborhood || '',
+                                          cep: cli.cep || '',
+                                          cityIbge: cli.cityibge || cli.cityIbge || '',
                                           contactName: cli.contactName || cli.contactname || '',
                                           phone: cli.phone || '',
                                           email: cli.email || '',
@@ -7422,12 +7491,60 @@ Emissão direta gratuita via Portal Nacional • Rondonópolis — MT (CNPJ 64.9
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">CIDADE</label>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">CIDADE — UF</label>
                   <input
                     type="text"
                     value={cliForm.city}
-                    onChange={(e) => setCliForm({ ...cliForm, city: e.target.value })}
+                    onChange={(e) => setCliForm({ ...cliForm, city: e.target.value, cityIbge: '' })}
+                    placeholder="Rondonópolis — MT"
                     className="w-full px-3.5 py-2.5 rounded-xl border font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">CEP</label>
+                  <input
+                    type="text"
+                    value={cliForm.cep}
+                    onChange={(e) => setCliForm({ ...cliForm, cep: e.target.value })}
+                    onBlur={(e) => handleCepBlur(e.target.value)}
+                    placeholder="78700-090"
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-mono font-bold"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block font-bold text-slate-700 uppercase mb-1">ENDEREÇO (RUA / AV.)</label>
+                  <input
+                    type="text"
+                    value={cliForm.address}
+                    onChange={(e) => setCliForm({ ...cliForm, address: e.target.value })}
+                    placeholder="Avenida Cuiabá"
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">NÚMERO</label>
+                  <input
+                    type="text"
+                    value={cliForm.addressNumber}
+                    onChange={(e) => setCliForm({ ...cliForm, addressNumber: e.target.value })}
+                    placeholder="829 ou S/N"
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block font-bold text-slate-700 uppercase mb-1">BAIRRO</label>
+                  <input
+                    type="text"
+                    value={cliForm.neighborhood}
+                    onChange={(e) => setCliForm({ ...cliForm, neighborhood: e.target.value })}
+                    placeholder="Centro"
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
                   />
                 </div>
               </div>
