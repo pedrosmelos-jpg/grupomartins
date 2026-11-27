@@ -107,7 +107,7 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
   const cMunTomador =
     rawMunTomador.length === 7 ? rawMunTomador : exigirEndNac ? cLocEmi : '';
   const cepTomador =
-    rawCepTomador.length === 8 ? rawCepTomador : exigirEndNac ? '78700000' : '';
+    rawCepTomador.length === 8 ? rawCepTomador : exigirEndNac ? '78700090' : '';
 
   const hasEndNac = cMunTomador.length === 7 || cepTomador.length === 8;
 
