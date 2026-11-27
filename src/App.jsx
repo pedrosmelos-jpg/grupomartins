@@ -2951,19 +2951,21 @@ const logradouro = data.logradouro || data.estabelecimento?.logradouro || '';
       setEditingClient(null);
       showToast('Cliente salvo com sucesso na nuvem!');
 
-      setCliForm({
-        name: '',
-        document: '',
-        registration: '',
-        segment: availableSegments[0],
-        city: 'Rondonópolis — MT',
-        contactName: '',
-        phone: '',
-        email: '',
-        mainProgram: 'Licenciamento Ambiental (LP / LI / LO)',
-        status: availableStatuses[0],
-        observation: ''
-      });
+setCliForm({
+  name: cli.name,
+  document: cli.document || '',
+  registration: cli.registration || '',
+  segment: cli.segment || availableSegments[0],
+  address: cli.address || '',
+  city: cli.city || 'Rondonópolis — MT',
+  cep: cli.cep || '',
+  contactName: cli.contactName || cli.contactname || '',
+  phone: cli.phone || '',
+  email: cli.email || '',
+  mainProgram: cli.mainProgram || cli.mainprogram || 'Licenciamento Ambiental',
+  status: cli.status || availableStatuses[0],
+  observation: cli.observation || ''
+});
 
     } catch (err) {
       console.error('Erro crítico ao salvar:', err);
