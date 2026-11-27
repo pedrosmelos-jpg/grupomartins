@@ -8,6 +8,7 @@ import SstEngenhariaGro from './modules/SstEngenhariaGro';
 import SstMedicinaPcmso from './modules/SstMedicinaPcmso';
 import SstEpisNrs from './modules/SstEpisNrs';
 import SstEsocial from './modules/SstEsocial';
+import SstGestaoGed from './modules/SstGestaoGed';
 
 export default function MartinsSegurancaTrabalho({
   supabase,
@@ -115,8 +116,6 @@ export default function MartinsSegurancaTrabalho({
   useEffect(() => {
     loadSstData();
   }, [loadSstData]);
-
-  const activeClient = clients.find((c) => String(c.id) === String(selectedClientId)) || null;
 
   const stats = React.useMemo(() => {
     const now = Date.now();
@@ -302,19 +301,17 @@ export default function MartinsSegurancaTrabalho({
         />
       )}
 
-      {!['hub', 'alertas', 'estrutura', 'engenharia', 'medicina', 'epis_nrs', 'esocial'].includes(activeSubTab) && (
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-2">
-          <div className="text-[11px] font-extrabold uppercase text-[#2D5A43]">
-            Martins Segurança do Trabalho • {activeClient ? activeClient.name : 'Todas as Empresas'}
-          </div>
-          <h3 className="text-base font-extrabold text-[#1B3B2B]">
-            Módulo: {SST_TABS.find((t) => t.id === activeSubTab)?.label}
-            {subSection ? ` — ${subSection}` : ''}
-          </h3>
-          <p className="text-xs text-slate-500">
-            Pronto para o último bloco (CAT, CIPA, Faturamento no Caixa &amp; GED).
-          </p>
-        </div>
+      {activeSubTab === 'gestao_ged' && (
+        <SstGestaoGed
+          supabase={supabase}
+          selectedClientId={selectedClientId}
+          clients={clients}
+          sstData={sstData}
+          onReload={loadSstData}
+          showToast={showToast}
+          params={params}
+          onAddTransaction={onAddTransaction}
+        />
       )}
     </div>
   );
