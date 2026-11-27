@@ -121,7 +121,7 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
 
   const emailTomadorTag = tomador.email ? `\n      <email>${escapeXml(tomador.email)}</email>` : '';
 
-  const totTribTag = `\n    <totTrib>\n      <vTotTrib>\n        <vTotTribFed>0.00</vTotTribFed>\n        <vTotTribEst>0.00</vTotTribEst>\n        <vTotTribMun>0.00</vTotTribMun>\n      </vTotTrib>\n    </totTrib>`;
+  const totTribTag = `\n        <totTrib>\n          <vTotTrib>\n            <vTotTribFed>0.00</vTotTribFed>\n            <vTotTribEst>0.00</vTotTribEst>\n            <vTotTribMun>0.00</vTotTribMun>\n          </vTotTrib>\n        </totTrib>`;
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <DPS xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.00">
@@ -164,8 +164,8 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
         <tribMun>
           <tribISSQN>1</tribISSQN>
           <tpRetISSQN>${tpRetISSQN}</tpRetISSQN>
-        </tribMun>
-      </trib>${totTribTag}
+        </tribMun>${totTribTag}
+      </trib>
     </valores>
   </infDPS>
 </DPS>`;
