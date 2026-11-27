@@ -2950,27 +2950,12 @@ const handleSaveClient = async (e) => {
 
       setShowClientModal(false);
       setEditingClient(null);
-      showToast('Cliente salvo com sucesso na nuvem!');
-
-setCliForm({
-  name: cli.name,
-  document: cli.document || '',
-  registration: cli.registration || '',
-  segment: cli.segment || availableSegments[0],
-  address: cli.address || '',
-  city: cli.city || 'Rondonópolis — MT',
-  cep: cli.cep || '',
-  contactName: cli.contactName || cli.contactname || '',
-  phone: cli.phone || '',
-  email: cli.email || '',
-  mainProgram: cli.mainProgram || cli.mainprogram || 'Licenciamento Ambiental',
-  status: cli.status || availableStatuses[0],
-  observation: cli.observation || ''
-});
-
+      if (typeof showToast === 'function') {
+        showToast('Cliente salvo com sucesso na nuvem!');
+      }
     } catch (err) {
       console.error('Erro crítico ao salvar:', err);
-      alert('Erro ao processar o salvamento.');
+      alert('Erro ao processar o salvamento: ' + (err?.message || String(err)));
     }
   };
 
