@@ -6,6 +6,8 @@ import SstPainelAlertas from './modules/SstPainelAlertas';
 import SstEstruturaVidas from './modules/SstEstruturaVidas';
 import SstEngenhariaGro from './modules/SstEngenhariaGro';
 import SstMedicinaPcmso from './modules/SstMedicinaPcmso';
+import SstEpisNrs from './modules/SstEpisNrs';
+import SstEsocial from './modules/SstEsocial';
 
 export default function MartinsSegurancaTrabalho({
   supabase,
@@ -277,7 +279,30 @@ export default function MartinsSegurancaTrabalho({
         />
       )}
 
-      {!['hub', 'alertas', 'estrutura', 'engenharia', 'medicina'].includes(activeSubTab) && (
+      {activeSubTab === 'epis_nrs' && (
+        <SstEpisNrs
+          supabase={supabase}
+          selectedClientId={selectedClientId}
+          clients={clients}
+          sstData={sstData}
+          onReload={loadSstData}
+          showToast={showToast}
+          params={params}
+        />
+      )}
+
+      {activeSubTab === 'esocial' && (
+        <SstEsocial
+          supabase={supabase}
+          selectedClientId={selectedClientId}
+          clients={clients}
+          sstData={sstData}
+          onReload={loadSstData}
+          showToast={showToast}
+        />
+      )}
+
+      {!['hub', 'alertas', 'estrutura', 'engenharia', 'medicina', 'epis_nrs', 'esocial'].includes(activeSubTab) && (
         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-2">
           <div className="text-[11px] font-extrabold uppercase text-[#2D5A43]">
             Martins Segurança do Trabalho • {activeClient ? activeClient.name : 'Todas as Empresas'}
@@ -287,7 +312,7 @@ export default function MartinsSegurancaTrabalho({
             {subSection ? ` — ${subSection}` : ''}
           </h3>
           <p className="text-xs text-slate-500">
-            Pronto para o próximo bloco de implementação.
+            Pronto para o último bloco (CAT, CIPA, Faturamento no Caixa &amp; GED).
           </p>
         </div>
       )}
