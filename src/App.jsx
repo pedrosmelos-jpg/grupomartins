@@ -6883,12 +6883,18 @@ Emissão direta gratuita via Portal Nacional • Rondonópolis — MT (CNPJ 64.9
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={(e) => {
+              <form onSubmit={(e) => {
               e.preventDefault();
               if (!planoForm.codigo || !planoForm.nome) return;
               const targetListKey = planoForm.tipo;
               const list = planoContasData[targetListKey];
-              const newItem = { codigo: planoForm.codigo.trim(), nome: planoForm.nome.trim() };
+              const codigoLimpo = planoForm.codigo.trim();
+              const nomeLimpo = planoForm.nome.trim();
+              const descricaoSemCodigo = nomeLimpo.replace(/^\d+(\.\d+)*\s*[—–-]\s*/, '');
+              const newItem = {
+                codigo: codigoLimpo,
+                nome: `${codigoLimpo} — ${descricaoSemCodigo}`
+              };
 
               let updatedList;
               if (planoForm.originalCodigo) {
