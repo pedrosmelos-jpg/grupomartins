@@ -100,36 +100,6 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
   const regApTribSN = String(prestador.regApTribSN || '1');
   const tpRetISSQN = String(servico.issRetido ? '2' : '1');
 
-  const rawMunTomador = onlyDigits(tomador.codigoMunicipio || tomador.codigoIbge || '');
-  const rawCepTomador = onlyDigits(tomador.cep || '');
-  const exigirEndNac = tpRetISSQN === '2';
-
-  const cMunTomador =
-    rawMunTomador.length === 7 ? rawMunTomador : exigirEndNac ? cLocEmi : '';
-  const cepTomador =
-    rawCepTomador.length === 8 ? rawCepTomador : exigirEndNac ? '78700090' : '';
-
-  const hasEndNac = cMunTomador.length === 7 || cepTomador.length === 8;
-
-  const endNacInner = [
-    cMunTomador.length === 7 ? `<cMun>${cMunTomador}</cMun>` : '',
-    cepTomador.length === 8 ? `<CEP>${cepTomador}</CEP>` : ''
-  ]
-    .filter(Boolean)
-    .join('\n          ');
-
-  const xLgrVal = tomador.logradouro || (exigirEndNac ? 'Nao informado' : '');
-  const nroVal = tomador.numero ? String(tomador.numero) : exigirEndNac ? 'S/N' : '';
-  const xBairroVal = tomador.bairro || (exigirEndNac ? 'Centro' : '');
-
-  const endTomadorXml = hasEndNac
-    ? `\n      <end>\n        <endNac>\n          ${endNacInner}\n        </endNac>${
-        xLgrVal ? `\n        <xLgr>${escapeXml(xLgrVal)}</xLgr>` : ''
-      }${nroVal ? `\n        <nro>${escapeXml(nroVal)}</nro>` : ''}${
-        xBairroVal ? `\n        <xBairro>${escapeXml(xBairroVal)}</xBairro>` : ''
-      }\n      </end>`
-    : '';
-
   const cTribNac = padLeft(onlyDigits(servico.codigoServico || '170101'), 6).slice(-6);
   const vServNum = Number(servico.valor || 0);
   if (!(vServNum > 0)) {
@@ -151,7 +121,7 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
 
   const emailTomadorTag = tomador.email ? `\n      <email>${escapeXml(tomador.email)}</email>` : '';
 
-  const totTribTag = `\n      <totTrib>\n        <vTotTrib>\n          <vTotTribFed>0.00</vTotTribFed>\n          <vTotTribEst>0.00</vTotTribEst>\n          <vTotTribMun>0.00</vTotTribMun>\n        </vTotTrib>\n      </totTrib>`;
+  const totTribTag = `\n    <totTrib>\n      <vTotTrib>\n        <vTotTribFed>0.00</vTotTribFed>\n        <vTotTribEst>0.00</vTotTribEst>\n        <vTotTribMun>0.00</vTotTribMun>\n      </vTotTrib>\n    </totTrib>`;
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <DPS xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.00">
@@ -163,6 +133,7 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
     <nDPS>${nDpsNum}</nDPS>
     <dCompet>${dCompet}</dCompet>
     <tpEmit>1</tpEmit>
+    <finNFSe>0</finNFSe>
     <cLocEmi>${cLocEmi}</cLocEmi>
     <prest>
       <CNPJ>${cnpjPrest}</CNPJ>${imTag}
@@ -173,7 +144,7 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
     </prest>
     <toma>
       ${tomadorDocTag}
-      <xNome>${escapeXml(tomador.nome)}</xNome>${endTomadorXml}${emailTomadorTag}
+      <xNome>${escapeXml(tomador.nome)}</xNome>${emailTomadorTag}
     </toma>
     <serv>
       <locPrest>
@@ -192,8 +163,8 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
         <tribMun>
           <tribISSQN>1</tribISSQN>
           <tpRetISSQN>${tpRetISSQN}</tpRetISSQN>
-        </tribMun>${totTribTag}
-      </trib>
+        </tribMun>
+      </trib>${totTribTag}
     </valores>
   </infDPS>
 </DPS>`;
