@@ -1354,14 +1354,15 @@ const openOfficialDanfsePrint = async (nfseRecord, params = INITIAL_PARAMETERS) 
     let html = builder.build(data);
 
     const isCancelada = String(nfseRecord?.status || '').toLowerCase().includes('cancel');
-    const chave = nfseRecord?.chave_acesso || extractTagXml(xml, 'chNFSe') || '-';
-    const numNfse = nfseRecord?.numero || extractTagXml(xml, 'nNFSe') || extractTagXml(xml, 'nDPS') || '-';
 
     const extraStyles = `
       <style>
         @page {
           size: A4 portrait;
-          margin: 5mm;
+          margin: 0;
+        }
+        *, *::before, *::after {
+          box-sizing: border-box;
         }
         html, body {
           margin: 0 !important;
@@ -1370,260 +1371,73 @@ const openOfficialDanfsePrint = async (nfseRecord, params = INITIAL_PARAMETERS) 
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
         }
-        @media print {
-          html, body {
-            width: 100% !important;
-            max-width: 100% !important;
-          }
-          body > *:not(.gm-cancelada-watermark):not(script):not(style) {
-            width: 100% !important;
-            max-width: 100% !important;
-            margin-left: 0 !important;
-            margin-right: 0 !important;
-            box-shadow: none !important;
-          }
+        .folha {
+          position: relative !important;
+          width: 210mm !important;
+          height: 296mm !important;
+          min-height: 296mm !important;
+          max-height: 296mm !important;
+          margin: 0 auto !important;
+          padding: 6mm !important;
+          overflow: hidden !important;
         }
-        .gm-a4-flex {
+        .form-borda {
+          height: 100% !important;
+          margin-bottom: 0 !important;
+          padding: 1.5mm !important;
           display: flex !important;
           flex-direction: column !important;
-          min-height: 278mm !important;
-          height: 278mm !important;
-          box-sizing: border-box !important;
         }
-        .gm-info-expand {
-          flex: 1 1 auto !important;
-          display: flex !important;
-          flex-direction: column !important;
-          height: auto !important;
-          max-height: none !important;
-          min-height: 0 !important;
-        }
-        .gm-flex-fill {
-          flex: 1 1 auto !important;
-          height: auto !important;
-          max-height: none !important;
-          min-height: 0 !important;
-        }
-        .gm-canhoto-end {
+        .gm-canhoto-footer {
           margin-top: auto !important;
-          flex: 0 0 auto !important;
+          padding: 4pt 2pt 2pt 2pt !important;
+          width: 100% !important;
         }
-        .gm-table-fullpage {
-          height: 278mm !important;
-          min-height: 278mm !important;
+        table.canhoto-table td.canhoto-cell {
+          height: 10mm !important;
         }
-        .gm-table-expand {
-          flex: 1 1 auto !important;
-          height: 100% !important;
+        .marca {
+          overflow: hidden !important;
         }
-        .gm-tr-fit {
-          height: 1px !important;
-        }
-        .gm-tr-grow {
-          height: 100% !important;
-        }
-        .gm-tr-grow > td,
-        .gm-tr-grow > th {
-          height: 100% !important;
-          vertical-align: top !important;
-        }
-        .gm-cancelada-watermark {
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          pointer-events: none;
-          z-index: 9999;
-          overflow: hidden;
-        }
-        .gm-canhoto {
-          width: 100%;
-          border-collapse: collapse;
-          margin-top: 6px;
-          font-family: Arial, Helvetica, sans-serif;
-          table-layout: fixed;
-        }
-        .gm-canhoto td {
-          border: 1px solid #6b7280;
-          padding: 4px 6px;
-          vertical-align: top;
-          font-size: 7.5px;
-          color: #111827;
-        }
-        .gm-canhoto .lbl {
-          display: block;
-          font-size: 6.3px;
-          font-weight: 700;
-          text-transform: uppercase;
-          color: #4b5563;
-          margin-bottom: 2px;
-        }
-        .gm-canhoto .val {
-          display: block;
-          font-size: 7.8px;
-          font-weight: 700;
-          font-family: "Liberation Mono", "DejaVu Sans Mono", monospace;
-          word-break: break-all;
+        .marca.cancel span {
+          color: rgba(220, 38, 38, 0.24) !important;
+          font-weight: 900 !important;
+          font-size: 76pt !important;
+          letter-spacing: 6pt !important;
         }
       </style>
     `;
 
-    const canceladaOverlay = isCancelada
-      ? `
-        <div class="gm-cancelada-watermark">
-          <svg viewBox="0 0 600 848" preserveAspectRatio="xMidYMid meet" width="100%" height="100%">
-            <text
-              x="300"
-              y="424"
-              text-anchor="middle"
-              dominant-baseline="middle"
-              transform="rotate(-42 300 424)"
-              fill="#dc2626"
-              fill-opacity="0.22"
-              font-family="Arial, Helvetica, sans-serif"
-              font-size="92"
-              font-weight="900"
-              letter-spacing="8"
-            >CANCELADA</text>
-          </svg>
-        </div>
-      `
-      : '';
-
-    const hasCanhoto = html.includes('DATA CIENTIFICAÇÃO') || html.includes('IDENTIFICAÇÃO E ASSINATURA');
-    const canhotoHtml = hasCanhoto
-      ? ''
-      : `
-        <table class="gm-canhoto">
-          <tr>
-            <td style="width: 22%; height: 32px;">
-              <span class="lbl">DATA CIENTIFICAÇÃO:</span>
-            </td>
-            <td style="width: 38%;">
-              <span class="lbl">IDENTIFICAÇÃO E ASSINATURA</span>
-            </td>
-            <td style="width: 40%;">
-              <span class="lbl">N° NFS-e/ CHAVE NFS-e</span>
-              <span class="val">${escapeHtml(numNfse)}/${escapeHtml(chave)}</span>
-            </td>
-          </tr>
-        </table>
-      `;
-
     const layoutAndPrintScript = `
       <script>
         (function () {
-          function applyFullPageLayout() {
+          function adjustDanfse() {
             try {
-              var norm = function (s) {
-                return String(s || '')
-                  .normalize('NFD')
-                  .replace(/[\\u0300-\\u036f]/g, '')
-                  .toUpperCase();
-              };
-
-              var findDeepest = function (needle) {
-                var all = document.body.querySelectorAll('*');
-                var best = null;
-                for (var i = 0; i < all.length; i++) {
-                  var el = all[i];
-                  if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE') continue;
-                  if (el.closest('.gm-cancelada-watermark')) continue;
-                  if (norm(el.textContent).indexOf(needle) !== -1) {
-                    best = el;
-                  }
-                }
-                return best;
-              };
-
-              var infoEl = findDeepest('INFORMACOES COMPLEMENTARES');
-              var canhotoEl = findDeepest('DATA CIENTIFICACAO');
-              if (!infoEl || !canhotoEl) return;
-
-              var common = infoEl.parentElement;
-              while (common && !common.contains(canhotoEl)) {
-                common = common.parentElement;
-              }
-              if (!common) return;
-
-              var canhotoBlock = canhotoEl;
-              while (canhotoBlock.parentElement && canhotoBlock.parentElement !== common) {
-                canhotoBlock = canhotoBlock.parentElement;
+              var folha = document.querySelector('.folha');
+              if (folha && ${isCancelada ? 'true' : 'false'}) {
+                folha.classList.add('cancelada');
               }
 
-              var infoBlock = infoEl;
-              while (infoBlock.parentElement && infoBlock.parentElement !== common) {
-                infoBlock = infoBlock.parentElement;
-              }
-
-              if (common.tagName === 'TBODY' || common.tagName === 'TABLE') {
-                var tbl = common.tagName === 'TABLE' ? common : common.closest('table');
-                if (tbl) tbl.classList.add('gm-table-fullpage');
-
-                var growTr =
-                  canhotoBlock.previousElementSibling && canhotoBlock.previousElementSibling !== infoBlock
-                    ? canhotoBlock.previousElementSibling
-                    : infoBlock;
-
-                var rows = common.children;
-                for (var r = 0; r < rows.length; r++) {
-                  if (rows[r] === growTr) {
-                    rows[r].classList.add('gm-tr-grow');
-                  } else {
-                    rows[r].classList.add('gm-tr-fit');
-                  }
-                }
-              } else {
-                var cur = common;
-                while (cur && cur !== document.documentElement) {
-                  if (cur.tagName !== 'TABLE' && cur.tagName !== 'TBODY' && cur.tagName !== 'TR') {
-                    cur.classList.add('gm-a4-flex');
-                  }
-                  if (cur === document.body) break;
-                  cur = cur.parentElement;
-                }
-
-                canhotoBlock.classList.add('gm-canhoto-end');
-
-                var targetGrow = infoBlock;
-                if (
-                  canhotoBlock.previousElementSibling &&
-                  canhotoBlock.previousElementSibling !== infoBlock &&
-                  norm(infoBlock.textContent).trim().length < 60
-                ) {
-                  targetGrow = canhotoBlock.previousElementSibling;
-                }
-
-                if (targetGrow && targetGrow !== canhotoBlock) {
-                  if (targetGrow.tagName === 'TABLE') {
-                    targetGrow.classList.add('gm-table-expand');
-                    var lastTr = targetGrow.querySelector('tr:last-child');
-                    if (lastTr) lastTr.classList.add('gm-tr-grow');
-                  } else {
-                    targetGrow.classList.add('gm-info-expand');
-                    var kids = targetGrow.children;
-                    if (kids.length >= 1) {
-                      var lastKid = kids[kids.length - 1];
-                      if (lastKid.tagName === 'TABLE') {
-                        lastKid.classList.add('gm-table-expand');
-                        var lTr = lastKid.querySelector('tr:last-child');
-                        if (lTr) lTr.classList.add('gm-tr-grow');
-                      } else if (lastKid !== infoEl) {
-                        lastKid.classList.add('gm-flex-fill');
-                      }
-                    }
-                  }
+              var formBorda = document.querySelector('.form-borda');
+              var canhotoTable = document.querySelector('table.canhoto-table');
+              if (formBorda && canhotoTable && !document.querySelector('.gm-canhoto-footer')) {
+                var outerTr = canhotoTable.closest('table.danfse > tbody > tr') || canhotoTable.closest('tr');
+                var footer = document.createElement('div');
+                footer.className = 'gm-canhoto-footer';
+                footer.appendChild(canhotoTable);
+                formBorda.appendChild(footer);
+                if (outerTr && outerTr.parentElement) {
+                  outerTr.parentElement.removeChild(outerTr);
                 }
               }
             } catch (e) {
-              console.error('Erro ao ajustar layout A4 do DANFSe:', e);
+              console.error('Erro ao ajustar layout do DANFSe:', e);
             }
           }
 
-          applyFullPageLayout();
+          adjustDanfse();
           window.onload = function () {
-            applyFullPageLayout();
+            adjustDanfse();
             setTimeout(function () {
               window.print();
             }, 250);
@@ -1639,8 +1453,8 @@ const openOfficialDanfsePrint = async (nfseRecord, params = INITIAL_PARAMETERS) 
     }
 
     const finalHtml = html.includes('</body>')
-      ? html.replace('</body>', `${canhotoHtml}${canceladaOverlay}${layoutAndPrintScript}</body>`)
-      : `${html}${canhotoHtml}${canceladaOverlay}${layoutAndPrintScript}`;
+      ? html.replace('</body>', `${layoutAndPrintScript}</body>`)
+      : `${html}${layoutAndPrintScript}`;
 
     win.document.open();
     win.document.write(finalHtml);
