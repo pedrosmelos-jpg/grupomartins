@@ -2951,11 +2951,7 @@ const handleSaveClient = async (e) => {
       setShowClientModal(false);
       setEditingClient(null);
       showToast('Cliente salvo com sucesso na nuvem!');
-    } catch (err) {
-      console.error('Erro crítico ao salvar:', err);
-      alert('Erro ao processar o salvamento: ' + (err?.message || 'erro desconhecido'));
-    }
-  };
+
 setCliForm({
   name: cli.name,
   document: cli.document || '',
