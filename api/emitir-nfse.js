@@ -151,7 +151,7 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
 
   const emailTomadorTag = tomador.email ? `\n      <email>${escapeXml(tomador.email)}</email>` : '';
 
-  const totTribTag = `\n      <totTrib>\n        <pTotTrib>\n          <pTotTribFed>0.00</pTotTribFed>\n          <pTotTribEst>0.00</pTotTribEst>\n          <pTotTribMun>0.00</pTotTribMun>\n        </pTotTrib>\n      </totTrib>`;
+  const totTribTag = `\n      <totTrib>\n        <vTotTrib>\n          <vTotTribFed>0.00</vTotTribFed>\n          <vTotTribEst>0.00</vTotTribEst>\n          <vTotTribMun>0.00</vTotTribMun>\n        </vTotTrib>\n      </totTrib>`;
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <DPS xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.00">
@@ -343,7 +343,8 @@ export default async function handler(req, res) {
 
     return res.status(422).json({
       error: `Retorno da SEFIN Nacional (${response.statusCode}): ${errDetail}`,
-      ...(ambiente !== 'producao' ? { xmlGerado: signedXmlDebug, sefinRaw: response.raw } : {})
+      sefinRaw: response.raw,
+      ...(ambiente !== 'producao' ? { xmlGerado: signedXmlDebug } : {})
     });
   } catch (err) {
     console.error('Erro emitir-nfse:', err);
