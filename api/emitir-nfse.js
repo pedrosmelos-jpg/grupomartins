@@ -118,10 +118,9 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
     .filter(Boolean)
     .join('\n          ');
 
-  const xLgrVal =
-    String(tomador.logradouro || '').trim() || (exigirEndNac ? 'Nao informado' : '');
+  const xLgrVal = tomador.logradouro || (exigirEndNac ? 'Nao informado' : '');
   const nroVal = tomador.numero ? String(tomador.numero) : exigirEndNac ? 'S/N' : '';
-  const xBairroVal = tomador.bairro ? String(tomador.bairro) : exigirEndNac ? 'Centro' : '';
+  const xBairroVal = tomador.bairro || (exigirEndNac ? 'Centro' : '');
 
   const endTomadorXml = hasEndNac
     ? `\n      <end>\n        <endNac>\n          ${endNacInner}\n        </endNac>${
@@ -152,7 +151,7 @@ function buildDpsXml({ ambiente, prestador, tomador, servico, numeroDps, serieDp
 
   const emailTomadorTag = tomador.email ? `\n      <email>${escapeXml(tomador.email)}</email>` : '';
 
-const totTribTag = `\n    <totTrib>\n      <vTotTrib>\n        <vTotTribFed>0.00</vTotTribFed>\n        <vTotTribEst>0.00</vTotTribEst>\n        <vTotTribMun>0.00</vTotTribMun>\n      </vTotTrib>\n    </totTrib>`;
+  const totTribTag = `\n      <totTrib>\n        <vTotTrib>\n          <vTotTribFed>0.00</vTotTribFed>\n          <vTotTribEst>0.00</vTotTribEst>\n          <vTotTribMun>0.00</vTotTribMun>\n        </vTotTrib>\n      </totTrib>`;
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <DPS xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.00">
@@ -164,7 +163,6 @@ const totTribTag = `\n    <totTrib>\n      <vTotTrib>\n        <vTotTribFed>0.00
     <nDPS>${nDpsNum}</nDPS>
     <dCompet>${dCompet}</dCompet>
     <tpEmit>1</tpEmit>
-    <finNFSe>0</finNFSe>
     <cLocEmi>${cLocEmi}</cLocEmi>
     <prest>
       <CNPJ>${cnpjPrest}</CNPJ>${imTag}
@@ -194,12 +192,12 @@ const totTribTag = `\n    <totTrib>\n      <vTotTrib>\n        <vTotTribFed>0.00
         <tribMun>
           <tribISSQN>1</tribISSQN>
           <tpRetISSQN>${tpRetISSQN}</tpRetISSQN>
-        </tribMun>
-      </trib>${totTribTag}
+        </tribMun>${totTribTag}
+      </trib>
     </valores>
   </infDPS>
 </DPS>`;
-  
+
   return { xml, infDpsId };
 }
 
