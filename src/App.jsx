@@ -3266,6 +3266,25 @@ export default function App() {
     showToast('Registro de NFS-e excluído!');
     setDeleteNfseTarget(null);
   };
+
+  // ▼▼▼ NOVO: marcar NFS-e como Cancelada ▼▼▼
+  const handleCancelarNfse = async (record) => {
+    if (!window.confirm(`Marcar a NFS-e ${record.numero || record.id} (${record.cliente_nome}) como Cancelada no sistema?`)) {
+      return;
+    }
+    const updated = { ...record, status: 'Cancelada' };
+    setNfseList((prev) => prev.map((n) => (n.id === record.id ? updated : n)));
+    if (supabase) {
+      const { error } = await supabase.from('nfse').upsert([updated]);
+      if (error) {
+        alert('Erro ao atualizar status na nuvem: ' + error.message);
+        return;
+      }
+    }
+    showToast(`NFS-e ${record.numero || record.id} marcada como Cancelada!`);
+  };
+  // ▲▲▲ FIM ▲▲▲
+
   const handleImportNfseXml = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
@@ -3606,8 +3625,7 @@ export default function App() {
       params
     });
   };
-
-  const filteredTransactions = useMemo(() => {
+ const filteredTransactions = useMemo(() => {
     let list = transactions.filter(t => {
       const matchSearch = (t.entity || '').toLowerCase().includes(txSearch.toLowerCase()) ||
                           (t.description || '').toLowerCase().includes(txSearch.toLowerCase()) ||
@@ -4682,8 +4700,7 @@ export default function App() {
                   </div>
                 </div>
               )}
-
-              {activeTab === 'lancamentos' && (
+{activeTab === 'lancamentos' && (
                 <div className="space-y-5">
                   <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -6193,6 +6210,18 @@ Emissão direta gratuita via Portal Nacional • Rondonópolis — MT (CNPJ 64.9
                                         <Edit3 className="w-4 h-4 inline" />
                                       </button>
                                     )}
+                                    {/* ▼▼▼ NOVO: botão Cancelar ▼▼▼ */}
+                                    {n.status !== 'Cancelada' && (hasPermission('nfse', 'edit') || hasPermission('nfse', 'approve')) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleCancelarNfse(n)}
+                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-100 text-amber-800 font-bold text-[10px] hover:bg-amber-200 cursor-pointer"
+                                        title="Marcar NFS-e como Cancelada"
+                                      >
+                                        Cancelar
+                                      </button>
+                                    )}
+                                    {/* ▲▲▲ FIM ▲▲▲ */}
                                     {hasPermission('nfse', 'delete') && (
                                       <button
                                         onClick={() => setDeleteNfseTarget(n)}
@@ -6529,7 +6558,6 @@ Emissão direta gratuita via Portal Nacional • Rondonópolis — MT (CNPJ 64.9
           )}
         </main>
       </div>
-
       {/* ========================================================================== */}
       {/* TODOS OS MODAIS DO SISTEMA UNIFICADOS E ATIVOS                             */}
       {/* ========================================================================== */}
