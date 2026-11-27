@@ -57,6 +57,8 @@ import {
 } from 'recharts';
 
 import { createClient } from '@supabase/supabase-js';
+import { ShieldCheck } from 'lucide-react'; 
+import MartinsSegurancaTrabalho from './martins-sst';
 
 // Inicialização Supabase direta
 const supabaseUrl = "https://fhmgpgqqhcbxuqmpjrlh.supabase.co";
@@ -348,6 +350,7 @@ const DEFAULT_PERMISSIONS = {
   condicionantes: { view: true, create: true, edit: true, delete: true, approve: false },
   pendencias: { view: true, create: true, edit: true, delete: true, approve: false },
   nfse: { view: true, create: true, edit: true, delete: true, approve: true },
+  sst: { view: true, create: true, edit: true, delete: true, approve: true },
   acessos: { view: false, create: false, edit: false, delete: false, approve: false },
   layout: { reorderTabs: false, reorderColumns: false }
 };
@@ -389,6 +392,7 @@ const INITIAL_ACCESS_ROLES = [
       condicionantes: { view: true, create: true, edit: true, delete: true, approve: true },
       pendencias: { view: true, create: true, edit: true, delete: true, approve: true },
       nfse: { view: true, create: true, edit: true, delete: true, approve: true },
+      sst: { view: true, create: true, edit: true, delete: true, approve: true },
       acessos: { view: true, create: true, edit: true, delete: true, approve: true },
       layout: { reorderTabs: true, reorderColumns: true }
     }
@@ -2584,6 +2588,7 @@ const [ctForm, setCtForm] = useState({
     { id: 'condicionantes', label: 'Controle de Condicionantes', icon: Leaf, badge: condicionantes.length, permKey: 'condicionantes' },
     { id: 'pendencias', label: 'Controle de Pendências', icon: AlertTriangle, badge: pendencias.length, permKey: 'pendencias' },
     { id: 'nfse', label: 'Notas Fiscais (NFS-e)', icon: Receipt, badge: nfseList.length, permKey: 'nfse' },
+    { id: 'sst', label: 'Segurança do Trabalho', icon: ShieldCheck, badge: 'SOC', permKey: 'sst' },
     { id: 'acessos', label: 'Árvore de Acessos & Perfis', icon: Network, badge: `${accessRoles.length} Nível`, permKey: 'acessos' },
     { id: 'config', label: 'Plano de Contas & Metas', icon: Settings, permKey: 'dashboard' }
   ], [transactions.length, contracts.length, clients.length, prospeccoes.length, condicionantes.length, pendencias.length, nfseList.length, accessRoles.length]);
@@ -6544,6 +6549,16 @@ Emissão direta gratuita via Portal Nacional • Rondonópolis — MT (CNPJ 64.9
                   </div>
                 );
               })()}
+              {activeTab === 'sst' && (
+  <MartinsSegurancaTrabalho
+    supabase={supabase}
+    clients={clients}
+    params={params}
+    transactions={transactions}
+    onAddTransaction={(tx) => setTransactions((prev) => [...prev, tx])}
+    showToast={showToast}
+  />
+)}
 
               {activeTab === 'acessos' && (
                 <div className="space-y-6">
