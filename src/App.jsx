@@ -367,6 +367,7 @@ const DEFAULT_TAB_ORDER = [
   'condicionantes',
   'pendencias',
   'nfse',
+  'sst',
   'acessos',
   'config'
 ];
@@ -481,7 +482,7 @@ const exportTableToPDF = ({ title, subtitle = '', headers = [], rows = [], orien
       size: A4 ${orientation};
       margin: 26mm 14mm 18mm 14mm;
     }
-- { box-sizing: border-box; }
+* { box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
       color: #1e293b;
@@ -973,7 +974,7 @@ const isCancelada = String(nfseRecord?.status || '').toLowerCase().includes('can
   <title>DANFSe - NFS-e ${escapeHtml(numNfse)}</title>
   <style>
     @page { size: A4 portrait; margin: 5mm; }
-    * { box-sizing: border-box; }
+   * { box-sizing: border-box; }
     @media print {
       html, body, .page {
         width: 100% !important;
