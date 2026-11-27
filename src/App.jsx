@@ -1669,12 +1669,16 @@ export default function App() {
       checkSefazStatus();
     }
   }, [activeTab, sefazStatus.checkedAt, sefazStatus.loading, checkSefazStatus]);
-  const [nfseForm, setNfseForm] = useState({
+const [nfseForm, setNfseForm] = useState({
     ambiente: 'homologacao',
     data_emissao: new Date().toISOString().split('T')[0],
     cliente_nome: '',
     cliente_documento: '',
     cliente_email: '',
+    cliente_telefone: '',
+    cliente_endereco: '',
+    cliente_cidade: 'Rondonópolis — MT',
+    cliente_cep: '',
     codigo_servico: '17.01.01',
     codigo_nbs: '1.1806.40.00',
     regime_tributario: '3',
@@ -1752,12 +1756,14 @@ export default function App() {
     observation: ''
   });
 
-  const [cliForm, setCliForm] = useState({
+ const [cliForm, setCliForm] = useState({
     name: '',
     document: '',
     registration: '',
     segment: INITIAL_SEGMENTS[0],
+    address: '',
     city: 'Rondonópolis — MT',
+    cep: '',
     contactName: '',
     phone: '',
     email: '',
@@ -1989,16 +1995,27 @@ export default function App() {
       const uf = data.uf || data.estabelecimento?.estado?.sigla;
       const telefone = data.ddd_telefone_1 || data.estabelecimento?.telefone1;
       const emailCorretor = data.email || data.estabelecimento?.email;
+const logradouro = data.logradouro || data.estabelecimento?.logradouro || '';
+      const numero = data.numero || data.estabelecimento?.numero || '';
+      const bairro = data.bairro || data.estabelecimento?.bairro || '';
+      const cepRaw = String(data.cep || data.estabelecimento?.cep || '').replace(/\D/g, '');
+      const enderecoMontado = [
+        [logradouro, numero].filter(Boolean).join(', '),
+        bairro
+      ]
+        .filter(Boolean)
+        .join(' — ');
 
       setCliForm(prev => ({
         ...prev,
         name: razaoSocial || prev.name,
         document: cnpjValue,
+        address: enderecoMontado || prev.address,
+        cep: cepRaw || prev.cep,
         city: municipio && uf ? `${municipio} — ${uf}` : prev.city,
         phone: telefone ? String(telefone) : prev.phone,
         email: emailCorretor || prev.email
       }));
-
       showToast('Dados preenchidos com sucesso!');
     } catch (err) {
       console.error(err);
@@ -2899,13 +2916,15 @@ export default function App() {
 
     try {
       const clientId = editingClient ? editingClient.id : generateUniqueId('CLI');
-      const clientData = {
+ const clientData = {
         id: clientId,
         name: cliForm.name,
         document: cliForm.document || '',
         registration: cliForm.registration || '',
         segment: cliForm.segment,
+        address: cliForm.address || '',
         city: cliForm.city,
+        cep: cliForm.cep || '',
         contactname: cliForm.contactName || cliForm.contactname || '',
         phone: cliForm.phone || '',
         email: cliForm.email || '',
@@ -3178,10 +3197,20 @@ export default function App() {
       opSimpNac: extra.opSimpNac || '3',
       regApTribSN: '1'
     };
+const matchedClient = clients.find(
+      (c) =>
+        (c.name && c.name.trim().toLowerCase() === String(record.cliente_nome || '').trim().toLowerCase()) ||
+        (c.document && c.document.replace(/\D/g, '') && c.document.replace(/\D/g, '') === String(record.cliente_documento || '').replace(/\D/g, ''))
+    );
+
     const tomadorPayload = {
-      nome: record.cliente_nome,
-      documento: record.cliente_documento,
-      email: record.cliente_email
+      nome: record.cliente_nome || matchedClient?.name || '',
+      documento: record.cliente_documento || matchedClient?.document || '',
+      email: record.cliente_email || matchedClient?.email || '',
+      telefone: record.cliente_telefone || matchedClient?.phone || '',
+      logradouro: record.cliente_endereco || matchedClient?.address || '',
+      cidade: record.cliente_cidade || matchedClient?.city || '',
+      cep: record.cliente_cep || matchedClient?.cep || ''
     };
     const servicoPayload = {
       codigoServico: record.codigo_servico || '17.01.01',
@@ -7232,7 +7261,29 @@ Emissão direta gratuita via Portal Nacional • Rondonópolis — MT (CNPJ 64.9
                   required
                 />
               </div>
-
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block font-bold text-slate-700 uppercase mb-1">ENDEREÇO (LOGRADOURO, Nº, BAIRRO)</label>
+                  <input
+                    type="text"
+                    value={cliForm.address || ''}
+                    onChange={(e) => setCliForm({ ...cliForm, address: e.target.value })}
+                    placeholder="Ex: Av. Cuiabá, 829 — Centro"
+                    className="w-full px-3.5 py-2.5 rounded-xl border"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">CEP</label>
+                  <input
+                    type="text"
+                    value={cliForm.cep || ''}
+                    onChange={(e) => setCliForm({ ...cliForm, cep: e.target.value })}
+                    placeholder="78700-090"
+                    className="w-full px-3.5 py-2.5 rounded-xl border font-mono"
+                  />
+                </div>
+              </div>
+              
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -8058,7 +8109,7 @@ Emissão direta gratuita via Portal Nacional • Rondonópolis — MT (CNPJ 64.9
 
               <div>
                 <label className="block font-bold text-slate-700 uppercase mb-1">CLIENTE / TOMADOR (SELECIONE DO CRM OU DIGITE)</label>
-                <input
+<input
                   type="text"
                   list="client-list-nfse"
                   value={nfseForm.cliente_nome}
@@ -8069,7 +8120,11 @@ Emissão direta gratuita via Portal Nacional • Rondonópolis — MT (CNPJ 64.9
                       ...prev,
                       cliente_nome: val,
                       cliente_documento: found?.document || prev.cliente_documento,
-                      cliente_email: found?.email || prev.cliente_email
+                      cliente_email: found?.email || prev.cliente_email,
+                      cliente_telefone: found?.phone || prev.cliente_telefone,
+                      cliente_endereco: found?.address || prev.cliente_endereco,
+                      cliente_cidade: found?.city || prev.cliente_cidade,
+                      cliente_cep: found?.cep || prev.cliente_cep
                     }));
                   }}
                   placeholder="Razão social ou nome do cliente..."
